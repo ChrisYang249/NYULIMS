@@ -177,7 +177,7 @@ def create_project(
     if project.sales_rep_id:
         sales_rep = db.query(Employee).filter(Employee.id == project.sales_rep_id).first()
         if sales_rep:
-            log_details.append(f"Assigned User: {sales_rep.name}")
+            log_details.append(f"Sales Rep: {sales_rep.name}")
     if project.project_value:
         log_details.append(f"Value: ${project.project_value:,.2f}")
     
@@ -285,7 +285,7 @@ def update_project(
         "expected_sample_count": "Expected Sample Count",
         "project_value": "Project Value",
         "notes": "Notes",
-        "sales_rep_id": "Assigned User"
+        "sales_rep_id": "Sales Rep"
     }
     
     update_data = project_in.dict(exclude_unset=True)

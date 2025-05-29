@@ -276,7 +276,7 @@ const ProjectDetails = () => {
                 {project.status.replace('_', ' ').toUpperCase()}
               </Tag>
             </Descriptions.Item>
-            <Descriptions.Item label="Assigned User">
+            <Descriptions.Item label="Sales Rep">
               {project.sales_rep ? `${project.sales_rep.name} (${project.sales_rep.title})` : 'Not assigned'}
             </Descriptions.Item>
             <Descriptions.Item label="Expected Samples">{project.expected_sample_count}</Descriptions.Item>
@@ -549,10 +549,10 @@ const ProjectDetails = () => {
 
           <Form.Item
             name="sales_rep_id"
-            label="Assigned User"
+            label="Sales Rep"
           >
             <Select 
-              placeholder="Select user to assign"
+              placeholder="Select sales representative"
               allowClear
               showSearch
               filterOption={(input, option) => {

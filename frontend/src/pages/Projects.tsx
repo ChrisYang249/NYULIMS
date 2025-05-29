@@ -264,7 +264,7 @@ const Projects = () => {
       },
     },
     {
-      title: 'Assigned User',
+      title: 'Sales Rep',
       key: 'sales_rep',
       render: (_, record: any) => (
         <span>{record.sales_rep?.name || '-'}</span>
@@ -457,7 +457,7 @@ const Projects = () => {
         <Row style={{ marginTop: 16 }} gutter={16}>
           <Col span={10}>
             <Input
-              placeholder="Search projects, clients, or assigned users..."
+              placeholder="Search projects, clients, or sales reps..."
               prefix={<SearchOutlined />}
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
@@ -641,10 +641,10 @@ const Projects = () => {
 
           <Form.Item
             name="sales_rep_id"
-            label="Assigned User (Optional)"
+            label="Sales Rep (Optional)"
           >
             <Select 
-              placeholder="Select user to assign"
+              placeholder="Select sales representative"
               allowClear
               showSearch
               filterOption={(input, option) => {
