@@ -37,7 +37,8 @@ class SampleCreate(SampleBase):
 class SampleBulkCreate(BaseModel):
     count: int  # Number of samples to create
     project_id: int
-    sample_type: SampleType
+    sample_type: Optional[SampleType] = None  # For backward compatibility
+    sample_type_id: Optional[int] = None  # New field
     samples: List[dict]  # List of sample-specific data
     
 class SampleUpdate(BaseModel):
