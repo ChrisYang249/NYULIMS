@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Descriptions, Tabs, Button, Input, List, message, Spin, Tag, Space, Modal, Form, Select, DatePicker, InputNumber, Upload, Table, Popconfirm } from 'antd';
-import { ArrowLeftOutlined, EditOutlined, CommentOutlined, UploadOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, EditOutlined, CommentOutlined, UploadOutlined, DownloadOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
 import { api } from '../config/api';
 import { useAuthStore } from '../store/authStore';
 import dayjs from 'dayjs';
@@ -40,6 +40,13 @@ interface ProjectLog {
   log_type: string;
   created_at: string;
   created_by_id?: number;
+  created_by?: {
+    id: number;
+    username: string;
+    full_name: string;
+    email: string;
+    role: string;
+  };
 }
 
 const ProjectDetails = () => {
@@ -306,71 +313,18 @@ const ProjectDetails = () => {
     {
       key: '3',
       label: 'Comments',
-      children: (
-        <Card>
-          <div style={{ marginBottom: 16 }}>
-            <Input.TextArea
-              rows={3}
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="Add a comment..."
-              style={{ marginBottom: 8 }}
-            />
-            <Button
-              type="primary"
-              icon={<CommentOutlined />}
-              onClick={handleAddComment}
-              loading={submitting}
-              disabled={!comment.trim()}
-            >
-              Add Comment
-            </Button>
-          </div>
-          
-          <List
-            dataSource={logs.filter(log => log.log_type === 'comment')}
-            renderItem={(log) => (
-              <List.Item>
-                <List.Item.Meta
-                  title={
-                    <Space>
-                      <span>{log.comment}</span>
-                      <Tag size="small">{log.log_type}</Tag>
-                    </Space>
-                  }
-                  description={dayjs(log.created_at).format('YYYY-MM-DD HH:mm:ss')}
-                />
-              </List.Item>
-            )}
-            locale={{ emptyText: 'No logs yet' }}
-          />
-        </Card>
-      ),
+      children: <CommentsTab 
+        logs={logs.filter(log => log.log_type === 'comment')} 
+        comment={comment}
+        setComment={setComment}
+        handleAddComment={handleAddComment}
+        submitting={submitting}
+      />,
     },
     {
       key: '4',
       label: 'Activity Log',
-      children: (
-        <Card>
-          <List
-            dataSource={logs.filter(log => log.log_type !== 'comment')}
-            renderItem={(log) => (
-              <List.Item>
-                <List.Item.Meta
-                  title={
-                    <Space>
-                      <span>{log.comment}</span>
-                      <Tag size="small" color="blue">{log.log_type}</Tag>
-                    </Space>
-                  }
-                  description={dayjs(log.created_at).format('YYYY-MM-DD HH:mm:ss')}
-                />
-              </List.Item>
-            )}
-            locale={{ emptyText: 'No activity logs yet' }}
-          />
-        </Card>
-      ),
+      children: <ActivityLogTab logs={logs.filter(log => log.log_type !== 'comment')} />,
     },
     {
       key: '5',
@@ -689,6 +643,228 @@ const ProjectDetails = () => {
         </Form>
       </Modal>
     </div>
+  );
+};
+
+const ActivityLogTab = ({ logs }: { logs: ProjectLog[] }) => {
+  const [searchText, setSearchText] = useState('');
+  const [filteredLogs, setFilteredLogs] = useState(logs);
+  const [logTypeFilter, setLogTypeFilter] = useState<string[]>([]);
+
+  useEffect(() => {
+    setFilteredLogs(logs);
+  }, [logs]);
+
+  useEffect(() => {
+    let filtered = [...logs];
+    
+    if (searchText) {
+      filtered = filtered.filter((log) => {
+        const searchLower = searchText.toLowerCase();
+        return (
+          log.comment.toLowerCase().includes(searchLower) ||
+          (log.created_by?.full_name || '').toLowerCase().includes(searchLower) ||
+          (log.created_by?.email || '').toLowerCase().includes(searchLower) ||
+          log.log_type.toLowerCase().includes(searchLower)
+        );
+      });
+    }
+    
+    setFilteredLogs(filtered);
+  }, [logs, searchText]);
+
+  const columns = [
+    {
+      title: 'Date/Time',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      width: 180,
+      sorter: (a: ProjectLog, b: ProjectLog) => 
+        dayjs(a.created_at).unix() - dayjs(b.created_at).unix(),
+      render: (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm:ss'),
+    },
+    {
+      title: 'Action',
+      dataIndex: 'comment',
+      key: 'comment',
+      render: (text: string) => text,
+    },
+    {
+      title: 'Type',
+      dataIndex: 'log_type',
+      key: 'log_type',
+      width: 150,
+      filters: [
+        { text: 'Creation', value: 'creation' },
+        { text: 'Update', value: 'update' },
+        { text: 'Deletion', value: 'deletion' },
+        { text: 'Status Change', value: 'status_change' },
+        { text: 'Attachment Upload', value: 'attachment_upload' },
+        { text: 'Attachment Delete', value: 'attachment_delete' },
+      ],
+      filteredValue: logTypeFilter,
+      onFilter: (value: any, record: ProjectLog) => record.log_type === value,
+      render: (type: string) => {
+        const typeColors: Record<string, string> = {
+          creation: 'green',
+          update: 'blue',
+          deletion: 'red',
+          status_change: 'orange',
+          attachment_upload: 'cyan',
+          attachment_delete: 'magenta',
+        };
+        return (
+          <Tag color={typeColors[type] || 'default'}>
+            {type.replace('_', ' ').toUpperCase()}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: 'User',
+      key: 'user',
+      width: 200,
+      render: (_, record: ProjectLog) => (
+        <Space direction="vertical" size={0}>
+          <span>{record.created_by?.full_name || 'System'}</span>
+          {record.created_by && (
+            <span style={{ fontSize: '12px', color: '#666' }}>
+              {record.created_by.email}
+            </span>
+          )}
+        </Space>
+      ),
+    },
+    {
+      title: 'Role',
+      key: 'role',
+      width: 120,
+      render: (_, record: ProjectLog) => {
+        if (!record.created_by) return '-';
+        const roleColors: Record<string, string> = {
+          super_admin: 'red',
+          admin: 'orange',
+          pm: 'blue',
+          director: 'purple',
+          user: 'default',
+        };
+        return (
+          <Tag color={roleColors[record.created_by.role] || 'default'}>
+            {record.created_by.role.replace('_', ' ').toUpperCase()}
+          </Tag>
+        );
+      },
+    },
+  ];
+
+  return (
+    <Card>
+      <div style={{ marginBottom: 16 }}>
+        <Input
+          placeholder="Search logs by action, user, email, or type..."
+          prefix={<SearchOutlined />}
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          style={{ width: 300 }}
+          allowClear
+        />
+      </div>
+      
+      <Table
+        dataSource={filteredLogs}
+        columns={columns}
+        rowKey="id"
+        pagination={{
+          showSizeChanger: true,
+          showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} logs`,
+        }}
+        onChange={(pagination, filters) => {
+          setLogTypeFilter(filters.log_type as string[] || []);
+        }}
+        locale={{ emptyText: 'No activity logs yet' }}
+      />
+    </Card>
+  );
+};
+
+const CommentsTab = ({ 
+  logs, 
+  comment, 
+  setComment, 
+  handleAddComment, 
+  submitting 
+}: { 
+  logs: ProjectLog[];
+  comment: string;
+  setComment: (value: string) => void;
+  handleAddComment: () => void;
+  submitting: boolean;
+}) => {
+  const columns = [
+    {
+      title: 'Date/Time',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      width: 180,
+      sorter: (a: ProjectLog, b: ProjectLog) => 
+        dayjs(a.created_at).unix() - dayjs(b.created_at).unix(),
+      render: (date: string) => dayjs(date).format('YYYY-MM-DD HH:mm:ss'),
+    },
+    {
+      title: 'Comment',
+      dataIndex: 'comment',
+      key: 'comment',
+      render: (text: string) => text,
+    },
+    {
+      title: 'User',
+      key: 'user',
+      width: 250,
+      render: (_, record: ProjectLog) => (
+        <Space>
+          <span>{record.created_by?.full_name || 'Unknown User'}</span>
+          {record.created_by && (
+            <Tag color={record.created_by.role === 'super_admin' ? 'red' : 'blue'}>
+              {record.created_by.role.replace('_', ' ').toUpperCase()}
+            </Tag>
+          )}
+        </Space>
+      ),
+    },
+  ];
+
+  return (
+    <Card>
+      <div style={{ marginBottom: 16 }}>
+        <Input.TextArea
+          rows={3}
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder="Add a comment..."
+          style={{ marginBottom: 8 }}
+        />
+        <Button
+          type="primary"
+          icon={<CommentOutlined />}
+          onClick={handleAddComment}
+          loading={submitting}
+          disabled={!comment.trim()}
+        >
+          Add Comment
+        </Button>
+      </div>
+      
+      <Table
+        dataSource={logs}
+        columns={columns}
+        rowKey="id"
+        pagination={{
+          showSizeChanger: true,
+          showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} comments`,
+        }}
+        locale={{ emptyText: 'No comments yet' }}
+      />
+    </Card>
   );
 };
 

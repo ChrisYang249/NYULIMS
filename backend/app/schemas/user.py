@@ -23,3 +23,13 @@ class User(UserBase):
     
     class Config:
         from_attributes = True
+
+class UserBasic(BaseModel):
+    id: int
+    username: str
+    full_name: str
+    email: str
+    role: str
+    
+    class Config:
+        from_attributes = True

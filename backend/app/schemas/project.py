@@ -4,6 +4,7 @@ from datetime import datetime
 from app.models.project import ProjectStatus, ProjectType, TAT
 from app.schemas.employee import Employee
 from app.schemas.attachment import ProjectAttachment
+from app.schemas.user import UserBasic
 
 class ClientBase(BaseModel):
     name: str
@@ -74,6 +75,7 @@ class ProjectLog(ProjectLogBase):
     project_id: int
     created_at: datetime
     created_by_id: Optional[int] = None
+    created_by: Optional[UserBasic] = None
     
     class Config:
         from_attributes = True

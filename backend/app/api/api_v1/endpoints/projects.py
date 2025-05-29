@@ -203,7 +203,9 @@ def read_project_logs(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     
-    logs = db.query(ProjectLog).filter(
+    logs = db.query(ProjectLog).options(
+        joinedload(ProjectLog.created_by)
+    ).filter(
         ProjectLog.project_id == project_id
     ).order_by(ProjectLog.created_at.desc()).all()
     
