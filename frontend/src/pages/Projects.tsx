@@ -363,10 +363,12 @@ const Projects = () => {
               placeholder="Select sales representative"
               allowClear
               showSearch
-              optionFilterProp="children"
-              filterOption={(input, option) =>
-                (option?.children as string).toLowerCase().includes(input.toLowerCase())
-              }
+              filterOption={(input, option) => {
+                const employee = employees.find(e => e.id === option?.value);
+                if (!employee) return false;
+                const searchText = `${employee.name} ${employee.title}`.toLowerCase();
+                return searchText.includes(input.toLowerCase());
+              }}
             >
               {employees.map(employee => (
                 <Select.Option key={employee.id} value={employee.id}>
