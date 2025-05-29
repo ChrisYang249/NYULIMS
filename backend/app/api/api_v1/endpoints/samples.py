@@ -18,6 +18,7 @@ from app.schemas.sample import (
     SampleUpdate,
     SampleBulkCreate,
     SampleAccession,
+    SampleFailure,
     SampleWithLabData,
     StorageLocation as StorageLocationSchema,
     StorageLocationCreate,
@@ -550,3 +551,182 @@ def create_sample_comment(
             "username": current_user.username
         }
     }
+
+@router.post("/{sample_id}/fail", response_model=SampleSchema)
+def fail_sample(
+    sample_id: int,
+    failure_in: SampleFailure,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """Mark a sample as failed and optionally create a reprocess sample"""
+    sample = db.query(Sample).filter(Sample.id == sample_id).first()
+    if not sample:
+        raise HTTPException(status_code=404, detail="Sample not found")
+    
+    # Update the original sample
+    old_status = sample.status
+    sample.status = SampleStatus.FAILED
+    sample.failed_stage = failure_in.failed_stage
+    sample.failure_reason = failure_in.failure_reason
+    
+    # Log the failure
+    create_sample_log(
+        db=db,
+        sample_id=sample.id,
+        comment=f"Sample failed at {failure_in.failed_stage}: {failure_in.failure_reason}",
+        log_type="status_change",
+        old_value=str(old_status),
+        new_value=str(SampleStatus.FAILED),
+        user_id=current_user.id
+    )
+    
+    # Create reprocess sample if requested
+    if failure_in.create_reprocess:
+        # Determine suffix based on stage and count
+        stage_map = {
+            "extraction": "E",
+            "library_prep": "P",
+            "sequencing": "S"
+        }
+        
+        # Count existing reprocess samples
+        reprocess_count = db.query(Sample).filter(
+            Sample.parent_sample_id == sample.id,
+            Sample.barcode.like(f"{sample.barcode}-{stage_map.get(failure_in.failed_stage, 'R')}%")
+        ).count()
+        
+        new_barcode = f"{sample.barcode}-{stage_map.get(failure_in.failed_stage, 'R')}{reprocess_count + 2}"
+        
+        # Create new sample with same properties
+        reprocess_sample = Sample(
+            barcode=new_barcode,
+            client_sample_id=sample.client_sample_id,
+            project_id=sample.project_id,
+            sample_type=sample.sample_type,
+            parent_sample_id=sample.id,
+            reprocess_type=failure_in.failed_stage,
+            reprocess_reason=failure_in.failure_reason,
+            reprocess_count=reprocess_count + 1,
+            target_depth=sample.target_depth,
+            well_location=sample.well_location,
+            storage_location_id=sample.storage_location_id,
+            due_date=sample.due_date,
+            created_by_id=current_user.id,
+            status=SampleStatus.REGISTERED,
+            queue_priority=sample.queue_priority + 10  # Higher priority for reprocess
+        )
+        
+        db.add(reprocess_sample)
+        db.flush()
+        
+        # Log the reprocess creation
+        create_sample_log(
+            db=db,
+            sample_id=reprocess_sample.id,
+            comment=f"Reprocess sample created due to {failure_in.failed_stage} failure",
+            log_type="creation",
+            user_id=current_user.id
+        )
+    
+    db.commit()
+    db.refresh(sample)
+    
+    return sample
+
+@router.get("/queues/{queue_name}", response_model=List[SampleWithLabData])
+def get_queue_samples(
+    queue_name: str,
+    db: Session = Depends(deps.get_db),
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """Get samples in a specific queue"""
+    # Map queue names to status filters
+    queue_map = {
+        "accessioning": [SampleStatus.RECEIVED],
+        "extraction": [SampleStatus.ACCESSIONED],
+        "extraction_active": [SampleStatus.IN_EXTRACTION],
+        "library_prep": [SampleStatus.EXTRACTED],
+        "library_prep_active": [SampleStatus.IN_LIBRARY_PREP],
+        "sequencing": [SampleStatus.LIBRARY_PREPPED],
+        "sequencing_active": [SampleStatus.IN_SEQUENCING],
+        "reprocess": None  # Special handling for failed samples
+    }
+    
+    if queue_name not in queue_map:
+        raise HTTPException(status_code=400, detail=f"Invalid queue name: {queue_name}")
+    
+    query = db.query(Sample).options(
+        joinedload(Sample.project).joinedload(Project.client),
+        joinedload(Sample.storage_location),
+        joinedload(Sample.extraction_results),
+        joinedload(Sample.library_prep_results),
+        joinedload(Sample.sequencing_run_samples).joinedload(SequencingRunSample.sequencing_run)
+    )
+    
+    if queue_name == "reprocess":
+        # Get failed samples that need reprocessing
+        query = query.filter(Sample.failed_stage.isnot(None))
+    else:
+        statuses = queue_map[queue_name]
+        if statuses:
+            query = query.filter(Sample.status.in_(statuses))
+    
+    # Order by priority and created date
+    query = query.order_by(Sample.queue_priority.desc(), Sample.created_at)
+    
+    samples = query.offset(skip).limit(limit).all()
+    
+    # Convert to SampleWithLabData (same logic as read_samples)
+    result = []
+    for sample in samples:
+        sample_dict = {
+            "id": sample.id,
+            "barcode": sample.barcode,
+            "client_sample_id": sample.client_sample_id,
+            "project_id": sample.project_id,
+            "sample_type": sample.sample_type,
+            "status": sample.status,
+            "target_depth": sample.target_depth,
+            "well_location": sample.well_location,
+            "due_date": sample.due_date,
+            "created_at": sample.created_at,
+            "received_date": sample.received_date,
+            "accessioned_date": sample.accessioned_date,
+            "storage_location": sample.storage_location,
+            "queue_priority": sample.queue_priority,
+            "queue_notes": sample.queue_notes,
+            "failed_stage": sample.failed_stage,
+            "failure_reason": sample.failure_reason,
+            "reprocess_count": sample.reprocess_count,
+            "batch_id": sample.batch_id,
+            "extraction_due_date": sample.extraction_due_date,
+            "library_prep_due_date": sample.library_prep_due_date,
+            "sequencing_due_date": sample.sequencing_due_date,
+            "project_name": sample.project.name if sample.project else None,
+            "project_code": sample.project.project_id if sample.project else None,
+            "client_institution": sample.project.client.institution if sample.project and sample.project.client else None,
+        }
+        
+        # Add lab data (same as before)
+        if sample.extraction_results:
+            latest_extraction = sorted(sample.extraction_results, key=lambda x: x.created_at)[-1]
+            sample_dict["extraction_kit"] = latest_extraction.extraction_kit
+            sample_dict["dna_concentration_ng_ul"] = latest_extraction.concentration_ng_ul
+        
+        if sample.library_prep_results:
+            latest_prep = sorted(sample.library_prep_results, key=lambda x: x.created_at)[-1]
+            sample_dict["library_prep_kit"] = latest_prep.prep_kit
+            sample_dict["library_concentration_ng_ul"] = latest_prep.library_concentration_ng_ul
+        
+        if sample.sequencing_run_samples:
+            latest_run = sorted(sample.sequencing_run_samples, key=lambda x: x.sequencing_run.created_at)[-1]
+            sample_dict["sequencing_run_id"] = latest_run.sequencing_run.run_id
+            sample_dict["sequencing_instrument"] = latest_run.sequencing_run.instrument_id
+            sample_dict["achieved_depth"] = latest_run.yield_mb
+        
+        result.append(SampleWithLabData(**sample_dict))
+    
+    return result

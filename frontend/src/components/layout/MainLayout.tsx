@@ -11,6 +11,8 @@ import {
   InboxOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../../store/authStore';
+import { canAccessRoute } from '../../config/rolePermissions';
+import { useMemo } from 'react';
 
 const { Header, Sider, Content } = Layout;
 
@@ -19,7 +21,8 @@ const MainLayout = () => {
   const location = useLocation();
   const { user, logout } = useAuthStore();
 
-  const menuItems = [
+  // Define all menu items with their paths
+  const allMenuItems = [
     {
       key: '/dashboard',
       icon: <DashboardOutlined />,
@@ -41,9 +44,31 @@ const MainLayout = () => {
       label: 'Users',
     },
     {
-      key: '/samples',
+      key: 'samples',
       icon: <ExperimentOutlined />,
       label: 'Samples',
+      children: [
+        {
+          key: '/samples',
+          label: 'All Samples',
+        },
+        {
+          key: '/samples/accessioning',
+          label: 'Accessioning',
+        },
+        {
+          key: '/samples/extraction-queue',
+          label: 'Extraction Queue',
+        },
+        {
+          key: '/samples/extraction',
+          label: 'In Extraction',
+        },
+        {
+          key: '/samples/reprocess',
+          label: 'Reprocess Queue',
+        },
+      ],
     },
     {
       key: '/storage',
@@ -56,6 +81,38 @@ const MainLayout = () => {
       label: 'Logs',
     },
   ];
+
+  // Filter menu items based on user role
+  const menuItems = useMemo(() => {
+    const userRole = user?.role;
+    
+    const filterMenuItems = (items: any[]): any[] => {
+      return items
+        .map(item => {
+          // Check if user can access this route
+          const canAccess = item.key.startsWith('/') 
+            ? canAccessRoute(userRole, item.key)
+            : true; // Parent items without direct routes are always shown if they have accessible children
+          
+          if (!canAccess) return null;
+          
+          // If item has children, filter them recursively
+          if (item.children) {
+            const filteredChildren = filterMenuItems(item.children);
+            
+            // Only include parent if it has accessible children
+            if (filteredChildren.length === 0) return null;
+            
+            return { ...item, children: filteredChildren };
+          }
+          
+          return item;
+        })
+        .filter(Boolean);
+    };
+    
+    return filterMenuItems(allMenuItems);
+  }, [user?.role]);
 
   const userMenuItems = [
     {

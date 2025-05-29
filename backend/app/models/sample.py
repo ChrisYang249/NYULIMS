@@ -68,6 +68,19 @@ class Sample(Base, TimestampMixin):
     pretreatment_type = Column(String)  # "metapolyzyme", "proteinase_k", etc
     pretreatment_date = Column(DateTime(timezone=True))
     
+    # Queue management fields
+    queue_priority = Column(Integer, default=0)  # Higher number = higher priority
+    queue_notes = Column(Text)  # Stage-specific notes
+    failed_stage = Column(String)  # "extraction", "library_prep", "sequencing"
+    failure_reason = Column(Text)
+    reprocess_count = Column(Integer, default=0)  # Tracks E2, P2, S2 suffixes
+    batch_id = Column(String)  # For grouping samples in workflow
+    
+    # Stage due dates
+    extraction_due_date = Column(DateTime(timezone=True))
+    library_prep_due_date = Column(DateTime(timezone=True))
+    sequencing_due_date = Column(DateTime(timezone=True))
+    
     # Relationships
     project = relationship("Project", back_populates="samples")
     parent_sample = relationship("Sample", remote_side=[id])

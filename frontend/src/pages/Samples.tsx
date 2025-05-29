@@ -15,6 +15,7 @@ import { api } from '../config/api';
 import dayjs from 'dayjs';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
+import { usePermissions } from '../hooks/usePermissions';
 
 const { Text } = Typography;
 
@@ -122,7 +123,11 @@ const Samples = () => {
   const [bulkSamples, setBulkSamples] = useState<any[]>([]);
   const [selectedSamples, setSelectedSamples] = useState<number[]>([]);
   const [expandedView, setExpandedView] = useState(false);
+  const [isBulkStatusModalVisible, setIsBulkStatusModalVisible] = useState(false);
   const [form] = Form.useForm();
+  const [statusForm] = Form.useForm();
+  
+  const { canPerform } = usePermissions();
 
   const fetchSamples = async () => {
     setLoading(true);
@@ -187,6 +192,23 @@ const Samples = () => {
     { value: 'other', label: 'Other' }
   ];
 
+  const statusOptions = [
+    { value: 'registered', label: 'Registered' },
+    { value: 'received', label: 'Received' },
+    { value: 'accessioned', label: 'Accessioned' },
+    { value: 'in_extraction', label: 'In Extraction' },
+    { value: 'extracted', label: 'Extracted' },
+    { value: 'in_library_prep', label: 'In Library Prep' },
+    { value: 'library_prepped', label: 'Library Prepped' },
+    { value: 'in_sequencing', label: 'In Sequencing' },
+    { value: 'sequenced', label: 'Sequenced' },
+    { value: 'in_analysis', label: 'In Analysis' },
+    { value: 'analysis_complete', label: 'Analysis Complete' },
+    { value: 'delivered', label: 'Delivered' },
+    { value: 'failed', label: 'Failed' },
+    { value: 'cancelled', label: 'Cancelled' }
+  ];
+
   const handleBulkCountChange = (count: number) => {
     setBulkCount(count);
     const newSamples = Array(count).fill(null).map((_, index) => ({
@@ -236,19 +258,25 @@ const Samples = () => {
     }
   };
 
-  const handleBulkAccession = async () => {
-    if (selectedSamples.length === 0) {
-      message.warning('Please select samples to accession');
-      return;
-    }
-    
+  const handleBulkStatusUpdate = async (values: any) => {
     try {
-      await api.post('/samples/accession/bulk', selectedSamples);
-      message.success(`${selectedSamples.length} samples accessioned successfully`);
+      // Update each selected sample
+      await Promise.all(
+        selectedSamples.map(sampleId => 
+          api.put(`/samples/${sampleId}`, { 
+            status: values.status,
+            queue_notes: values.notes 
+          })
+        )
+      );
+      
+      message.success(`${selectedSamples.length} samples updated to ${values.status.replace('_', ' ')}`);
       setSelectedSamples([]);
+      setIsBulkStatusModalVisible(false);
+      statusForm.resetFields();
       fetchSamples();
     } catch (error) {
-      message.error('Failed to accession samples');
+      message.error('Failed to update some samples');
     }
   };
 
@@ -572,18 +600,14 @@ const Samples = () => {
       fixed: 'right' as const,
       width: 120,
       render: (_: any, record: Sample) => (
-        <Space size={4}>
-          {record.status === 'registered' && (
-            <Button 
-              type="link" 
-              size="small"
-              onClick={() => handleAccession(record.id)}
-              style={{ padding: '0 4px' }}
-            >
-              Accession
-            </Button>
-          )}
-        </Space>
+        <Button 
+          type="link" 
+          size="small"
+          onClick={() => window.location.href = `/samples/${record.id}`}
+          style={{ padding: '0 4px' }}
+        >
+          View Details
+        </Button>
       ),
     },
   ];
@@ -593,38 +617,43 @@ const Samples = () => {
     onChange: (selectedRowKeys: React.Key[]) => {
       setSelectedSamples(selectedRowKeys as number[]);
     },
-    getCheckboxProps: (record: Sample) => ({
-      disabled: record.status !== 'registered',
-    }),
   };
 
-  const actionMenu = (
-    <Menu>
-      <Menu.Item key="download-csv" icon={<DownloadOutlined />} onClick={downloadCSVTemplate}>
-        Download CSV Template
-      </Menu.Item>
-      <Menu.Item key="download-excel" icon={<FileTextOutlined />} onClick={downloadExcelTemplate}>
-        Download Excel Template
-      </Menu.Item>
-      <Menu.Item key="upload" icon={<UploadOutlined />}>
+  const actionMenuItems = [
+    {
+      key: 'download-csv',
+      icon: <DownloadOutlined />,
+      label: 'Download CSV Template',
+      onClick: downloadCSVTemplate,
+    },
+    {
+      key: 'download-excel',
+      icon: <FileTextOutlined />,
+      label: 'Download Excel Template',
+      onClick: downloadExcelTemplate,
+    },
+    {
+      key: 'upload',
+      icon: <UploadOutlined />,
+      label: (
         <Upload {...uploadProps} showUploadList={false}>
           Import from CSV
         </Upload>
-      </Menu.Item>
-    </Menu>
-  );
+      ),
+    },
+  ];
 
   return (
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1>Samples</h1>
         <Space>
-          {selectedSamples.length > 0 && (
+          {selectedSamples.length > 0 && canPerform('updateSampleStatus') && (
             <Button
-              onClick={handleBulkAccession}
+              onClick={() => setIsBulkStatusModalVisible(true)}
               icon={<CheckCircleOutlined />}
             >
-              Accession Selected ({selectedSamples.length})
+              Update Status ({selectedSamples.length})
             </Button>
           )}
           <Button
@@ -633,18 +662,20 @@ const Samples = () => {
           >
             Refresh
           </Button>
-          <Dropdown overlay={actionMenu}>
+          <Dropdown menu={{ items: actionMenuItems }}>
             <Button>
               Actions <DownloadOutlined />
             </Button>
           </Dropdown>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => setIsRegisterModalVisible(true)}
-          >
-            Register Samples
-          </Button>
+          {canPerform('registerSamples') && (
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setIsRegisterModalVisible(true)}
+            >
+              Register Samples
+            </Button>
+          )}
         </Space>
       </div>
 
@@ -666,7 +697,7 @@ const Samples = () => {
       {/* Register Modal */}
       <Modal
         title="Register Samples"
-        visible={isRegisterModalVisible}
+        open={isRegisterModalVisible}
         onCancel={() => {
           setIsRegisterModalVisible(false);
           form.resetFields();
@@ -954,6 +985,76 @@ const Samples = () => {
             </Form>
           </Tabs.TabPane>
         </Tabs>
+      </Modal>
+
+      {/* Bulk Status Update Modal */}
+      <Modal
+        title={`Update Status for ${selectedSamples.length} Samples`}
+        open={isBulkStatusModalVisible}
+        onCancel={() => {
+          setIsBulkStatusModalVisible(false);
+          statusForm.resetFields();
+        }}
+        footer={null}
+        width={600}
+      >
+        <Alert
+          message="Bulk Status Update"
+          description="All selected samples will be updated to the chosen status. This action cannot be undone."
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+        
+        <Form
+          form={statusForm}
+          layout="vertical"
+          onFinish={handleBulkStatusUpdate}
+        >
+          <Form.Item
+            name="status"
+            label="New Status"
+            rules={[{ required: true, message: 'Please select a status' }]}
+          >
+            <Select
+              placeholder="Select new status for all selected samples"
+              showSearch
+              optionFilterProp="children"
+            >
+              {statusOptions.map(status => (
+                <Select.Option key={status.value} value={status.value}>
+                  <Tag color={statusColors[status.value] || 'default'}>
+                    {status.label}
+                  </Tag>
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="notes"
+            label="Notes (Optional)"
+          >
+            <Input.TextArea 
+              rows={3} 
+              placeholder="Add any notes about this status change..."
+            />
+          </Form.Item>
+
+          <Form.Item>
+            <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+              <Button onClick={() => {
+                setIsBulkStatusModalVisible(false);
+                statusForm.resetFields();
+              }}>
+                Cancel
+              </Button>
+              <Button type="primary" htmlType="submit">
+                Update Status
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
       </Modal>
 
     </div>

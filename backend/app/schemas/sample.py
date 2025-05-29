@@ -41,9 +41,17 @@ class SampleUpdate(BaseModel):
     storage_shelf: Optional[str] = None
     storage_box: Optional[str] = None
     storage_position: Optional[str] = None
+    queue_priority: Optional[int] = None
+    queue_notes: Optional[str] = None
+    batch_id: Optional[str] = None
     
 class SampleAccession(BaseModel):
     accessioning_notes: Optional[str] = None
+
+class SampleFailure(BaseModel):
+    failed_stage: str  # "extraction", "library_prep", "sequencing"
+    failure_reason: str
+    create_reprocess: bool = True  # Whether to create a reprocess sample
 
 class StorageLocationBase(BaseModel):
     freezer: str
@@ -77,6 +85,17 @@ class Sample(SampleBase):
     storage_shelf: Optional[str] = None
     storage_box: Optional[str] = None
     storage_position: Optional[str] = None
+    
+    # Queue management fields
+    queue_priority: Optional[int] = None
+    queue_notes: Optional[str] = None
+    failed_stage: Optional[str] = None
+    failure_reason: Optional[str] = None
+    reprocess_count: Optional[int] = None
+    batch_id: Optional[str] = None
+    extraction_due_date: Optional[datetime] = None
+    library_prep_due_date: Optional[datetime] = None
+    sequencing_due_date: Optional[datetime] = None
     
     class Config:
         from_attributes = True

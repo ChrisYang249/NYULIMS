@@ -18,7 +18,7 @@ def get_dashboard_stats(
     
     # Count active projects (not complete or cancelled)
     active_projects = db.query(func.count(Project.id)).filter(
-        ~Project.status.in_([ProjectStatus.complete, ProjectStatus.cancelled])
+        ~Project.status.in_([ProjectStatus.COMPLETED, ProjectStatus.CANCELLED])
     ).scalar() or 0
     
     # Total count of all samples
@@ -27,7 +27,7 @@ def get_dashboard_stats(
     # Count projects completed in current month
     current_month_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     completed_this_month = db.query(func.count(Project.id)).filter(
-        Project.status == ProjectStatus.complete,
+        Project.status == ProjectStatus.COMPLETED,
         Project.updated_at >= current_month_start
     ).scalar() or 0
     

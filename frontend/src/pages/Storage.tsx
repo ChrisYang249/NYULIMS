@@ -366,7 +366,7 @@ const Storage = () => {
       {/* Create Modal */}
       <Modal
         title="Add Storage Location"
-        visible={isCreateModalVisible}
+        open={isCreateModalVisible}
         onCancel={() => {
           setIsCreateModalVisible(false);
           form.resetFields();
@@ -447,7 +447,7 @@ const Storage = () => {
       {/* Edit Modal */}
       <Modal
         title="Edit Storage Location"
-        visible={isEditModalVisible}
+        open={isEditModalVisible}
         onCancel={() => {
           setIsEditModalVisible(false);
           form.resetFields();

@@ -12,6 +12,11 @@ import Storage from './pages/Storage';
 import Clients from './pages/Clients';
 import Employees from './pages/Employees';
 import Logs from './pages/Logs';
+// Queue pages
+import Accessioning from './pages/samples/Accessioning';
+import ExtractionQueue from './pages/samples/ExtractionQueue';
+import Extraction from './pages/samples/Extraction';
+import ReprocessQueue from './pages/samples/ReprocessQueue';
 import MainLayout from './components/layout/MainLayout';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
@@ -49,6 +54,10 @@ function App() {
             <Route path="employees" element={<Employees />} />
             <Route path="samples" element={<Samples />} />
             <Route path="samples/:id" element={<SampleDetails />} />
+            <Route path="samples/accessioning" element={<Accessioning />} />
+            <Route path="samples/extraction-queue" element={<ExtractionQueue />} />
+            <Route path="samples/extraction" element={<Extraction />} />
+            <Route path="samples/reprocess" element={<ReprocessQueue />} />
             <Route path="storage" element={<Storage />} />
             <Route path="logs" element={<Logs />} />
           </Route>
