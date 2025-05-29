@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Select, InputNumber, message } from 'antd';
+import { Table, Button, Space, Modal, Form, Input, Select, InputNumber, message, DatePicker } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
+import { Link } from 'react-router-dom';
 import { api } from '../config/api';
+import { useAuthStore } from '../store/authStore';
+import dayjs from 'dayjs';
 
 interface Client {
   id: number;
@@ -10,14 +13,28 @@ interface Client {
   email: string;
 }
 
+interface Employee {
+  id: number;
+  name: string;
+  email: string;
+  title: string;
+  department: string;
+}
+
 const Projects = () => {
   const [projects, setProjects] = useState([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [clientModalVisible, setClientModalVisible] = useState(false);
+  const [nextProjectId, setNextProjectId] = useState<string>('');
+  const [dueDate, setDueDate] = useState<dayjs.Dayjs | null>(null);
   const [form] = Form.useForm();
   const [clientForm] = Form.useForm();
+  const { user } = useAuthStore();
+  
+  const canCreateProject = user && ['super_admin', 'pm', 'director'].includes(user.role);
 
   const fetchProjects = async () => {
     setLoading(true);
@@ -38,10 +55,60 @@ const Projects = () => {
       message.error('Failed to fetch clients');
     }
   };
+  
+  const fetchEmployees = async () => {
+    try {
+      const response = await api.get('/employees');
+      setEmployees(response.data);
+    } catch (error) {
+      message.error('Failed to fetch employees');
+    }
+  };
+  
+  const fetchNextProjectId = async () => {
+    try {
+      const response = await api.get('/projects/next-id');
+      setNextProjectId(response.data.next_id);
+      // Don't auto-fill the field, just store the next ID for display
+    } catch (error) {
+      message.error('Failed to fetch next project ID');
+    }
+  };
+  
+  const calculateDueDate = (startDate: dayjs.Dayjs, tat: string) => {
+    let daysToAdd = 0;
+    switch (tat) {
+      case 'DAYS_5_7':
+        daysToAdd = 7;
+        break;
+      case 'WEEKS_1_2':
+        daysToAdd = 14;
+        break;
+      case 'WEEKS_3_4':
+        daysToAdd = 28;
+        break;
+      case 'WEEKS_4_6':
+        daysToAdd = 42;
+        break;
+      case 'WEEKS_6_8':
+        daysToAdd = 56;
+        break;
+      case 'WEEKS_8_10':
+        daysToAdd = 70;
+        break;
+      case 'WEEKS_10_12':
+        daysToAdd = 84;
+        break;
+      default:
+        daysToAdd = 7;
+    }
+    return startDate.add(daysToAdd, 'day');
+  };
 
   useEffect(() => {
     fetchProjects();
     fetchClients();
+    fetchEmployees();
   }, []);
 
   const columns = [
@@ -49,21 +116,46 @@ const Projects = () => {
       title: 'Project ID',
       dataIndex: 'project_id',
       key: 'project_id',
+      render: (text: string, record: any) => (
+        <Link to={`/projects/${record.id}`}>{text}</Link>
+      ),
     },
     {
-      title: 'Name',
-      dataIndex: 'name',
-      key: 'name',
+      title: 'Institution',
+      key: 'institution',
+      render: (_, record: any) => (
+        <span>{record.client?.institution || '-'}</span>
+      ),
     },
     {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
+      render: (status: string) => {
+        const statusMap: { [key: string]: string } = {
+          'pending': 'Pending',
+          'pm_review': 'PM Review',
+          'lab': 'Lab',
+          'bis': 'BIS',
+          'hold': 'On Hold',
+          'cancelled': 'Cancelled',
+          'completed': 'Completed'
+        };
+        return statusMap[status] || status;
+      },
     },
     {
-      title: 'TAT',
-      dataIndex: 'tat',
-      key: 'tat',
+      title: 'Sales Rep',
+      key: 'sales_rep',
+      render: (_, record: any) => (
+        <span>{record.sales_rep?.name || '-'}</span>
+      ),
+    },
+    {
+      title: 'Due Date',
+      dataIndex: 'due_date',
+      key: 'due_date',
+      render: (date: string) => dayjs(date).format('YYYY-MM-DD'),
     },
     {
       title: 'Expected Samples',
@@ -74,23 +166,39 @@ const Projects = () => {
       title: 'Action',
       key: 'action',
       render: (_, record) => (
-        <Space>
-          <Button type="link">View</Button>
-          <Button type="link">Edit</Button>
-        </Space>
+        <Button type="link">Edit</Button>
       ),
     },
   ];
 
   const handleSubmit = async (values: any) => {
     try {
-      await api.post('/projects', values);
+      // Remove project_id and due_date from submission
+      const { project_id, due_date, ...submitData } = values;
+      
+      const formData = {
+        ...submitData,
+        start_date: values.start_date.toISOString(),
+      };
+      
+      await api.post('/projects/', formData);
       message.success('Project created successfully');
       setModalVisible(false);
       form.resetFields();
+      setDueDate(null);
       fetchProjects();
-    } catch (error) {
-      message.error('Failed to create project');
+    } catch (error: any) {
+      console.error('Project creation error:', error.response?.data);
+      message.error(error.response?.data?.detail || 'Failed to create project');
+    }
+  };
+  
+  const handleFormValuesChange = (changedValues: any, allValues: any) => {
+    if (changedValues.start_date || changedValues.tat) {
+      if (allValues.start_date && allValues.tat) {
+        const calculated = calculateDueDate(allValues.start_date, allValues.tat);
+        setDueDate(calculated);
+      }
     }
   };
 
@@ -109,17 +217,26 @@ const Projects = () => {
     }
   };
 
+  const handleOpenModal = () => {
+    form.resetFields();
+    form.setFieldsValue({ start_date: dayjs() });
+    fetchNextProjectId();
+    setModalVisible(true);
+  };
+
   return (
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
         <h1>Projects</h1>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => setModalVisible(true)}
-        >
-          New Project
-        </Button>
+        {canCreateProject && (
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={handleOpenModal}
+          >
+            New Project
+          </Button>
+        )}
       </div>
 
       <Table
@@ -139,13 +256,32 @@ const Projects = () => {
           form={form}
           layout="vertical"
           onFinish={handleSubmit}
+          onValuesChange={handleFormValuesChange}
         >
           <Form.Item
-            name="name"
-            label="Project Name"
+            name="project_id"
+            label="Project ID (optional - leave blank for auto-generated)"
+            help="Leave blank to auto-generate or enter custom ID"
+          >
+            <Input placeholder="e.g., CMBP00001" />
+          </Form.Item>
+
+          <Form.Item
+            name="project_type"
+            label="Project Type"
             rules={[{ required: true }]}
           >
-            <Input />
+            <Select placeholder="Select project type">
+              <Select.Option value="WGS">WGS</Select.Option>
+              <Select.Option value="V1V3_16S">16S-V1V3</Select.Option>
+              <Select.Option value="V3V4_16S">16S-V3V4</Select.Option>
+              <Select.Option value="ONT_WGS">ONT-WGS</Select.Option>
+              <Select.Option value="ONT_V1V8">ONT-V1V8</Select.Option>
+              <Select.Option value="ANALYSIS_ONLY">Analysis Only</Select.Option>
+              <Select.Option value="INTERNAL">Internal</Select.Option>
+              <Select.Option value="CLINICAL">CLINICAL</Select.Option>
+              <Select.Option value="OTHER">Other</Select.Option>
+            </Select>
           </Form.Item>
 
           <Form.Item
@@ -182,17 +318,34 @@ const Projects = () => {
           </Form.Item>
 
           <Form.Item
+            name="start_date"
+            label="Start Date"
+            rules={[{ required: true }]}
+          >
+            <DatePicker style={{ width: '100%' }} />
+          </Form.Item>
+
+          <Form.Item
             name="tat"
             label="TAT"
             rules={[{ required: true }]}
           >
-            <Select>
-              <Select.Option value="5-7D">5-7 Days</Select.Option>
-              <Select.Option value="1-2W">1-2 Weeks</Select.Option>
-              <Select.Option value="3-4W">3-4 Weeks</Select.Option>
-              <Select.Option value="4-6W">4-6 Weeks</Select.Option>
+            <Select placeholder="Select TAT">
+              <Select.Option value="DAYS_5_7">5-7 Days</Select.Option>
+              <Select.Option value="WEEKS_1_2">1-2 Weeks</Select.Option>
+              <Select.Option value="WEEKS_3_4">3-4 Weeks</Select.Option>
+              <Select.Option value="WEEKS_4_6">4-6 Weeks</Select.Option>
+              <Select.Option value="WEEKS_6_8">6-8 Weeks</Select.Option>
+              <Select.Option value="WEEKS_8_10">8-10 Weeks</Select.Option>
+              <Select.Option value="WEEKS_10_12">10-12 Weeks</Select.Option>
             </Select>
           </Form.Item>
+
+          {dueDate && (
+            <Form.Item label="Due Date">
+              <Input value={dueDate.format('YYYY-MM-DD')} disabled />
+            </Form.Item>
+          )}
 
           <Form.Item
             name="expected_sample_count"
@@ -200,6 +353,27 @@ const Projects = () => {
             rules={[{ required: true }]}
           >
             <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+
+          <Form.Item
+            name="sales_rep_id"
+            label="Sales Representative (Optional)"
+          >
+            <Select 
+              placeholder="Select sales representative"
+              allowClear
+              showSearch
+              optionFilterProp="children"
+              filterOption={(input, option) =>
+                (option?.children as string).toLowerCase().includes(input.toLowerCase())
+              }
+            >
+              {employees.map(employee => (
+                <Select.Option key={employee.id} value={employee.id}>
+                  {employee.name} - {employee.title}
+                </Select.Option>
+              ))}
+            </Select>
           </Form.Item>
 
           <Form.Item>

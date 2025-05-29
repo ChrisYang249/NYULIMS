@@ -1,7 +1,9 @@
 from typing import Optional, List
 from pydantic import BaseModel
 from datetime import datetime
-from app.models.project import ProjectStatus, TAT
+from app.models.project import ProjectStatus, ProjectType, TAT
+from app.schemas.employee import Employee
+from app.schemas.attachment import ProjectAttachment
 
 class ClientBase(BaseModel):
     name: str
@@ -23,23 +25,55 @@ class Client(ClientBase):
         from_attributes = True
 
 class ProjectBase(BaseModel):
-    name: str
+    project_type: ProjectType
     client_id: int
     tat: TAT
+    start_date: datetime
     expected_sample_count: int
     project_value: Optional[float] = None
     notes: Optional[str] = None
+    sales_rep_id: Optional[int] = None
 
 class ProjectCreate(ProjectBase):
-    pass
+    project_id: Optional[str] = None  # Allow user to provide project ID
+
+class ProjectUpdate(BaseModel):
+    project_type: Optional[ProjectType] = None
+    client_id: Optional[int] = None
+    status: Optional[ProjectStatus] = None
+    tat: Optional[TAT] = None
+    start_date: Optional[datetime] = None
+    expected_sample_count: Optional[int] = None
+    project_value: Optional[float] = None
+    notes: Optional[str] = None
+    sales_rep_id: Optional[int] = None
 
 class Project(ProjectBase):
     id: int
     project_id: str
     status: ProjectStatus
-    received_date: datetime
-    due_date: Optional[datetime] = None
+    due_date: datetime
     created_at: datetime
+    updated_at: Optional[datetime] = None
+    client: Optional[Client] = None
+    sales_rep: Optional[Employee] = None
+    attachments: List[ProjectAttachment] = []
+    
+    class Config:
+        from_attributes = True
+
+class ProjectLogBase(BaseModel):
+    comment: str
+    log_type: str = "comment"
+
+class ProjectLogCreate(ProjectLogBase):
+    project_id: int
+
+class ProjectLog(ProjectLogBase):
+    id: int
+    project_id: int
+    created_at: datetime
+    created_by_id: Optional[int] = None
     
     class Config:
         from_attributes = True
