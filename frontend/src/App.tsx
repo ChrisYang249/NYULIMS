@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import Projects from './pages/Projects';
 import ProjectDetails from './pages/ProjectDetails';
 import Samples from './pages/Samples';
+import SampleDetails from './pages/SampleDetails';
 import Storage from './pages/Storage';
 import Clients from './pages/Clients';
 import Employees from './pages/Employees';
@@ -47,6 +48,7 @@ function App() {
             <Route path="clients" element={<Clients />} />
             <Route path="employees" element={<Employees />} />
             <Route path="samples" element={<Samples />} />
+            <Route path="samples/:id" element={<SampleDetails />} />
             <Route path="storage" element={<Storage />} />
             <Route path="logs" element={<Logs />} />
           </Route>

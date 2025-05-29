@@ -8,11 +8,13 @@ import type { UploadProps } from 'antd';
 import { 
   PlusOutlined, BarcodeOutlined, UploadOutlined,
   SaveOutlined, EditOutlined, ReloadOutlined,
-  DownloadOutlined, EnvironmentOutlined, EyeOutlined,
+  DownloadOutlined, EnvironmentOutlined,
   FileTextOutlined, CheckCircleOutlined
 } from '@ant-design/icons';
 import { api } from '../config/api';
 import dayjs from 'dayjs';
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
 const { Text } = Typography;
 
@@ -202,8 +204,117 @@ const Samples = () => {
   };
 
 
+  const downloadExcelTemplate = () => {
+    // Create a new workbook
+    const wb = XLSX.utils.book_new();
+    
+    // Sample data with actual project IDs
+    const sampleData = [
+      {
+        project_id: projects.length > 0 ? projects[0].project_id : 'CMBP00001',
+        client_sample_id: 'SAMPLE001',
+        sample_type: 'stool',
+        target_depth: 30,
+        well_location: '',
+        storage_freezer: 'Freezer1',
+        storage_shelf: 'Shelf1',
+        storage_box: 'Box1',
+        storage_position: 'A1'
+      },
+      {
+        project_id: projects.length > 0 ? projects[0].project_id : 'CMBP00001',
+        client_sample_id: 'SAMPLE002',
+        sample_type: 'dna_plate',
+        target_depth: 50,
+        well_location: 'A1',
+        storage_freezer: 'Freezer1',
+        storage_shelf: 'Shelf1',
+        storage_box: 'Box1',
+        storage_position: 'A2'
+      }
+    ];
+    
+    // Create samples sheet
+    const ws = XLSX.utils.json_to_sheet(sampleData);
+    
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 15 }, // project_id
+      { wch: 20 }, // client_sample_id
+      { wch: 15 }, // sample_type
+      { wch: 12 }, // target_depth
+      { wch: 12 }, // well_location
+      { wch: 15 }, // storage_freezer
+      { wch: 12 }, // storage_shelf
+      { wch: 12 }, // storage_box
+      { wch: 15 }, // storage_position
+    ];
+    
+    // Add the samples sheet
+    XLSX.utils.book_append_sheet(wb, ws, 'Samples');
+    
+    // Create reference sheets for dropdowns
+    // Project IDs sheet
+    const projectData = projects.map(p => ({ 
+      project_id: p.project_id, 
+      project_name: p.name,
+      institution: p.client.institution,
+      due_date: dayjs(p.due_date).format('YYYY-MM-DD')
+    }));
+    if (projectData.length > 0) {
+      const wsProjects = XLSX.utils.json_to_sheet(projectData);
+      XLSX.utils.book_append_sheet(wb, wsProjects, 'Valid Projects');
+    }
+    
+    // Sample Types sheet
+    const sampleTypesData = sampleTypes.map(t => ({ sample_type: t.value, label: t.label }));
+    const wsSampleTypes = XLSX.utils.json_to_sheet(sampleTypesData);
+    XLSX.utils.book_append_sheet(wb, wsSampleTypes, 'Valid Sample Types');
+    
+    // Instructions sheet
+    const instructionsData = [
+      { Instructions: 'SAMPLE IMPORT TEMPLATE' },
+      { Instructions: '' },
+      { Instructions: 'How to use this template:' },
+      { Instructions: '1. Fill in the sample data in the "Samples" sheet' },
+      { Instructions: '2. Use exact project_id values from "Valid Projects" sheet' },
+      { Instructions: '3. Use exact sample_type values from "Valid Sample Types" sheet' },
+      { Instructions: '4. well_location is REQUIRED for dna_plate samples' },
+      { Instructions: '5. Due date will be automatically inherited from the project' },
+      { Instructions: '6. Save as CSV when ready to import' },
+      { Instructions: '' },
+      { Instructions: 'Note: Excel data validation is not available in this web export.' },
+      { Instructions: 'Please ensure you use exact values from the reference sheets.' },
+    ];
+    const wsInstructions = XLSX.utils.json_to_sheet(instructionsData, { header: ['Instructions'] });
+    ws['!cols'] = [{ wch: 60 }];
+    XLSX.utils.book_append_sheet(wb, wsInstructions, 'Instructions');
+    
+    // Generate Excel file
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], { type: 'application/octet-stream' });
+    saveAs(blob, 'sample_import_template.xlsx');
+  };
+
   const downloadCSVTemplate = () => {
-    const template = 'project_id,client_sample_id,sample_type,target_depth,well_location,storage_freezer,storage_shelf,storage_box,storage_position\n1,SAMPLE001,stool,30,,Freezer1,Shelf1,Box1,A1\n1,SAMPLE002,dna_plate,50,A1,Freezer1,Shelf1,Box1,A2';
+    // Include actual project IDs in the template
+    const projectExample = projects.length > 0 ? projects[0].project_id : 'CMBP00001';
+    const headers = 'project_id,client_sample_id,sample_type,target_depth,well_location,storage_freezer,storage_shelf,storage_box,storage_position';
+    const example1 = `${projectExample},SAMPLE001,stool,30,,Freezer1,Shelf1,Box1,A1`;
+    const example2 = `${projectExample},SAMPLE002,dna_plate,50,A1,Freezer1,Shelf1,Box1,A2`;
+    
+    // Add comments explaining valid values
+    const comments = [
+      '# SAMPLE IMPORT TEMPLATE',
+      '# ',
+      '# Valid sample_types: stool, swab, dna, rna, food, milk, dna_plate, other',
+      `# Valid project_ids: ${projects.map(p => p.project_id).join(', ') || 'Check Projects page for valid IDs'}`,
+      '# Note: well_location is required for dna_plate samples',
+      '# Note: due_date will be inherited from the project',
+      '#',
+    ].join('\n');
+    
+    const template = `${comments}\n${headers}\n${example1}\n${example2}`;
     const blob = new Blob([template], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -261,7 +372,11 @@ const Samples = () => {
       key: 'barcode',
       fixed: 'left' as const,
       width: 100,
-      render: (text: string) => <strong>{text}</strong>,
+      render: (text: string, record: Sample) => (
+        <a onClick={() => window.location.href = `/samples/${record.id}`}>
+          <strong>{text}</strong>
+        </a>
+      ),
     },
     {
       title: 'Client ID',
@@ -408,14 +523,6 @@ const Samples = () => {
               Accession
             </Button>
           )}
-          <Button 
-            type="link" 
-            size="small"
-            icon={<EyeOutlined />}
-            style={{ padding: '0 4px' }}
-          >
-            View
-          </Button>
         </Space>
       ),
     },
@@ -433,8 +540,11 @@ const Samples = () => {
 
   const actionMenu = (
     <Menu>
-      <Menu.Item key="download" icon={<DownloadOutlined />} onClick={downloadCSVTemplate}>
+      <Menu.Item key="download-csv" icon={<DownloadOutlined />} onClick={downloadCSVTemplate}>
         Download CSV Template
+      </Menu.Item>
+      <Menu.Item key="download-excel" icon={<FileTextOutlined />} onClick={downloadExcelTemplate}>
+        Download Excel Template
       </Menu.Item>
       <Menu.Item key="upload" icon={<UploadOutlined />}>
         <Upload {...uploadProps} showUploadList={false}>
