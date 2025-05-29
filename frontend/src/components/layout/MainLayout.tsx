@@ -7,6 +7,7 @@ import {
   UserOutlined,
   LogoutOutlined,
   TeamOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../../store/authStore';
 
@@ -34,9 +35,19 @@ const MainLayout = () => {
       label: 'Clients',
     },
     {
+      key: '/employees',
+      icon: <UserOutlined />,
+      label: 'Employees',
+    },
+    {
       key: '/samples',
       icon: <ExperimentOutlined />,
       label: 'Samples',
+    },
+    {
+      key: '/logs',
+      icon: <FileTextOutlined />,
+      label: 'Logs',
     },
   ];
 
