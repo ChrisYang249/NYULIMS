@@ -34,7 +34,7 @@ def get_deletion_logs(
         
         for log in sample_logs:
             sample = db.query(Sample).filter(Sample.id == log.sample_id).first()
-            user = db.query(User).filter(User.id == log.user_id).first()
+            user = db.query(User).filter(User.id == log.created_by_id).first()
             
             if sample and user:
                 # Extract deletion reason from comment
@@ -54,34 +54,38 @@ def get_deletion_logs(
     
     # Get project deletions
     if not entity_type or entity_type == "project":
-        project_logs = db.query(ProjectLog).filter(
-            or_(
-                ProjectLog.log_type == "deletion",
-                ProjectLog.new_value == str(ProjectStatus.DELETED)
-            )
-        ).order_by(ProjectLog.created_at.desc()).all()
+        # For projects, we look for deleted status in the projects table
+        # and deletion logs in project_logs
+        deleted_projects = db.query(Project).filter(
+            Project.status == ProjectStatus.deleted
+        ).all()
         
-        for log in project_logs:
-            project = db.query(Project).filter(Project.id == log.project_id).first()
-            user = db.query(User).filter(User.id == log.user_id).first()
+        for project in deleted_projects:
+            # Find the deletion log for this project
+            deletion_log = db.query(ProjectLog).filter(
+                ProjectLog.project_id == project.id,
+                ProjectLog.log_type == "deletion"
+            ).order_by(ProjectLog.created_at.desc()).first()
             
-            if project and user:
-                # Extract deletion reason from comment
-                reason = log.comment if log.comment else "No reason provided"
-                if "deleted:" in reason.lower():
-                    reason = reason.split(":", 1)[1].strip()
-                
-                deletion_logs.append({
-                    "id": log.id + 10000,  # Offset to avoid ID conflicts
-                    "entity_type": "project",
-                    "entity_id": project.id,
-                    "entity_identifier": project.project_id,
-                    "deletion_reason": reason,
-                    "deleted_by": user.full_name,
-                    "deleted_by_id": user.id,
-                    "deleted_at": log.created_at,
-                    "previous_status": log.old_value or "unknown"
-                })
+            if deletion_log:
+                user = db.query(User).filter(User.id == deletion_log.created_by_id).first()
+                if user:
+                    # Extract deletion reason from comment
+                    reason = deletion_log.comment if deletion_log.comment else "No reason provided"
+                    if "deleted:" in reason.lower():
+                        reason = reason.split(":", 1)[1].strip()
+                    
+                    deletion_logs.append({
+                        "id": deletion_log.id + 10000,  # Offset to avoid ID conflicts
+                        "entity_type": "project",
+                        "entity_id": project.id,
+                        "entity_identifier": project.project_id,
+                        "deletion_reason": reason,
+                        "deleted_by": user.full_name,
+                        "deleted_by_id": user.id,
+                        "deleted_at": deletion_log.created_at,
+                        "previous_status": "unknown"  # ProjectLog doesn't track old_value
+                    })
     
     # Sort by deletion date
     deletion_logs.sort(key=lambda x: x["deleted_at"], reverse=True)
