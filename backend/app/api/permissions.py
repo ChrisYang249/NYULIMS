@@ -48,6 +48,9 @@ ROLE_PERMISSIONS = {
     
     # Audit logs
     "view_audit_logs": ["super_admin", "director"],
+    
+    # Deletion logs
+    "viewDeletionLogs": ["super_admin", "director"],
 }
 
 def require_permission(permission: str):

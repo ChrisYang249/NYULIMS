@@ -10,6 +10,7 @@ import {
   FileTextOutlined,
   InboxOutlined,
   TagsOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../../store/authStore';
 import { canAccessRoute } from '../../config/rolePermissions';
@@ -85,6 +86,11 @@ const MainLayout = () => {
       key: '/logs',
       icon: <FileTextOutlined />,
       label: 'Logs',
+    },
+    {
+      key: '/deletion-logs',
+      icon: <DeleteOutlined />,
+      label: 'Deletion Logs',
     },
   ];
 

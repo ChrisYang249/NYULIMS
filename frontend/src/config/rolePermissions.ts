@@ -81,6 +81,7 @@ export const routePermissions: RoutePermission[] = [
   
   // Logs
   { path: '/logs', allowedRoles: ['super_admin', 'director'] },
+  { path: '/deletion-logs', allowedRoles: ['super_admin', 'director'] },
 ];
 
 // Action-based permissions
@@ -111,6 +112,9 @@ export const actionPermissions = {
   // Sample type management
   createSampleTypes: ['super_admin', 'lab_manager', 'director'],
   editSampleTypes: ['super_admin', 'lab_manager', 'director'],
+  
+  // Deletion logs
+  viewDeletionLogs: ['super_admin', 'director'],
 };
 
 // Helper functions

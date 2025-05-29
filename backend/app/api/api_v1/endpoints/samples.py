@@ -66,16 +66,22 @@ def read_samples(
     project_id: Optional[int] = Query(None),
     status: Optional[SampleStatus] = Query(None),
     sample_type: Optional[SampleType] = Query(None),
+    include_deleted: bool = Query(False, description="Include deleted samples"),
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
     """Retrieve samples with lab data"""
     query = db.query(Sample).options(
-        joinedload(Sample.project),
+        joinedload(Sample.project).joinedload(Project.client),
         joinedload(Sample.storage_location),
+        joinedload(Sample.sample_type_ref),
         joinedload(Sample.extraction_results),
         joinedload(Sample.library_prep_results),
         joinedload(Sample.sequencing_run_samples).joinedload(SequencingRunSample.sequencing_run)
     )
+    
+    # Filter out deleted samples by default
+    if not include_deleted:
+        query = query.filter(Sample.status != SampleStatus.DELETED)
     
     if project_id:
         query = query.filter(Sample.project_id == project_id)
@@ -94,7 +100,8 @@ def read_samples(
             "barcode": sample.barcode,
             "client_sample_id": sample.client_sample_id,
             "project_id": sample.project_id,
-            "sample_type": sample.sample_type,
+            "sample_type": sample.sample_type_ref.name if sample.sample_type_ref else sample.sample_type,
+            "sample_type_other": sample.sample_type_other,
             "status": sample.status,
             "target_depth": sample.target_depth,
             "well_location": sample.well_location,
@@ -147,6 +154,7 @@ def read_sample(
     sample = db.query(Sample).options(
         joinedload(Sample.project).joinedload(Project.client),
         joinedload(Sample.storage_location),
+        joinedload(Sample.sample_type_ref),
         joinedload(Sample.extraction_results),
         joinedload(Sample.library_prep_results),
         joinedload(Sample.sequencing_run_samples).joinedload(SequencingRunSample.sequencing_run)
@@ -161,7 +169,8 @@ def read_sample(
         "barcode": sample.barcode,
         "client_sample_id": sample.client_sample_id,
         "project_id": sample.project_id,
-        "sample_type": sample.sample_type,
+        "sample_type": sample.sample_type_ref.name if sample.sample_type_ref else sample.sample_type,
+        "sample_type_other": sample.sample_type_other,
         "status": sample.status,
         "target_depth": sample.target_depth,
         "well_location": sample.well_location,
@@ -207,10 +216,20 @@ def create_sample(
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
     """Create new sample"""
+    # Import SampleType model to avoid circular import
+    from app.models.sample_type import SampleType as SampleTypeModel
+    
     # Get project to inherit due date
     project = db.query(Project).filter(Project.id == sample_in.project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Get sample type to map enum value
+    sample_type_obj = db.query(SampleTypeModel).filter(
+        SampleTypeModel.id == sample_in.sample_type_id
+    ).first()
+    if not sample_type_obj:
+        raise HTTPException(status_code=404, detail="Sample type not found")
     
     # Generate barcode
     barcode = generate_barcode(db)
@@ -229,6 +248,10 @@ def create_sample(
     # Set due date from project if not provided
     if not sample_data.get('due_date'):
         sample_data['due_date'] = project.due_date
+    
+    # Don't set sample_type - we'll use sample_type_id going forward
+    if 'sample_type' in sample_data:
+        del sample_data['sample_type']
     
     sample = Sample(
         barcode=barcode,
@@ -260,10 +283,26 @@ def create_samples_bulk(
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
     """Create multiple samples at once"""
+    # Import SampleType model to avoid circular import
+    from app.models.sample_type import SampleType as SampleTypeModel
+    
     # Validate project
     project = db.query(Project).filter(Project.id == bulk_in.project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Get sample type to map enum value
+    if not bulk_in.sample_type_id:
+        raise HTTPException(status_code=400, detail="sample_type_id is required")
+        
+    sample_type_obj = db.query(SampleTypeModel).filter(
+        SampleTypeModel.id == bulk_in.sample_type_id
+    ).first()
+    if not sample_type_obj:
+        raise HTTPException(status_code=404, detail="Sample type not found")
+    
+    # Map to enum for backward compatibility
+    sample_type_enum = sample_type_obj.name
     
     # Pre-generate barcodes
     barcodes = []
@@ -276,7 +315,7 @@ def create_samples_bulk(
         sample_data = bulk_in.samples[i] if i < len(bulk_in.samples) else {}
         
         # Validate well location for DNA plates
-        if bulk_in.sample_type == SampleType.DNA_PLATE and not sample_data.get('well_location'):
+        if sample_type_obj.name == 'dna_plate' and not sample_data.get('well_location'):
             raise HTTPException(
                 status_code=400, 
                 detail=f"Well location required for DNA plate sample {i+1}"
@@ -285,7 +324,7 @@ def create_samples_bulk(
         sample = Sample(
             barcode=barcode,
             project_id=bulk_in.project_id,
-            sample_type=bulk_in.sample_type,
+            sample_type_id=bulk_in.sample_type_id,
             client_sample_id=sample_data.get('client_sample_id'),
             target_depth=sample_data.get('target_depth'),
             well_location=sample_data.get('well_location'),
@@ -301,6 +340,16 @@ def create_samples_bulk(
     
     for sample in samples:
         db.refresh(sample)
+        # Create log entry
+        create_sample_log(
+            db=db,
+            sample_id=sample.id,
+            comment=f"Sample created with barcode {sample.barcode}",
+            log_type="creation",
+            user_id=current_user.id
+        )
+    
+    db.commit()
     
     return samples
 
@@ -735,10 +784,11 @@ def get_queue_samples(
 @router.delete("/{sample_id}")
 def delete_sample(
     sample_id: int,
+    deletion_reason: str = Query(..., description="Reason for deletion"),
     db: Session = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
-    """Delete a sample"""
+    """Soft delete a sample (mark as deleted)"""
     # Check permissions
     from app.api.permissions import check_permission
     check_permission(current_user, "deleteSamples")
@@ -747,18 +797,25 @@ def delete_sample(
     if not sample:
         raise HTTPException(status_code=404, detail="Sample not found")
     
-    # Create final log entry before deletion
+    if sample.status == SampleStatus.DELETED:
+        raise HTTPException(status_code=400, detail="Sample is already deleted")
+    
+    # Update status to deleted
+    old_status = sample.status
+    sample.status = SampleStatus.DELETED
+    
+    # Create deletion log entry
     create_sample_log(
         db=db,
         sample_id=sample.id,
-        comment="Sample deleted",
-        log_type="delete",
-        old_value=str(sample.status),
-        new_value="deleted",
+        comment=f"Sample deleted: {deletion_reason}",
+        log_type="deletion",
+        old_value=str(old_status),
+        new_value=str(SampleStatus.DELETED),
         user_id=current_user.id
     )
     
-    db.delete(sample)
     db.commit()
+    db.refresh(sample)
     
-    return {"message": "Sample deleted successfully"}
+    return {"message": "Sample marked as deleted"}

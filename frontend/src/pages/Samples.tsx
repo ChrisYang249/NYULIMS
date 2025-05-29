@@ -132,8 +132,10 @@ const Samples = () => {
   const [selectedSamples, setSelectedSamples] = useState<number[]>([]);
   const [expandedView, setExpandedView] = useState(false);
   const [isBulkStatusModalVisible, setIsBulkStatusModalVisible] = useState(false);
+  const [deletingSampleId, setDeletingSampleId] = useState<number | null>(null);
   const [form] = Form.useForm();
   const [statusForm] = Form.useForm();
+  const [deleteForm] = Form.useForm();
   
   const { canPerform } = usePermissions();
 
@@ -381,10 +383,10 @@ const Samples = () => {
     }
   };
 
-  const handleDeleteSample = async (sampleId: number) => {
+  const handleDeleteSample = async (sampleId: number, reason: string) => {
     try {
-      await api.delete(`/samples/${sampleId}`);
-      message.success('Sample deleted successfully');
+      await api.delete(`/samples/${sampleId}?deletion_reason=${encodeURIComponent(reason)}`);
+      message.success('Sample marked as deleted');
       fetchSamples();
     } catch (error) {
       message.error('Failed to delete sample');
@@ -732,24 +734,16 @@ const Samples = () => {
       render: (_: any, record: Sample) => (
         <Space size="small">
           {canPerform('deleteSamples') && (
-            <Popconfirm
-              title="Delete Sample"
-              description="Are you sure you want to delete this sample? This action cannot be undone."
-              onConfirm={() => handleDeleteSample(record.id)}
-              okText="Yes"
-              cancelText="No"
-              okButtonProps={{ danger: true }}
+            <Button 
+              type="link" 
+              danger
+              size="small"
+              icon={<DeleteOutlined />}
+              style={{ padding: '0 4px' }}
+              onClick={() => setDeletingSampleId(record.id)}
             >
-              <Button 
-                type="link" 
-                danger
-                size="small"
-                icon={<DeleteOutlined />}
-                style={{ padding: '0 4px' }}
-              >
-                Delete
-              </Button>
-            </Popconfirm>
+              Delete
+            </Button>
           )}
         </Space>
       ),
@@ -853,9 +847,12 @@ const Samples = () => {
         <Tabs
           activeKey={isBulkRegister ? 'bulk' : 'single'}
           onChange={(key) => setIsBulkRegister(key === 'bulk')}
-        >
-          <Tabs.TabPane tab="Single Sample" key="single">
-            <Form
+          items={[
+            {
+              key: 'single',
+              label: 'Single Sample',
+              children: (
+                <Form
               form={form}
               layout="vertical"
               onFinish={handleRegisterSubmit}
@@ -989,10 +986,13 @@ const Samples = () => {
                 </Button>
               </Form.Item>
             </Form>
-          </Tabs.TabPane>
-
-          <Tabs.TabPane tab="Bulk Register" key="bulk">
-            <Form
+              ),
+            },
+            {
+              key: 'bulk',
+              label: 'Bulk Register',
+              children: (
+                <Form
               form={form}
               layout="vertical"
               onFinish={handleRegisterSubmit}
@@ -1142,8 +1142,10 @@ const Samples = () => {
                 </Button>
               </Form.Item>
             </Form>
-          </Tabs.TabPane>
-        </Tabs>
+              ),
+            },
+          ]}
+        />
       </Modal>
 
       {/* Bulk Status Update Modal */}
@@ -1210,6 +1212,64 @@ const Samples = () => {
               </Button>
               <Button type="primary" htmlType="submit">
                 Update Status
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Delete Sample Modal */}
+      <Modal
+        title="Delete Sample"
+        open={deletingSampleId !== null}
+        onCancel={() => {
+          setDeletingSampleId(null);
+          deleteForm.resetFields();
+        }}
+        footer={null}
+        width={500}
+      >
+        <Alert
+          message="Confirm Deletion"
+          description="This action will mark the sample as deleted. The sample will be removed from active lists but remain in the system for audit purposes."
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+        
+        <Form
+          form={deleteForm}
+          layout="vertical"
+          onFinish={(values) => {
+            if (deletingSampleId) {
+              handleDeleteSample(deletingSampleId, values.reason);
+            }
+          }}
+        >
+          <Form.Item
+            name="reason"
+            label="Deletion Reason"
+            rules={[
+              { required: true, message: 'Please provide a reason for deletion' },
+              { min: 10, message: 'Reason must be at least 10 characters' }
+            ]}
+          >
+            <Input.TextArea 
+              rows={3} 
+              placeholder="Please provide a detailed reason for deleting this sample..."
+            />
+          </Form.Item>
+
+          <Form.Item>
+            <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+              <Button onClick={() => {
+                setDeletingSampleId(null);
+                deleteForm.resetFields();
+              }}>
+                Cancel
+              </Button>
+              <Button type="primary" danger htmlType="submit">
+                Delete Sample
               </Button>
             </Space>
           </Form.Item>

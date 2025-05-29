@@ -83,20 +83,21 @@ class SampleType(str, enum.Enum):
     WOUND_SWAB = "wound_swab"
 
 class SampleStatus(str, enum.Enum):
-    REGISTERED = "registered"
-    RECEIVED = "received"
-    ACCESSIONED = "accessioned"
-    IN_EXTRACTION = "in_extraction"
-    EXTRACTED = "extracted"
-    IN_LIBRARY_PREP = "in_library_prep"
-    LIBRARY_PREPPED = "library_prepped"
-    IN_SEQUENCING = "in_sequencing"
-    SEQUENCED = "sequenced"
-    IN_ANALYSIS = "in_analysis"
-    ANALYSIS_COMPLETE = "analysis_complete"
-    DELIVERED = "delivered"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
+    REGISTERED = "REGISTERED"
+    RECEIVED = "RECEIVED"
+    ACCESSIONED = "ACCESSIONED"
+    IN_EXTRACTION = "IN_EXTRACTION"
+    EXTRACTED = "EXTRACTED"
+    IN_LIBRARY_PREP = "IN_LIBRARY_PREP"
+    LIBRARY_PREPPED = "LIBRARY_PREPPED"
+    IN_SEQUENCING = "IN_SEQUENCING"
+    SEQUENCED = "SEQUENCED"
+    IN_ANALYSIS = "IN_ANALYSIS"
+    ANALYSIS_COMPLETE = "ANALYSIS_COMPLETE"
+    DELIVERED = "DELIVERED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+    DELETED = "DELETED"
 
 class Sample(Base, TimestampMixin):
     __tablename__ = "samples"
@@ -105,7 +106,7 @@ class Sample(Base, TimestampMixin):
     barcode = Column(String, unique=True, index=True, nullable=False)  # Auto-generated 6-8 digits
     client_sample_id = Column(String)  # Client's original sample ID
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
-    sample_type = Column(Enum(SampleType), nullable=False)  # Keep for backward compatibility
+    sample_type = Column(Enum(SampleType))  # Deprecated - use sample_type_id instead
     sample_type_id = Column(Integer, ForeignKey("sample_types.id"))  # New foreign key
     sample_type_other = Column(String)  # Description when sample_type is OTHER
     status = Column(Enum(SampleStatus), default=SampleStatus.REGISTERED)
@@ -155,10 +156,10 @@ class Sample(Base, TimestampMixin):
     parent_sample = relationship("Sample", remote_side=[id])
     storage_location = relationship("StorageLocation", back_populates="samples")
     sample_type_ref = relationship("SampleType", back_populates="samples")
-    extraction_results = relationship("ExtractionResult", back_populates="sample")
-    library_prep_results = relationship("LibraryPrepResult", back_populates="sample")
-    sequencing_run_samples = relationship("SequencingRunSample", back_populates="sample")
-    logs = relationship("SampleLog", back_populates="sample", order_by="desc(SampleLog.created_at)")
+    extraction_results = relationship("ExtractionResult", back_populates="sample", cascade="all, delete-orphan")
+    library_prep_results = relationship("LibraryPrepResult", back_populates="sample", cascade="all, delete-orphan")
+    sequencing_run_samples = relationship("SequencingRunSample", back_populates="sample", cascade="all, delete-orphan")
+    logs = relationship("SampleLog", back_populates="sample", cascade="all, delete-orphan", order_by="desc(SampleLog.created_at)")
     
 class ExtractionResult(Base, TimestampMixin):
     __tablename__ = "extraction_results"
