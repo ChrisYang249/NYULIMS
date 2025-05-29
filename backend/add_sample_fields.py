@@ -100,7 +100,7 @@ def run_migration():
                         SELECT oid FROM pg_type WHERE typname = 'sampletype'
                     )
                 ) THEN
-                    ALTER TYPE sampletype ADD VALUE IF NOT EXISTS 'dna_plate' AFTER 'milk';
+                    ALTER TYPE sampletype ADD VALUE IF NOT EXISTS 'dna_plate';
                 END IF;
             END $$;
         """))
