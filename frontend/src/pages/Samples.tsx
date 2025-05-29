@@ -18,6 +18,13 @@ import { saveAs } from 'file-saver';
 
 const { Text } = Typography;
 
+// Helper function to convert M reads to GB (1GB = 6.6M reads)
+const formatDepthWithGB = (depthM: number | null | undefined): string => {
+  if (!depthM) return '-';
+  const gb = (depthM / 6.6).toFixed(1);
+  return `${depthM}M (${gb}GB)`;
+};
+
 interface Sample {
   id: number;
   barcode: string;
@@ -499,10 +506,10 @@ const Samples = () => {
     {
       title: 'Target/Actual',
       key: 'depth',
-      width: 100,
+      width: 150,
       render: (_: any, record: Sample) => (
         <span style={{ fontSize: '12px' }}>
-          {record.target_depth || '-'}X / {record.achieved_depth || '-'}X
+          {formatDepthWithGB(record.target_depth)} / {formatDepthWithGB(record.achieved_depth)}
         </span>
       ),
     },
@@ -674,7 +681,8 @@ const Samples = () => {
                 <Col span={12}>
                   <Form.Item
                     name="target_depth"
-                    label="Target Depth (X)"
+                    label="Target Depth (M reads)"
+                    tooltip="1GB = 6.6M reads"
                   >
                     <InputNumber
                       style={{ width: '100%' }}

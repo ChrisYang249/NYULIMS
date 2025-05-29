@@ -18,6 +18,13 @@ import dayjs from 'dayjs';
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
+// Helper function to convert M reads to GB (1GB = 6.6M reads)
+const formatDepthWithGB = (depthM: number | null | undefined): string => {
+  if (!depthM) return '-';
+  const gb = (depthM / 6.6).toFixed(1);
+  return `${depthM}M (${gb}GB)`;
+};
+
 interface Sample {
   id: number;
   barcode: string;
@@ -244,10 +251,10 @@ const SampleDetails = () => {
           {sample.client_institution}
         </Descriptions.Item>
         <Descriptions.Item label="Target Depth">
-          {sample.target_depth ? `${sample.target_depth}X` : '-'}
+          {formatDepthWithGB(sample.target_depth)}
         </Descriptions.Item>
         <Descriptions.Item label="Achieved Depth">
-          {sample.achieved_depth ? `${sample.achieved_depth}X` : '-'}
+          {formatDepthWithGB(sample.achieved_depth)}
         </Descriptions.Item>
         {sample.well_location && (
           <Descriptions.Item label="Well Location" span={2}>
@@ -343,7 +350,7 @@ const SampleDetails = () => {
               <Descriptions.Item label="Run ID">{sample.sequencing_run_id}</Descriptions.Item>
               <Descriptions.Item label="Instrument">{sample.sequencing_instrument || '-'}</Descriptions.Item>
               <Descriptions.Item label="Achieved Depth">
-                {sample.achieved_depth ? `${sample.achieved_depth}X` : '-'}
+                {formatDepthWithGB(sample.achieved_depth)}
               </Descriptions.Item>
               <Descriptions.Item label="Status">
                 <Badge status="success" text="Completed" />
@@ -592,7 +599,8 @@ const SampleDetails = () => {
 
           <Form.Item
             name="target_depth"
-            label="Target Depth (X)"
+            label="Target Depth (M reads)"
+            tooltip="1GB = 6.6M reads"
           >
             <Input type="number" placeholder="e.g., 30" />
           </Form.Item>
