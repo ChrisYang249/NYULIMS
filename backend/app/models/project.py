@@ -18,6 +18,7 @@ class ProjectStatus(str, enum.Enum):
     HOLD = "hold"
     CANCELLED = "cancelled"
     COMPLETED = "completed"
+    DELETED = "deleted"
 
 class ProjectType(str, enum.Enum):
     WGS = "WGS"

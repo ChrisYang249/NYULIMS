@@ -89,13 +89,20 @@ def read_projects(
     db: Session = Depends(deps.get_db),
     skip: int = 0,
     limit: int = 100,
+    include_deleted: bool = False,
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
     """Retrieve projects"""
-    projects = db.query(Project).options(
+    query = db.query(Project).options(
         joinedload(Project.client),
         joinedload(Project.sales_rep)
-    ).offset(skip).limit(limit).all()
+    )
+    
+    # Filter out deleted projects by default
+    if not include_deleted:
+        query = query.filter(Project.status != ProjectStatus.DELETED)
+    
+    projects = query.offset(skip).limit(limit).all()
     return projects
 
 @router.post("/", response_model=ProjectSchema)
@@ -404,3 +411,57 @@ def delete_attachment(
     db.commit()
     
     return {"message": "Attachment deleted successfully"}
+
+@router.delete("/{project_id}")
+def delete_project(
+    project_id: int,
+    reason: str = None,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """Delete project (soft delete by changing status to cancelled)"""
+    # Check if user has permission to delete
+    if current_user.role not in ["super_admin", "pm", "director"]:
+        raise HTTPException(
+            status_code=403,
+            detail="You don't have permission to delete projects"
+        )
+    
+    # PMs must provide a reason
+    if current_user.role == "pm" and not reason:
+        raise HTTPException(
+            status_code=400,
+            detail="Project managers must provide a reason for deletion"
+        )
+    
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Check if project is already deleted
+    if project.status == ProjectStatus.DELETED:
+        raise HTTPException(
+            status_code=400,
+            detail="Project is already deleted"
+        )
+    
+    # Soft delete by changing status
+    project.status = ProjectStatus.DELETED
+    
+    # Create log entry
+    log_comment = f"Project deleted"
+    if reason:
+        log_comment = f"Project deleted. Reason: {reason}"
+    
+    log = ProjectLog(
+        project_id=project_id,
+        comment=log_comment,
+        log_type="deletion",
+        created_by_id=current_user.id
+    )
+    db.add(log)
+    
+    db.commit()
+    db.refresh(project)
+    
+    return {"message": "Project deleted successfully", "project_id": project.project_id}
