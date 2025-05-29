@@ -420,6 +420,7 @@ const ProjectDetails = () => {
             setEditModalVisible(true);
             form.setFieldsValue({
               ...project,
+              status: project.status,
               start_date: dayjs(project.start_date),
               client_id: project.client?.id,
               sales_rep_id: project.sales_rep?.id
@@ -499,7 +500,7 @@ const ProjectDetails = () => {
             label="Status"
             rules={[{ required: true }]}
           >
-            <Select>
+            <Select placeholder="Select status">
               <Select.Option value="pending">Pending</Select.Option>
               <Select.Option value="pm_review">PM Review</Select.Option>
               <Select.Option value="lab">Lab</Select.Option>
@@ -507,7 +508,10 @@ const ProjectDetails = () => {
               <Select.Option value="hold">On Hold</Select.Option>
               <Select.Option value="cancelled">Cancelled</Select.Option>
               <Select.Option value="completed">Completed</Select.Option>
-              <Select.Option value="deleted">Deleted</Select.Option>
+              {/* Only show deleted option if project is already deleted */}
+              {project?.status === 'deleted' && (
+                <Select.Option value="deleted">Deleted</Select.Option>
+              )}
             </Select>
           </Form.Item>
 
