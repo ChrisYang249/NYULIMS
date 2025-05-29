@@ -64,14 +64,12 @@ const Samples = () => {
   const [storageLocations, setStorageLocations] = useState<StorageLocation[]>([]);
   const [loading, setLoading] = useState(false);
   const [isRegisterModalVisible, setIsRegisterModalVisible] = useState(false);
-  const [isStorageModalVisible, setIsStorageModalVisible] = useState(false);
   const [isBulkRegister, setIsBulkRegister] = useState(false);
   const [bulkCount, setBulkCount] = useState(1);
   const [bulkSamples, setBulkSamples] = useState<any[]>([]);
   const [selectedSamples, setSelectedSamples] = useState<number[]>([]);
   const [expandedView, setExpandedView] = useState(false);
   const [form] = Form.useForm();
-  const [storageForm] = Form.useForm();
 
   const fetchSamples = async () => {
     setLoading(true);
@@ -201,17 +199,6 @@ const Samples = () => {
     }
   };
 
-  const handleStorageSubmit = async (values: any) => {
-    try {
-      await api.post('/samples/storage/locations', values);
-      message.success('Storage location created successfully');
-      setIsStorageModalVisible(false);
-      storageForm.resetFields();
-      fetchStorageLocations();
-    } catch (error: any) {
-      message.error(error.response?.data?.detail || 'Failed to create storage location');
-    }
-  };
 
   const downloadCSVTemplate = () => {
     const template = 'project_id,client_sample_id,sample_type,target_depth,well_location,storage_freezer,storage_shelf,storage_box,storage_position\n1,SAMPLE001,stool,30,,Freezer1,Shelf1,Box1,A1\n1,SAMPLE002,dna_plate,50,A1,Freezer1,Shelf1,Box1,A2';
@@ -451,9 +438,6 @@ const Samples = () => {
           Import from CSV
         </Upload>
       </Menu.Item>
-      <Menu.Item key="storage" icon={<EnvironmentOutlined />} onClick={() => setIsStorageModalVisible(true)}>
-        Add Storage Location
-      </Menu.Item>
     </Menu>
   );
 
@@ -620,13 +604,9 @@ const Samples = () => {
                     <div style={{ textAlign: 'center', padding: 8 }}>
                       <Text type="secondary">No locations found</Text>
                       <br />
-                      <Button 
-                        type="link" 
-                        onClick={() => setIsStorageModalVisible(true)}
-                        size="small"
-                      >
-                        Add Storage Location
-                      </Button>
+                      <a href="/storage" target="_blank" rel="noopener noreferrer">
+                        Manage Storage Locations
+                      </a>
                     </div>
                   }
                 >
@@ -802,77 +782,6 @@ const Samples = () => {
         </Tabs>
       </Modal>
 
-      {/* Storage Location Modal */}
-      <Modal
-        title="Add Storage Location"
-        visible={isStorageModalVisible}
-        onCancel={() => {
-          setIsStorageModalVisible(false);
-          storageForm.resetFields();
-        }}
-        footer={null}
-        width={600}
-      >
-        <Form
-          form={storageForm}
-          layout="vertical"
-          onFinish={handleStorageSubmit}
-        >
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="freezer"
-                label="Freezer"
-                rules={[{ required: true, message: 'Please enter freezer' }]}
-              >
-                <Input placeholder="e.g., Freezer-1, -80C Storage" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="shelf"
-                label="Shelf"
-                rules={[{ required: true, message: 'Please enter shelf' }]}
-              >
-                <Input placeholder="e.g., Shelf-A, Top Shelf" />
-              </Form.Item>
-            </Col>
-          </Row>
-          
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="box"
-                label="Box"
-                rules={[{ required: true, message: 'Please enter box' }]}
-              >
-                <Input placeholder="e.g., Box-001, Sample Box 1" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="position"
-                label="Position (Optional)"
-              >
-                <Input placeholder="e.g., A1, Position 1" />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Form.Item
-            name="notes"
-            label="Notes (Optional)"
-          >
-            <Input.TextArea rows={2} placeholder="Any additional notes about this location" />
-          </Form.Item>
-
-          <Form.Item>
-            <Button type="primary" htmlType="submit" block>
-              Create Storage Location
-            </Button>
-          </Form.Item>
-        </Form>
-      </Modal>
     </div>
   );
 };
