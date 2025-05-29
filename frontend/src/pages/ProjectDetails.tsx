@@ -28,6 +28,7 @@ interface Project {
   start_date: string;
   due_date: string;
   expected_sample_count: number;
+  processing_sample_count?: number;
   project_value?: number;
   notes?: string;
   created_at: string;
@@ -279,7 +280,10 @@ const ProjectDetails = () => {
             <Descriptions.Item label="Sales Rep">
               {project.sales_rep ? `${project.sales_rep.name} (${project.sales_rep.title})` : 'Not assigned'}
             </Descriptions.Item>
-            <Descriptions.Item label="Expected Samples">{project.expected_sample_count}</Descriptions.Item>
+            <Descriptions.Item label="Quoted Samples">{project.expected_sample_count}</Descriptions.Item>
+            <Descriptions.Item label="Processing Samples">
+              {project.processing_sample_count || 'Not set'}
+            </Descriptions.Item>
             <Descriptions.Item label="Start Date">
               {dayjs(project.start_date).format('YYYY-MM-DD')}
             </Descriptions.Item>
@@ -541,10 +545,18 @@ const ProjectDetails = () => {
 
           <Form.Item
             name="expected_sample_count"
-            label="Expected Sample Count"
+            label="Quoted Sample Count"
             rules={[{ required: true }]}
           >
             <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+
+          <Form.Item
+            name="processing_sample_count"
+            label="Processing Sample Count"
+            tooltip="Actual number of samples to be processed (if different from quoted)"
+          >
+            <InputNumber min={1} style={{ width: '100%' }} placeholder="Leave blank to use quoted count" />
           </Form.Item>
 
           <Form.Item

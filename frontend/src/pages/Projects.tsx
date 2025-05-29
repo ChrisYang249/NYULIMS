@@ -279,9 +279,22 @@ const Projects = () => {
     },
     {
       title: '# Samples',
-      dataIndex: 'expected_sample_count',
-      key: 'expected_sample_count',
-      sorter: (a: any, b: any) => a.expected_sample_count - b.expected_sample_count,
+      key: 'sample_count',
+      sorter: (a: any, b: any) => {
+        const aCount = a.processing_sample_count || a.expected_sample_count;
+        const bCount = b.processing_sample_count || b.expected_sample_count;
+        return aCount - bCount;
+      },
+      render: (_, record: any) => {
+        if (record.processing_sample_count) {
+          return (
+            <span title={`Quoted: ${record.expected_sample_count}, Processing: ${record.processing_sample_count}`}>
+              {record.processing_sample_count}
+            </span>
+          );
+        }
+        return record.expected_sample_count;
+      },
     },
   ];
 
@@ -633,10 +646,18 @@ const Projects = () => {
 
           <Form.Item
             name="expected_sample_count"
-            label="Expected Sample Count"
+            label="Quoted Sample Count"
             rules={[{ required: true }]}
           >
             <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+
+          <Form.Item
+            name="processing_sample_count"
+            label="Processing Sample Count (Optional)"
+            tooltip="Leave blank if same as quoted. Can be updated later."
+          >
+            <InputNumber min={1} style={{ width: '100%' }} placeholder="Optional" />
           </Form.Item>
 
           <Form.Item

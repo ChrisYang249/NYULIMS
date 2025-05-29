@@ -63,7 +63,8 @@ class Project(Base, TimestampMixin):
     client_id = Column(Integer, ForeignKey("clients.id"), nullable=False)
     status = Column(Enum(ProjectStatus, values_callable=lambda obj: [e.value for e in obj]), default=ProjectStatus.PENDING.value)
     tat = Column(Enum(TAT, values_callable=lambda obj: [e.value for e in obj]), nullable=False)
-    expected_sample_count = Column(Integer, nullable=False)
+    expected_sample_count = Column(Integer, nullable=False)  # Quoted sample count
+    processing_sample_count = Column(Integer, nullable=True)  # Actual samples to be processed
     project_value = Column(Float)
     notes = Column(Text)
     

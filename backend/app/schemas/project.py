@@ -31,6 +31,7 @@ class ProjectBase(BaseModel):
     tat: TAT
     start_date: datetime
     expected_sample_count: int
+    processing_sample_count: Optional[int] = None
     project_value: Optional[float] = None
     notes: Optional[str] = None
     sales_rep_id: Optional[int] = None
@@ -45,6 +46,7 @@ class ProjectUpdate(BaseModel):
     tat: Optional[TAT] = None
     start_date: Optional[datetime] = None
     expected_sample_count: Optional[int] = None
+    processing_sample_count: Optional[int] = None
     project_value: Optional[float] = None
     notes: Optional[str] = None
     sales_rep_id: Optional[int] = None

@@ -170,7 +170,7 @@ def create_project(
         f"Project ID: {project_id}",
         f"Type: {project.project_type}",
         f"Client: {client_name}",
-        f"Expected Samples: {project.expected_sample_count}",
+        f"Quoted Samples: {project.expected_sample_count}",
         f"TAT: {project.tat}",
         f"Due Date: {due_date.strftime('%Y-%m-%d')}"
     ]
@@ -282,7 +282,8 @@ def update_project(
         "status": "Status",
         "tat": "TAT",
         "start_date": "Start Date",
-        "expected_sample_count": "Expected Sample Count",
+        "expected_sample_count": "Quoted Sample Count",
+        "processing_sample_count": "Processing Sample Count",
         "project_value": "Project Value",
         "notes": "Notes",
         "sales_rep_id": "Sales Rep"
