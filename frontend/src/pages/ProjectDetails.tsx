@@ -277,9 +277,6 @@ const ProjectDetails = () => {
                 {project.status.replace('_', ' ').toUpperCase()}
               </Tag>
             </Descriptions.Item>
-            <Descriptions.Item label="Sales Rep">
-              {project.sales_rep ? `${project.sales_rep.name} (${project.sales_rep.title})` : 'Not assigned'}
-            </Descriptions.Item>
             <Descriptions.Item label="Quoted Samples">{project.expected_sample_count}</Descriptions.Item>
             <Descriptions.Item label="Processing Samples">
               {project.processing_sample_count || 'Not set'}
@@ -289,6 +286,9 @@ const ProjectDetails = () => {
             </Descriptions.Item>
             <Descriptions.Item label="Due Date">
               {dayjs(project.due_date).format('YYYY-MM-DD')}
+            </Descriptions.Item>
+            <Descriptions.Item label="Sales Rep">
+              {project.sales_rep ? `${project.sales_rep.name} (${project.sales_rep.title})` : 'Not assigned'}
             </Descriptions.Item>
             {project.project_value && (
               <Descriptions.Item label="Project Value">${project.project_value}</Descriptions.Item>
