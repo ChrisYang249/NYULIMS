@@ -218,7 +218,7 @@ const Projects = () => {
       render: (date: string) => dayjs(date).format('YYYY-MM-DD'),
     },
     {
-      title: 'Expected Samples',
+      title: '# Samples',
       dataIndex: 'expected_sample_count',
       key: 'expected_sample_count',
       sorter: (a: any, b: any) => a.expected_sample_count - b.expected_sample_count,
