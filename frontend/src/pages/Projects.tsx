@@ -194,7 +194,31 @@ const Projects = () => {
       fetchProjects();
     } catch (error: any) {
       console.error('Project creation error:', error.response?.data);
-      message.error(error.response?.data?.detail || 'Failed to create project');
+      
+      // Handle specific error messages
+      if (error.response?.status === 400 && error.response?.data?.detail) {
+        const errorDetail = error.response.data.detail;
+        
+        // Check if it's a duplicate project ID error
+        if (errorDetail.includes('already exists')) {
+          // Set form field error for project_id
+          form.setFields([
+            {
+              name: 'project_id',
+              errors: [errorDetail],
+            },
+          ]);
+        } else {
+          // Other validation errors
+          message.error(errorDetail);
+        }
+      } else if (error.response?.status === 403) {
+        // Permission denied
+        message.error('You do not have permission to create projects');
+      } else {
+        // Generic error
+        message.error('Failed to create project. Please try again.');
+      }
     }
   };
   
@@ -267,8 +291,29 @@ const Projects = () => {
             name="project_id"
             label="Project ID (optional - leave blank for auto-generated)"
             help="Leave blank to auto-generate or enter custom ID"
+            rules={[
+              {
+                pattern: /^[A-Za-z0-9-_]+$/,
+                message: 'Project ID can only contain letters, numbers, hyphens, and underscores',
+              },
+            ]}
           >
-            <Input placeholder="e.g., CMBP00001" />
+            <Input 
+              placeholder="e.g., CMBP00001" 
+              onChange={(e) => {
+                // Convert to uppercase
+                const uppercaseValue = e.target.value.toUpperCase();
+                form.setFieldsValue({ project_id: uppercaseValue });
+                
+                // Clear any previous errors when user types
+                form.setFields([
+                  {
+                    name: 'project_id',
+                    errors: [],
+                  },
+                ]);
+              }}
+            />
           </Form.Item>
 
           <Form.Item
