@@ -94,6 +94,7 @@ class SampleWithLabData(Sample):
     sequencing_instrument: Optional[str] = None
     achieved_depth: Optional[float] = None
     project_name: Optional[str] = None
+    project_code: Optional[str] = None
     client_institution: Optional[str] = None
     
     class Config:

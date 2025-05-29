@@ -81,6 +81,7 @@ def read_samples(
             "storage_box": sample.storage_box,
             "storage_position": sample.storage_position,
             "project_name": sample.project.name if sample.project else None,
+            "project_code": sample.project.project_id if sample.project else None,  # The CMBP ID
             "client_institution": sample.project.client.institution if sample.project and sample.project.client else None,
         }
         
@@ -147,6 +148,7 @@ def read_sample(
         "storage_box": sample.storage_box,
         "storage_position": sample.storage_position,
         "project_name": sample.project.name if sample.project else None,
+        "project_code": sample.project.project_id if sample.project else None,  # The CMBP ID
         "client_institution": sample.project.client.institution if sample.project and sample.project.client else None,
     }
     

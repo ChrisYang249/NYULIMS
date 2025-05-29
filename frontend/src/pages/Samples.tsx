@@ -22,6 +22,7 @@ interface Sample {
   client_sample_id: string;
   project_id: number;
   project_name: string;
+  project_code: string;  // The CMBP ID
   client_institution: string;
   sample_type: string;
   status: string;
@@ -42,6 +43,7 @@ interface Sample {
 
 interface Project {
   id: number;
+  project_id: string;  // The actual CMBP ID
   name: string;
   client: {
     name: string;
@@ -276,13 +278,14 @@ const Samples = () => {
       render: (_: any, record: Sample) => (
         <Popover content={
           <div>
-            <div><strong>Project:</strong> {record.project_name}</div>
+            <div><strong>Project ID:</strong> {record.project_code}</div>
+            <div><strong>Name:</strong> {record.project_name || 'N/A'}</div>
             <div><strong>Institution:</strong> {record.client_institution}</div>
             <div><strong>Due:</strong> {record.due_date ? dayjs(record.due_date).format('YYYY-MM-DD') : '-'}</div>
           </div>
         }>
           <span style={{ cursor: 'pointer' }}>
-            P{record.project_id} - {record.client_institution}
+            {record.project_code} - {record.client_institution}
           </span>
         </Popover>
       ),
@@ -526,7 +529,7 @@ const Samples = () => {
                     >
                       {projects.map(project => (
                         <Select.Option key={project.id} value={project.id}>
-                          {project.id} - {project.client.institution}
+                          {project.project_id} - {project.client.institution}
                         </Select.Option>
                       ))}
                     </Select>
@@ -655,7 +658,7 @@ const Samples = () => {
                     >
                       {projects.map(project => (
                         <Select.Option key={project.id} value={project.id}>
-                          {project.id} - {project.client.institution}
+                          {project.project_id} - {project.client.institution}
                         </Select.Option>
                       ))}
                     </Select>
