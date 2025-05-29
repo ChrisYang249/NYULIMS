@@ -8,7 +8,8 @@ from datetime import datetime
 from app.api import deps
 from app.models import (
     User, Sample, SampleStatus, SampleType, Project, StorageLocation,
-    ExtractionResult, LibraryPrepResult, SequencingRunSample, SequencingRun
+    ExtractionResult, LibraryPrepResult, SequencingRunSample, SequencingRun,
+    SampleLog
 )
 from app.schemas.sample import (
     Sample as SampleSchema, 
@@ -18,7 +19,9 @@ from app.schemas.sample import (
     SampleAccession,
     SampleWithLabData,
     StorageLocation as StorageLocationSchema,
-    StorageLocationCreate
+    StorageLocationCreate,
+    SampleLog as SampleLogSchema,
+    SampleLogCreate
 )
 
 router = APIRouter()
@@ -30,6 +33,27 @@ def generate_barcode(db: Session, length: int = 6) -> str:
         existing = db.query(Sample).filter(Sample.barcode == barcode).first()
         if not existing:
             return barcode
+
+def create_sample_log(
+    db: Session,
+    sample_id: int,
+    comment: str,
+    log_type: str = "comment",
+    old_value: str = None,
+    new_value: str = None,
+    user_id: int = None
+) -> SampleLog:
+    """Create a log entry for a sample"""
+    log = SampleLog(
+        sample_id=sample_id,
+        comment=comment,
+        log_type=log_type,
+        old_value=old_value,
+        new_value=new_value,
+        created_by_id=user_id
+    )
+    db.add(log)
+    return log
 
 @router.get("/", response_model=List[SampleWithLabData])
 def read_samples(
@@ -209,6 +233,17 @@ def create_sample(
         **sample_data
     )
     db.add(sample)
+    db.flush()  # Get the ID without committing
+    
+    # Create log entry
+    create_sample_log(
+        db=db,
+        sample_id=sample.id,
+        comment=f"Sample created with barcode {barcode}",
+        log_type="creation",
+        user_id=current_user.id
+    )
+    
     db.commit()
     db.refresh(sample)
     
@@ -279,8 +314,42 @@ def update_sample(
         raise HTTPException(status_code=404, detail="Sample not found")
     
     update_data = sample_in.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(sample, field, value)
+    
+    # Track changes for logging
+    changes = []
+    for field, new_value in update_data.items():
+        old_value = getattr(sample, field)
+        if old_value != new_value:
+            changes.append({
+                'field': field,
+                'old': str(old_value) if old_value is not None else None,
+                'new': str(new_value) if new_value is not None else None
+            })
+            setattr(sample, field, new_value)
+    
+    if changes:
+        # Log each change
+        for change in changes:
+            if change['field'] == 'status':
+                create_sample_log(
+                    db=db,
+                    sample_id=sample.id,
+                    comment=f"Status changed from {change['old']} to {change['new']}",
+                    log_type="status_change",
+                    old_value=change['old'],
+                    new_value=change['new'],
+                    user_id=current_user.id
+                )
+            else:
+                create_sample_log(
+                    db=db,
+                    sample_id=sample.id,
+                    comment=f"{field.replace('_', ' ').title()} updated",
+                    log_type="update",
+                    old_value=change['old'],
+                    new_value=change['new'],
+                    user_id=current_user.id
+                )
     
     sample.updated_by_id = current_user.id
     sample.updated_at = func.now()
@@ -302,6 +371,7 @@ def accession_sample(
     if not sample:
         raise HTTPException(status_code=404, detail="Sample not found")
     
+    old_status = sample.status
     sample.status = SampleStatus.ACCESSIONED
     sample.accessioned_by_id = current_user.id
     sample.accessioned_date = func.now()
@@ -309,6 +379,17 @@ def accession_sample(
     
     if accession_in.accessioning_notes:
         sample.accessioning_notes = accession_in.accessioning_notes
+    
+    # Create log entry
+    create_sample_log(
+        db=db,
+        sample_id=sample.id,
+        comment=f"Sample accessioned{' - ' + accession_in.accessioning_notes if accession_in.accessioning_notes else ''}",
+        log_type="accession",
+        old_value=str(old_status),
+        new_value=str(SampleStatus.ACCESSIONED),
+        user_id=current_user.id
+    )
     
     db.commit()
     db.refresh(sample)
@@ -388,3 +469,63 @@ def create_storage_location(
     db.refresh(location)
     
     return location
+
+# Sample Log endpoints
+@router.get("/{sample_id}/logs", response_model=List[SampleLogSchema])
+def read_sample_logs(
+    sample_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """Get all logs for a sample"""
+    sample = db.query(Sample).filter(Sample.id == sample_id).first()
+    if not sample:
+        raise HTTPException(status_code=404, detail="Sample not found")
+    
+    logs = db.query(SampleLog).filter(
+        SampleLog.sample_id == sample_id
+    ).order_by(SampleLog.created_at.desc()).all()
+    
+    # Include user info
+    for log in logs:
+        if log.created_by:
+            log.created_by = {
+                "id": log.created_by.id,
+                "full_name": log.created_by.full_name,
+                "username": log.created_by.username
+            }
+    
+    return logs
+
+@router.post("/{sample_id}/logs", response_model=SampleLogSchema)
+def create_sample_comment(
+    sample_id: int,
+    *,
+    db: Session = Depends(deps.get_db),
+    comment_in: dict,
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """Add a comment to a sample"""
+    sample = db.query(Sample).filter(Sample.id == sample_id).first()
+    if not sample:
+        raise HTTPException(status_code=404, detail="Sample not found")
+    
+    log = create_sample_log(
+        db=db,
+        sample_id=sample_id,
+        comment=comment_in.get("comment"),
+        log_type="comment",
+        user_id=current_user.id
+    )
+    
+    db.commit()
+    db.refresh(log)
+    
+    # Include user info
+    log.created_by = {
+        "id": current_user.id,
+        "full_name": current_user.full_name,
+        "username": current_user.username
+    }
+    
+    return log

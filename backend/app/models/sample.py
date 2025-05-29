@@ -75,6 +75,7 @@ class Sample(Base, TimestampMixin):
     extraction_results = relationship("ExtractionResult", back_populates="sample")
     library_prep_results = relationship("LibraryPrepResult", back_populates="sample")
     sequencing_run_samples = relationship("SequencingRunSample", back_populates="sample")
+    logs = relationship("SampleLog", back_populates="sample", order_by="desc(SampleLog.created_at)")
     
 class ExtractionResult(Base, TimestampMixin):
     __tablename__ = "extraction_results"
@@ -122,3 +123,20 @@ class LibraryPrepResult(Base, TimestampMixin):
     qc_notes = Column(Text)
     
     sample = relationship("Sample", back_populates="library_prep_results")
+
+class SampleLog(Base, TimestampMixin):
+    __tablename__ = "sample_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    sample_id = Column(Integer, ForeignKey("samples.id"), nullable=False)
+    comment = Column(Text, nullable=False)
+    log_type = Column(String, default="comment")  # comment, status_change, extraction, library_prep, sequencing, etc.
+    old_value = Column(String)  # For tracking changes
+    new_value = Column(String)  # For tracking changes
+    
+    # User who created the log
+    created_by_id = Column(Integer, ForeignKey("users.id"))
+    
+    # Relationships
+    sample = relationship("Sample", back_populates="logs")
+    created_by = relationship("User", foreign_keys=[created_by_id])

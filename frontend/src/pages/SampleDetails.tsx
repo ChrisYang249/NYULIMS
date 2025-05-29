@@ -3,12 +3,15 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   Card, Descriptions, Button, Tag, Space, message, Modal,
   Tabs, Timeline, Badge, Select, Form, Input, DatePicker,
-  Row, Col, Divider, Typography, Spin, Empty
+  Row, Col, Divider, Typography, Spin, Empty, List, Comment,
+  Avatar
 } from 'antd';
 import {
   ArrowLeftOutlined, EditOutlined, BarcodeOutlined,
   ExperimentOutlined, HistoryOutlined, EnvironmentOutlined,
-  FileTextOutlined, CheckCircleOutlined
+  FileTextOutlined, CheckCircleOutlined, UserOutlined,
+  CommentOutlined, ClockCircleOutlined, PlusOutlined,
+  ArrowRightOutlined
 } from '@ant-design/icons';
 import { api } from '../config/api';
 import dayjs from 'dayjs';
@@ -52,15 +55,34 @@ interface Sample {
   updated_at: string;
 }
 
+interface SampleLog {
+  id: number;
+  sample_id: number;
+  comment: string;
+  log_type: string;
+  old_value?: string;
+  new_value?: string;
+  created_at: string;
+  created_by?: {
+    id: number;
+    full_name: string;
+    username: string;
+  };
+}
+
 const SampleDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [sample, setSample] = useState<Sample | null>(null);
+  const [logs, setLogs] = useState<SampleLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [isStatusModalVisible, setIsStatusModalVisible] = useState(false);
+  const [commentText, setCommentText] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
   const [form] = Form.useForm();
   const [statusForm] = Form.useForm();
+  const [commentForm] = Form.useForm();
 
   const statusColors: Record<string, string> = {
     registered: 'default',
@@ -119,8 +141,39 @@ const SampleDetails = () => {
     setLoading(false);
   };
 
+  const fetchLogs = async () => {
+    if (!id) return;
+    
+    try {
+      const response = await api.get(`/samples/${id}/logs`);
+      setLogs(response.data);
+    } catch (error) {
+      console.error('Failed to fetch logs');
+    }
+  };
+
+  const handleCommentSubmit = async () => {
+    const comment = commentForm.getFieldValue('comment');
+    if (!comment || !comment.trim()) {
+      message.warning('Please enter a comment');
+      return;
+    }
+
+    setSubmittingComment(true);
+    try {
+      await api.post(`/samples/${id}/logs`, { comment });
+      message.success('Comment added successfully');
+      commentForm.resetFields();
+      fetchLogs();
+    } catch (error) {
+      message.error('Failed to add comment');
+    }
+    setSubmittingComment(false);
+  };
+
   useEffect(() => {
     fetchSample();
+    fetchLogs();
   }, [id]);
 
   const handleEdit = async (values: any) => {
@@ -129,6 +182,7 @@ const SampleDetails = () => {
       message.success('Sample updated successfully');
       setIsEditModalVisible(false);
       fetchSample();
+      fetchLogs();
     } catch (error) {
       message.error('Failed to update sample');
     }
@@ -144,6 +198,7 @@ const SampleDetails = () => {
       setIsStatusModalVisible(false);
       statusForm.resetFields();
       fetchSample();
+      fetchLogs();
     } catch (error) {
       message.error('Failed to update status');
     }
@@ -303,43 +358,145 @@ const SampleDetails = () => {
     </Row>
   );
 
-  const renderTimeline = () => {
-    const events = [
-      {
-        time: sample.created_at,
-        status: 'Registered',
-        color: 'gray',
-      },
-      sample.received_date && {
-        time: sample.received_date,
-        status: 'Received',
-        color: 'blue',
-      },
-      sample.accessioned_date && {
-        time: sample.accessioned_date,
-        status: 'Accessioned',
-        color: 'cyan',
-      },
-      sample.pretreatment_date && {
-        time: sample.pretreatment_date,
-        status: `Pre-treatment: ${sample.pretreatment_type}`,
-        color: 'orange',
-      },
-    ].filter(Boolean);
+  const renderActivityLog = () => {
+    const getLogIcon = (logType: string) => {
+      switch (logType) {
+        case 'creation':
+          return <PlusOutlined />;
+        case 'status_change':
+          return <CheckCircleOutlined />;
+        case 'update':
+          return <EditOutlined />;
+        case 'accession':
+          return <BarcodeOutlined />;
+        case 'comment':
+          return <CommentOutlined />;
+        default:
+          return <FileTextOutlined />;
+      }
+    };
+
+    const getLogColor = (logType: string) => {
+      switch (logType) {
+        case 'creation':
+          return 'green';
+        case 'status_change':
+          return 'blue';
+        case 'update':
+          return 'orange';
+        case 'accession':
+          return 'cyan';
+        case 'comment':
+          return 'gray';
+        default:
+          return 'default';
+      }
+    };
 
     return (
-      <Card>
-        <Timeline>
-          {events.map((event: any, index) => (
-            <Timeline.Item key={index} color={event.color}>
-              <p>{event.status}</p>
-              <p style={{ color: '#888', fontSize: '12px' }}>
-                {dayjs(event.time).format('YYYY-MM-DD HH:mm:ss')}
-              </p>
-            </Timeline.Item>
-          ))}
-        </Timeline>
-      </Card>
+      <Row gutter={[16, 16]}>
+        <Col span={16}>
+          <Card title="Activity Timeline" extra={<Tag>{logs.length} activities</Tag>}>
+            <Timeline>
+              {logs.map((log) => (
+                <Timeline.Item
+                  key={log.id}
+                  dot={getLogIcon(log.log_type)}
+                  color={getLogColor(log.log_type)}
+                >
+                  <div>
+                    <Text strong>{log.comment}</Text>
+                    {log.old_value && log.new_value && (
+                      <div style={{ marginTop: 4 }}>
+                        <Tag color="red" style={{ textDecoration: 'line-through' }}>
+                          {log.old_value}
+                        </Tag>
+                        <ArrowRightOutlined style={{ margin: '0 8px' }} />
+                        <Tag color="green">{log.new_value}</Tag>
+                      </div>
+                    )}
+                    <div style={{ marginTop: 8 }}>
+                      <Space size="small" style={{ fontSize: '12px', color: '#999' }}>
+                        <UserOutlined />
+                        <Text type="secondary">
+                          {log.created_by?.full_name || 'System'}
+                        </Text>
+                        <Divider type="vertical" />
+                        <ClockCircleOutlined />
+                        <Text type="secondary">
+                          {dayjs(log.created_at).format('YYYY-MM-DD HH:mm:ss')}
+                        </Text>
+                      </Space>
+                    </div>
+                  </div>
+                </Timeline.Item>
+              ))}
+            </Timeline>
+            {logs.length === 0 && (
+              <Empty description="No activity recorded yet" />
+            )}
+          </Card>
+        </Col>
+        
+        <Col span={8}>
+          <Card title="Add Comment">
+            <Form form={commentForm} onFinish={handleCommentSubmit}>
+              <Form.Item
+                name="comment"
+                rules={[{ required: true, message: 'Please enter a comment' }]}
+              >
+                <TextArea
+                  rows={4}
+                  placeholder="Enter your comment here..."
+                  maxLength={500}
+                  showCount
+                />
+              </Form.Item>
+              <Form.Item>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  loading={submittingComment}
+                  icon={<CommentOutlined />}
+                  block
+                >
+                  Add Comment
+                </Button>
+              </Form.Item>
+            </Form>
+          </Card>
+
+          <Card title="Quick Stats" style={{ marginTop: 16 }}>
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <div>
+                <Text type="secondary">Total Activities:</Text>
+                <Text strong style={{ float: 'right' }}>{logs.length}</Text>
+              </div>
+              <Divider style={{ margin: '8px 0' }} />
+              <div>
+                <Text type="secondary">Comments:</Text>
+                <Text strong style={{ float: 'right' }}>
+                  {logs.filter(l => l.log_type === 'comment').length}
+                </Text>
+              </div>
+              <Divider style={{ margin: '8px 0' }} />
+              <div>
+                <Text type="secondary">Status Changes:</Text>
+                <Text strong style={{ float: 'right' }}>
+                  {logs.filter(l => l.log_type === 'status_change').length}
+                </Text>
+              </div>
+              <Divider style={{ margin: '8px 0' }} />
+              <div>
+                <Text type="secondary">Updates:</Text>
+                <Text strong style={{ float: 'right' }}>
+                  {logs.filter(l => l.log_type === 'update').length}
+                </Text>
+              </div>
+            </Space>
+          </Card>
+        </Col>
+      </Row>
     );
   };
 
@@ -378,8 +535,8 @@ const SampleDetails = () => {
         <TabPane tab="Lab Data" key="lab">
           {renderLabData()}
         </TabPane>
-        <TabPane tab="History" key="history">
-          {renderTimeline()}
+        <TabPane tab="Activity & Comments" key="activity">
+          {renderActivityLog()}
         </TabPane>
       </Tabs>
 

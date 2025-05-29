@@ -99,3 +99,23 @@ class SampleWithLabData(Sample):
     
     class Config:
         from_attributes = True
+
+# Sample Log Schemas
+class SampleLogBase(BaseModel):
+    comment: str
+    log_type: str = "comment"
+    old_value: Optional[str] = None
+    new_value: Optional[str] = None
+
+class SampleLogCreate(SampleLogBase):
+    sample_id: int
+
+class SampleLog(SampleLogBase):
+    id: int
+    sample_id: int
+    created_at: datetime
+    created_by_id: Optional[int] = None
+    created_by: Optional[dict] = None  # Will include user info
+    
+    class Config:
+        from_attributes = True
