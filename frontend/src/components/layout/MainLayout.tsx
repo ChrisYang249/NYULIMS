@@ -37,7 +37,7 @@ const MainLayout = () => {
     {
       key: '/employees',
       icon: <UserOutlined />,
-      label: 'Employees',
+      label: 'Users',
     },
     {
       key: '/samples',

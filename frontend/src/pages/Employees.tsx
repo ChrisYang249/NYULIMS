@@ -27,7 +27,7 @@ const Employees = () => {
       const response = await api.get('/employees');
       setEmployees(response.data);
     } catch (error) {
-      message.error('Failed to fetch employees');
+      message.error('Failed to fetch users');
     }
     setLoading(false);
   };
@@ -110,10 +110,10 @@ const Employees = () => {
       onOk: async () => {
         try {
           await api.delete(`/employees/${employee.id}`);
-          message.success('Employee deactivated successfully');
+          message.success('User deactivated successfully');
           fetchEmployees();
         } catch (error) {
-          message.error('Failed to deactivate employee');
+          message.error('Failed to deactivate user');
         }
       },
     });
@@ -123,10 +123,10 @@ const Employees = () => {
     try {
       if (editingEmployee) {
         await api.put(`/employees/${editingEmployee.id}`, values);
-        message.success('Employee updated successfully');
+        message.success('User updated successfully');
       } else {
         await api.post('/employees/', values);
-        message.success('Employee created successfully');
+        message.success('User created successfully');
       }
       setModalVisible(false);
       form.resetFields();
@@ -136,7 +136,7 @@ const Employees = () => {
       if (error.response?.data?.detail) {
         message.error(error.response.data.detail);
       } else {
-        message.error('Failed to save employee');
+        message.error('Failed to save user');
       }
     }
   };
@@ -150,13 +150,13 @@ const Employees = () => {
   return (
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
-        <h1>Employees</h1>
+        <h1>Users</h1>
         <Button
           type="primary"
           icon={<PlusOutlined />}
           onClick={() => setModalVisible(true)}
         >
-          Add Employee
+          Add User
         </Button>
       </div>
 
@@ -168,12 +168,12 @@ const Employees = () => {
         pagination={{
           defaultPageSize: 10,
           showSizeChanger: true,
-          showTotal: (total) => `Total ${total} employees`,
+          showTotal: (total) => `Total ${total} users`,
         }}
       />
 
       <Modal
-        title={editingEmployee ? 'Edit Employee' : 'Add Employee'}
+        title={editingEmployee ? 'Edit User' : 'Add User'}
         open={modalVisible}
         onCancel={handleModalCancel}
         footer={null}
@@ -186,7 +186,7 @@ const Employees = () => {
           <Form.Item
             name="name"
             label="Name"
-            rules={[{ required: true, message: 'Please enter employee name' }]}
+            rules={[{ required: true, message: 'Please enter user name' }]}
           >
             <Input placeholder="John Doe" />
           </Form.Item>

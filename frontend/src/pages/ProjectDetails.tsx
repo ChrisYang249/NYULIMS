@@ -111,7 +111,7 @@ const ProjectDetails = () => {
       const response = await api.get('/employees');
       setEmployees(response.data);
     } catch (error) {
-      console.error('Failed to fetch employees');
+      console.error('Failed to fetch users');
     }
   };
 
@@ -276,7 +276,7 @@ const ProjectDetails = () => {
                 {project.status.replace('_', ' ').toUpperCase()}
               </Tag>
             </Descriptions.Item>
-            <Descriptions.Item label="Sales Rep">
+            <Descriptions.Item label="Assigned User">
               {project.sales_rep ? `${project.sales_rep.name} (${project.sales_rep.title})` : 'Not assigned'}
             </Descriptions.Item>
             <Descriptions.Item label="Expected Samples">{project.expected_sample_count}</Descriptions.Item>
@@ -549,10 +549,10 @@ const ProjectDetails = () => {
 
           <Form.Item
             name="sales_rep_id"
-            label="Sales Representative"
+            label="Assigned User"
           >
             <Select 
-              placeholder="Select sales representative"
+              placeholder="Select user to assign"
               allowClear
               showSearch
               filterOption={(input, option) => {

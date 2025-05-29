@@ -16,7 +16,7 @@ interface Client {
   email: string;
 }
 
-interface Employee {
+interface Employee {  // Internal users/staff
   id: number;
   name: string;
   email: string;
@@ -78,7 +78,7 @@ const Projects = () => {
       const response = await api.get('/employees');
       setEmployees(response.data);
     } catch (error) {
-      message.error('Failed to fetch employees');
+      message.error('Failed to fetch users');
     }
   };
   
@@ -264,7 +264,7 @@ const Projects = () => {
       },
     },
     {
-      title: 'Sales Rep',
+      title: 'Assigned User',
       key: 'sales_rep',
       render: (_, record: any) => (
         <span>{record.sales_rep?.name || '-'}</span>
@@ -457,7 +457,7 @@ const Projects = () => {
         <Row style={{ marginTop: 16 }} gutter={16}>
           <Col span={10}>
             <Input
-              placeholder="Search projects, clients, or sales reps..."
+              placeholder="Search projects, clients, or assigned users..."
               prefix={<SearchOutlined />}
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
@@ -641,10 +641,10 @@ const Projects = () => {
 
           <Form.Item
             name="sales_rep_id"
-            label="Sales Representative (Optional)"
+            label="Assigned User (Optional)"
           >
             <Select 
-              placeholder="Select sales representative"
+              placeholder="Select user to assign"
               allowClear
               showSearch
               filterOption={(input, option) => {
