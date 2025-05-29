@@ -687,7 +687,46 @@ const ActivityLogTab = ({ logs }: { logs: ProjectLog[] }) => {
       title: 'Action',
       dataIndex: 'comment',
       key: 'comment',
-      render: (text: string) => text,
+      render: (text: string) => {
+        // Check if it's an update with changes
+        if (text.startsWith('Updated:')) {
+          const changes = text.replace('Updated: ', '').split('; ');
+          return (
+            <div>
+              <strong>Updated:</strong>
+              <ul style={{ margin: '4px 0 0 20px', padding: 0 }}>
+                {changes.map((change, index) => (
+                  <li key={index} style={{ listStyleType: 'disc' }}>
+                    {change.split(': ').map((part, i) => 
+                      i === 0 ? <strong key={i}>{part}: </strong> : part
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        }
+        // Check if it's a creation with details
+        else if (text.startsWith('Project created -')) {
+          const details = text.replace('Project created - ', '').split('; ');
+          return (
+            <div>
+              <strong>Project created:</strong>
+              <ul style={{ margin: '4px 0 0 20px', padding: 0 }}>
+                {details.map((detail, index) => (
+                  <li key={index} style={{ listStyleType: 'disc' }}>
+                    {detail.split(': ').map((part, i) => 
+                      i === 0 ? <strong key={i}>{part}: </strong> : part
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        }
+        // For other logs, just display as-is
+        return text;
+      },
     },
     {
       title: 'Type',

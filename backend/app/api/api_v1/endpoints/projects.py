@@ -164,10 +164,26 @@ def create_project(
     db.commit()
     db.refresh(project)
     
-    # Create initial log entry
+    # Create detailed initial log entry
+    client_name = db.query(Client).filter(Client.id == project.client_id).first().name
+    log_details = [
+        f"Project ID: {project_id}",
+        f"Type: {project.project_type}",
+        f"Client: {client_name}",
+        f"Expected Samples: {project.expected_sample_count}",
+        f"TAT: {project.tat}",
+        f"Due Date: {due_date.strftime('%Y-%m-%d')}"
+    ]
+    if project.sales_rep_id:
+        sales_rep = db.query(Employee).filter(Employee.id == project.sales_rep_id).first()
+        if sales_rep:
+            log_details.append(f"Sales Rep: {sales_rep.name}")
+    if project.project_value:
+        log_details.append(f"Value: ${project.project_value:,.2f}")
+    
     initial_log = ProjectLog(
         project_id=project.id,
-        comment=f"Project created with ID {project_id}",
+        comment=f"Project created - " + "; ".join(log_details),
         log_type="creation",
         created_by_id=current_user.id
     )
@@ -251,17 +267,80 @@ def update_project(
             detail="You don't have permission to update projects"
         )
     
-    project = db.query(Project).filter(Project.id == project_id).first()
+    project = db.query(Project).options(
+        joinedload(Project.client),
+        joinedload(Project.sales_rep)
+    ).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     
+    # Store original values for comparison
+    original_values = {}
+    field_names = {
+        "project_type": "Project Type",
+        "client_id": "Client",
+        "status": "Status",
+        "tat": "TAT",
+        "start_date": "Start Date",
+        "expected_sample_count": "Expected Sample Count",
+        "project_value": "Project Value",
+        "notes": "Notes",
+        "sales_rep_id": "Sales Representative"
+    }
+    
     update_data = project_in.dict(exclude_unset=True)
+    changes = []
+    
+    # Track changes for each field
+    for field, new_value in update_data.items():
+        old_value = getattr(project, field)
+        
+        # Special handling for certain fields
+        if field == "client_id" and old_value != new_value:
+            old_client = project.client.name if project.client else "None"
+            new_client = db.query(Client).filter(Client.id == new_value).first()
+            new_client_name = new_client.name if new_client else "None"
+            changes.append(f"{field_names.get(field, field)}: {old_client} → {new_client_name}")
+        elif field == "sales_rep_id":
+            old_rep = project.sales_rep.name if project.sales_rep else "None"
+            if new_value:
+                new_rep = db.query(Employee).filter(Employee.id == new_value).first()
+                new_rep_name = new_rep.name if new_rep else "None"
+            else:
+                new_rep_name = "None"
+            if old_rep != new_rep_name:
+                changes.append(f"{field_names.get(field, field)}: {old_rep} → {new_rep_name}")
+        elif field == "start_date":
+            old_date = old_value.strftime("%Y-%m-%d") if old_value else "None"
+            new_date = new_value.strftime("%Y-%m-%d") if new_value else "None"
+            if old_date != new_date:
+                changes.append(f"{field_names.get(field, field)}: {old_date} → {new_date}")
+        elif field == "project_value":
+            old_val = f"${old_value:,.2f}" if old_value else "None"
+            new_val = f"${new_value:,.2f}" if new_value else "None"
+            if old_val != new_val:
+                changes.append(f"{field_names.get(field, field)}: {old_val} → {new_val}")
+        elif field in ["status", "project_type", "tat"]:
+            # For enums, compare the value
+            if str(old_value) != str(new_value):
+                changes.append(f"{field_names.get(field, field)}: {old_value} → {new_value}")
+        elif old_value != new_value:
+            # For other fields
+            old_display = old_value if old_value is not None else "None"
+            new_display = new_value if new_value is not None else "None"
+            changes.append(f"{field_names.get(field, field)}: {old_display} → {new_display}")
     
     # If TAT is being updated, recalculate due date
     if "tat" in update_data or "start_date" in update_data:
         start_date = update_data.get("start_date", project.start_date)
         tat = update_data.get("tat", project.tat)
         update_data["due_date"] = calculate_due_date(start_date, tat)
+        
+        # Add due date change to log
+        old_due = project.due_date.strftime("%Y-%m-%d") if project.due_date else "None"
+        new_due = update_data["due_date"].strftime("%Y-%m-%d")
+        if old_due != new_due:
+            changes.append(f"Due Date: {old_due} → {new_due} (recalculated)")
     
     # Update the project
     for field, value in update_data.items():
@@ -271,10 +350,15 @@ def update_project(
     db.commit()
     db.refresh(project)
     
-    # Add log entry for the update
+    # Add detailed log entry for the update
+    if changes:
+        log_comment = "Updated: " + "; ".join(changes)
+    else:
+        log_comment = "Project updated (no changes detected)"
+    
     log = ProjectLog(
         project_id=project_id,
-        comment="Project details updated",
+        comment=log_comment,
         log_type="update",
         created_by_id=current_user.id
     )
@@ -330,9 +414,10 @@ async def upload_attachment(
     db.refresh(attachment)
     
     # Add log entry
+    file_size_mb = len(contents) / (1024 * 1024)
     log = ProjectLog(
         project_id=project_id,
-        comment=f"Attachment '{file.filename}' uploaded",
+        comment=f"Attachment uploaded: '{file.filename}' ({file_size_mb:.2f} MB, {file.content_type or 'unknown type'})",
         log_type="attachment_upload",
         created_by_id=current_user.id
     )
@@ -400,9 +485,10 @@ def delete_attachment(
         os.remove(attachment.file_path)
     
     # Add log entry
+    file_size_mb = attachment.file_size / (1024 * 1024) if attachment.file_size else 0
     log = ProjectLog(
         project_id=attachment.project_id,
-        comment=f"Attachment '{attachment.original_filename}' deleted",
+        comment=f"Attachment deleted: '{attachment.original_filename}' ({file_size_mb:.2f} MB)",
         log_type="attachment_delete",
         created_by_id=current_user.id
     )
@@ -447,13 +533,14 @@ def delete_project(
             detail="Project is already deleted"
         )
     
+    # Create log entry before changing status
+    old_status = project.status
+    log_comment = f"Project {project.project_id} deleted (status changed from {old_status} to deleted)"
+    if reason:
+        log_comment += f". Reason: {reason}"
+    
     # Soft delete by changing status
     project.status = ProjectStatus.DELETED
-    
-    # Create log entry
-    log_comment = f"Project deleted"
-    if reason:
-        log_comment = f"Project deleted. Reason: {reason}"
     
     log = ProjectLog(
         project_id=project_id,
