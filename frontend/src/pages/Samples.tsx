@@ -2,22 +2,26 @@ import { useState, useEffect } from 'react';
 import { 
   Table, Button, Tag, Space, message, Modal, Form, Select, 
   InputNumber, Input, Divider, Row, Col, Card, Upload,
-  Tabs, Alert, Popover, Typography, Dropdown, Menu, Popconfirm
+  Tabs, Alert, Popover, Typography, Dropdown, Menu, Popconfirm,
+  DatePicker, Switch, Checkbox
 } from 'antd';
-import type { UploadProps } from 'antd';
+import type { UploadProps, ColumnsType } from 'antd';
 import { 
   PlusOutlined, BarcodeOutlined, UploadOutlined,
   SaveOutlined, EditOutlined, ReloadOutlined,
   DownloadOutlined, EnvironmentOutlined,
-  FileTextOutlined, CheckCircleOutlined, DeleteOutlined
+  FileTextOutlined, CheckCircleOutlined, DeleteOutlined,
+  SearchOutlined, FilterOutlined
 } from '@ant-design/icons';
 import { api } from '../config/api';
 import dayjs from 'dayjs';
+import type { Dayjs } from 'dayjs';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { usePermissions } from '../hooks/usePermissions';
 
 const { Text } = Typography;
+const { RangePicker } = DatePicker;
 
 // Helper function to format depth in M reads
 const formatDepth = (depthM: number | null | undefined): string => {
@@ -88,6 +92,7 @@ interface Sample {
   target_depth: number;
   well_location: string;
   due_date: string;
+  created_at: string;
   storage_location?: any;
   extraction_kit?: string;
   extraction_lot?: string;
@@ -133,6 +138,15 @@ const Samples = () => {
   const [expandedView, setExpandedView] = useState(false);
   const [isBulkStatusModalVisible, setIsBulkStatusModalVisible] = useState(false);
   const [deletingSampleId, setDeletingSampleId] = useState<number | null>(null);
+  
+  // Filtering and search states
+  const [searchText, setSearchText] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [sampleTypeFilter, setSampleTypeFilter] = useState<string[]>([]);
+  const [projectFilter, setProjectFilter] = useState<number[]>([]);
+  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null]>([null, null]);
+  const [showDeleted, setShowDeleted] = useState(false);
+  
   const [form] = Form.useForm();
   const [statusForm] = Form.useForm();
   const [deleteForm] = Form.useForm();
@@ -142,7 +156,12 @@ const Samples = () => {
   const fetchSamples = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/samples');
+      const params: any = {};
+      if (showDeleted) params.include_deleted = true;
+      // Don't send filters to backend since we're doing client-side filtering
+      // This allows us to support multi-select
+      
+      const response = await api.get('/samples', { params });
       setSamples(response.data);
     } catch (error) {
       message.error('Failed to fetch samples');
@@ -193,21 +212,27 @@ const Samples = () => {
     fetchSampleTypes();
   }, []);
 
+  useEffect(() => {
+    // Only refetch when showDeleted changes, not for other filters
+    fetchSamples();
+  }, [showDeleted]);
+
   const statusColors: Record<string, string> = {
-    registered: 'default',
-    received: 'blue',
-    accessioned: 'cyan',
-    in_extraction: 'lime',
-    extracted: 'green',
-    in_library_prep: 'gold',
-    library_prepped: 'orange',
-    in_sequencing: 'purple',
-    sequenced: 'magenta',
-    in_analysis: 'geekblue',
-    analysis_complete: 'cyan',
-    delivered: 'success',
-    failed: 'error',
-    cancelled: 'default'
+    REGISTERED: 'default',
+    RECEIVED: 'blue',
+    ACCESSIONED: 'cyan',
+    IN_EXTRACTION: 'lime',
+    EXTRACTED: 'green',
+    IN_LIBRARY_PREP: 'gold',
+    LIBRARY_PREPPED: 'orange',
+    IN_SEQUENCING: 'purple',
+    SEQUENCED: 'magenta',
+    IN_ANALYSIS: 'geekblue',
+    ANALYSIS_COMPLETE: 'cyan',
+    DELIVERED: 'success',
+    FAILED: 'error',
+    CANCELLED: 'default',
+    DELETED: 'default'
   };
 
   const sampleTypesFallback = [
@@ -289,20 +314,20 @@ const Samples = () => {
   ];
 
   const statusOptions = [
-    { value: 'registered', label: 'Registered' },
-    { value: 'received', label: 'Received' },
-    { value: 'accessioned', label: 'Accessioned' },
-    { value: 'in_extraction', label: 'In Extraction' },
-    { value: 'extracted', label: 'Extracted' },
-    { value: 'in_library_prep', label: 'In Library Prep' },
-    { value: 'library_prepped', label: 'Library Prepped' },
-    { value: 'in_sequencing', label: 'In Sequencing' },
-    { value: 'sequenced', label: 'Sequenced' },
-    { value: 'in_analysis', label: 'In Analysis' },
-    { value: 'analysis_complete', label: 'Analysis Complete' },
-    { value: 'delivered', label: 'Delivered' },
-    { value: 'failed', label: 'Failed' },
-    { value: 'cancelled', label: 'Cancelled' }
+    { value: 'REGISTERED', label: 'Registered' },
+    { value: 'RECEIVED', label: 'Received' },
+    { value: 'ACCESSIONED', label: 'Accessioned' },
+    { value: 'IN_EXTRACTION', label: 'In Extraction' },
+    { value: 'EXTRACTED', label: 'Extracted' },
+    { value: 'IN_LIBRARY_PREP', label: 'In Library Prep' },
+    { value: 'LIBRARY_PREPPED', label: 'Library Prepped' },
+    { value: 'IN_SEQUENCING', label: 'In Sequencing' },
+    { value: 'SEQUENCED', label: 'Sequenced' },
+    { value: 'IN_ANALYSIS', label: 'In Analysis' },
+    { value: 'ANALYSIS_COMPLETE', label: 'Analysis Complete' },
+    { value: 'DELIVERED', label: 'Delivered' },
+    { value: 'FAILED', label: 'Failed' },
+    { value: 'CANCELLED', label: 'Cancelled' }
   ];
 
   const handleBulkCountChange = (count: number) => {
@@ -387,6 +412,8 @@ const Samples = () => {
     try {
       await api.delete(`/samples/${sampleId}?deletion_reason=${encodeURIComponent(reason)}`);
       message.success('Sample marked as deleted');
+      setDeletingSampleId(null);  // Close the modal
+      deleteForm.resetFields();    // Reset the form
       fetchSamples();
     } catch (error) {
       message.error('Failed to delete sample');
@@ -553,14 +580,64 @@ const Samples = () => {
     },
   };
 
+  // Filter samples based on search and date range and client-side filters
+  const filteredSamples = (samples || []).filter(sample => {
+    // Skip null/undefined samples
+    if (!sample) return false;
+    
+    // Search filter
+    if (searchText) {
+      try {
+        const searchLower = searchText.toLowerCase();
+        const matchesSearch = 
+          (sample.barcode || '').toLowerCase().includes(searchLower) ||
+          (sample.client_sample_id || '').toLowerCase().includes(searchLower) ||
+          (sample.project_code || '').toLowerCase().includes(searchLower) ||
+          (sample.project_name || '').toLowerCase().includes(searchLower) ||
+          (sample.client_institution || '').toLowerCase().includes(searchLower);
+        
+        if (!matchesSearch) return false;
+      } catch (error) {
+        console.error('Error filtering sample:', sample, error);
+        return false;
+      }
+    }
+    
+    // Status filter (client-side multi-select)
+    if (statusFilter.length > 0 && !statusFilter.includes(sample.status)) {
+      return false;
+    }
+    
+    // Sample type filter (client-side multi-select)
+    if (sampleTypeFilter.length > 0 && !sampleTypeFilter.includes(sample.sample_type)) {
+      return false;
+    }
+    
+    // Project filter (client-side multi-select)
+    if (projectFilter.length > 0 && !projectFilter.includes(sample.project_id)) {
+      return false;
+    }
+    
+    // Date range filter
+    if (dateRange[0] && dateRange[1] && sample.created_at) {
+      const createdDate = dayjs(sample.created_at);
+      if (!createdDate.isValid() || !createdDate.isAfter(dateRange[0]) || !createdDate.isBefore(dateRange[1].endOf('day'))) {
+        return false;
+      }
+    }
+    
+    return true;
+  });
+
   // Compact columns for reduced scrolling
-  const compactColumns = [
+  const compactColumns: ColumnsType<Sample> = [
     {
       title: 'Barcode',
       dataIndex: 'barcode',
       key: 'barcode',
       fixed: 'left' as const,
       width: 100,
+      sorter: (a, b) => (a.barcode || '').localeCompare(b.barcode || ''),
       render: (text: string, record: Sample) => (
         <a onClick={() => window.location.href = `/samples/${record.id}`}>
           <strong>{text}</strong>
@@ -573,12 +650,21 @@ const Samples = () => {
       key: 'client_sample_id',
       width: 120,
       ellipsis: true,
+      sorter: (a, b) => (a.client_sample_id || '').localeCompare(b.client_sample_id || ''),
     },
     {
-      title: 'Project ID',
+      title: (
+        <Space>
+          Project ID
+          {projectFilter.length > 0 && (
+            <FilterOutlined style={{ color: '#1890ff', fontSize: '12px' }} />
+          )}
+        </Space>
+      ),
       dataIndex: 'project_code',
       key: 'project_code',
       width: 100,
+      sorter: (a, b) => (a.project_code || '').localeCompare(b.project_code || ''),
       render: (text: string, record: Sample) => (
         <Popover content={
           <div>
@@ -606,7 +692,14 @@ const Samples = () => {
       ),
     },
     {
-      title: 'Type',
+      title: (
+        <Space>
+          Type
+          {sampleTypeFilter.length > 0 && (
+            <FilterOutlined style={{ color: '#1890ff', fontSize: '12px' }} />
+          )}
+        </Space>
+      ),
       dataIndex: 'sample_type',
       key: 'sample_type',
       width: 120,
@@ -623,7 +716,14 @@ const Samples = () => {
       ),
     },
     {
-      title: 'Status',
+      title: (
+        <Space>
+          Status
+          {statusFilter.length > 0 && (
+            <FilterOutlined style={{ color: '#1890ff', fontSize: '12px' }} />
+          )}
+        </Space>
+      ),
       dataIndex: 'status',
       key: 'status',
       width: 110,
@@ -683,6 +783,7 @@ const Samples = () => {
       dataIndex: 'target_depth',
       key: 'target_depth',
       width: 80,
+      sorter: (a, b) => (a.target_depth || 0) - (b.target_depth || 0),
       render: (depth: number | null) => (
         <span style={{ fontSize: '12px' }}>
           {formatDepth(depth)}
@@ -694,6 +795,7 @@ const Samples = () => {
       dataIndex: 'achieved_depth',
       key: 'achieved_depth',
       width: 80,
+      sorter: (a, b) => (a.achieved_depth || 0) - (b.achieved_depth || 0),
       render: (depth: number | null) => (
         <span style={{ fontSize: '12px' }}>
           {formatDepth(depth)}
@@ -725,6 +827,22 @@ const Samples = () => {
         }
         return '-';
       },
+    },
+    {
+      title: 'Created',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      width: 100,
+      sorter: (a, b) => {
+        const dateA = a.created_at ? dayjs(a.created_at).unix() : 0;
+        const dateB = b.created_at ? dayjs(b.created_at).unix() : 0;
+        return dateA - dateB;
+      },
+      render: (date: string) => (
+        <span style={{ fontSize: '12px' }}>
+          {date ? dayjs(date).format('YYYY-MM-DD') : '-'}
+        </span>
+      ),
     },
     {
       title: 'Action',
@@ -783,9 +901,10 @@ const Samples = () => {
 
   return (
     <div>
-      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1>Samples</h1>
-        <Space>
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h1>Samples</h1>
+          <Space>
           {selectedSamples.length > 0 && canPerform('updateSampleStatus') && (
             <Button
               onClick={() => setIsBulkStatusModalVisible(true)}
@@ -817,9 +936,158 @@ const Samples = () => {
         </Space>
       </div>
 
+      {/* Filters Section */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+        <Col xs={24} sm={12} md={6}>
+          <Input
+            placeholder="Search by barcode, client ID, project..."
+            prefix={<SearchOutlined />}
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            allowClear
+          />
+        </Col>
+        <Col xs={24} sm={12} md={4}>
+          <Select
+            placeholder="Status"
+            style={{ width: '100%' }}
+            mode="multiple"
+            value={statusFilter}
+            onChange={setStatusFilter}
+            maxTagCount={1}
+            maxTagTextLength={10}
+            popupRender={menu => (
+              <>
+                <div style={{ padding: '8px', borderBottom: '1px solid #e8e8e8' }}>
+                  <Checkbox
+                    checked={statusFilter.length === statusOptions.length}
+                    indeterminate={statusFilter.length > 0 && statusFilter.length < statusOptions.length}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setStatusFilter(statusOptions.map(s => s.value));
+                      } else {
+                        setStatusFilter([]);
+                      }
+                    }}
+                  >
+                    Select All
+                  </Checkbox>
+                </div>
+                {menu}
+              </>
+            )}
+          >
+            {statusOptions.map(status => (
+              <Select.Option key={status.value} value={status.value}>
+                <Tag color={statusColors[status.value] || 'default'} style={{ marginRight: 0 }}>
+                  {status.label}
+                </Tag>
+              </Select.Option>
+            ))}
+          </Select>
+        </Col>
+        <Col xs={24} sm={12} md={4}>
+          <Select
+            placeholder="Sample Type"
+            style={{ width: '100%' }}
+            mode="multiple"
+            value={sampleTypeFilter}
+            onChange={setSampleTypeFilter}
+            maxTagCount={1}
+            maxTagTextLength={10}
+            popupRender={menu => (
+              <>
+                <div style={{ padding: '8px', borderBottom: '1px solid #e8e8e8' }}>
+                  <Checkbox
+                    checked={sampleTypeFilter.length === sampleTypes.length}
+                    indeterminate={sampleTypeFilter.length > 0 && sampleTypeFilter.length < sampleTypes.length}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSampleTypeFilter(sampleTypes.map(t => t.name));
+                      } else {
+                        setSampleTypeFilter([]);
+                      }
+                    }}
+                  >
+                    Select All
+                  </Checkbox>
+                </div>
+                {menu}
+              </>
+            )}
+          >
+            {sampleTypes.map(type => (
+              <Select.Option key={type.name} value={type.name}>
+                {type.label}
+              </Select.Option>
+            ))}
+          </Select>
+        </Col>
+        <Col xs={24} sm={12} md={4}>
+          <Select
+            placeholder="Project"
+            style={{ width: '100%' }}
+            mode="multiple"
+            value={projectFilter}
+            onChange={setProjectFilter}
+            maxTagCount={1}
+            maxTagTextLength={10}
+            optionFilterProp="children"
+            popupRender={menu => (
+              <>
+                <div style={{ padding: '8px', borderBottom: '1px solid #e8e8e8' }}>
+                  <Checkbox
+                    checked={projectFilter.length === projects.length}
+                    indeterminate={projectFilter.length > 0 && projectFilter.length < projects.length}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setProjectFilter(projects.map(p => p.id));
+                      } else {
+                        setProjectFilter([]);
+                      }
+                    }}
+                  >
+                    Select All
+                  </Checkbox>
+                </div>
+                {menu}
+              </>
+            )}
+          >
+            {projects.map(project => (
+              <Select.Option key={project.id} value={project.id}>
+                {project.project_id} - {project.name}
+              </Select.Option>
+            ))}
+          </Select>
+        </Col>
+        <Col xs={24} sm={12} md={6}>
+          <RangePicker
+            style={{ width: '100%' }}
+            value={dateRange}
+            onChange={(dates) => setDateRange(dates as [Dayjs | null, Dayjs | null])}
+            placeholder={['Start Date', 'End Date']}
+          />
+        </Col>
+      </Row>
+
+      {/* Show Deleted Toggle */}
+      {canPerform('deleteSamples') && (
+        <div style={{ marginBottom: 16 }}>
+          <Space>
+            <Switch
+              checked={showDeleted}
+              onChange={setShowDeleted}
+            />
+            <span>Show deleted samples</span>
+          </Space>
+        </div>
+      )}
+      </div>
+
       <Table
         columns={compactColumns}
-        dataSource={samples}
+        dataSource={filteredSamples}
         loading={loading}
         rowKey="id"
         size="small"
