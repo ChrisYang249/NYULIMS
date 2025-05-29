@@ -791,7 +791,7 @@ const Samples = () => {
       ),
     },
     {
-      title: 'Actual Depth',
+      title: 'Yield',
       dataIndex: 'achieved_depth',
       key: 'achieved_depth',
       width: 80,
@@ -829,13 +829,13 @@ const Samples = () => {
       },
     },
     {
-      title: 'Created',
-      dataIndex: 'created_at',
-      key: 'created_at',
+      title: 'Due Date',
+      dataIndex: 'due_date',
+      key: 'due_date',
       width: 100,
       sorter: (a, b) => {
-        const dateA = a.created_at ? dayjs(a.created_at).unix() : 0;
-        const dateB = b.created_at ? dayjs(b.created_at).unix() : 0;
+        const dateA = a.due_date ? dayjs(a.due_date).unix() : 0;
+        const dateB = b.due_date ? dayjs(b.due_date).unix() : 0;
         return dateA - dateB;
       },
       render: (date: string) => (

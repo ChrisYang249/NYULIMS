@@ -259,7 +259,7 @@ const SampleDetails = () => {
         <Descriptions.Item label="Target Depth">
           {formatDepthWithGB(sample.target_depth)}
         </Descriptions.Item>
-        <Descriptions.Item label="Achieved Depth">
+        <Descriptions.Item label="Yield">
           {formatDepthWithGB(sample.achieved_depth)}
         </Descriptions.Item>
         {sample.well_location && (
@@ -355,7 +355,7 @@ const SampleDetails = () => {
             <Descriptions bordered column={2}>
               <Descriptions.Item label="Run ID">{sample.sequencing_run_id}</Descriptions.Item>
               <Descriptions.Item label="Instrument">{sample.sequencing_instrument || '-'}</Descriptions.Item>
-              <Descriptions.Item label="Achieved Depth">
+              <Descriptions.Item label="Yield">
                 {formatDepthWithGB(sample.achieved_depth)}
               </Descriptions.Item>
               <Descriptions.Item label="Status">

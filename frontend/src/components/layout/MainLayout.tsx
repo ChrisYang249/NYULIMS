@@ -1,4 +1,4 @@
-import { Layout, Menu, Avatar, Dropdown, Space } from 'antd';
+import { Layout, Menu, Avatar, Dropdown, Space, Button } from 'antd';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   DashboardOutlined,
@@ -11,10 +11,12 @@ import {
   InboxOutlined,
   TagsOutlined,
   DeleteOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../../store/authStore';
 import { canAccessRoute } from '../../config/rolePermissions';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 const { Header, Sider, Content } = Layout;
 
@@ -22,6 +24,7 @@ const MainLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuthStore();
+  const [collapsed, setCollapsed] = useState(false);
 
   // Define all menu items with their paths
   const allMenuItems = [
@@ -140,15 +143,21 @@ const MainLayout = () => {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider theme="dark" breakpoint="lg" collapsedWidth="0">
+      <Sider 
+        theme="dark" 
+        breakpoint="lg"
+        collapsedWidth="80"
+        collapsed={collapsed}
+        onCollapse={(collapsed) => setCollapsed(collapsed)}
+      >
         <div style={{ 
           height: 32, 
           margin: 16, 
           color: 'white',
-          fontSize: 20,
+          fontSize: collapsed ? 14 : 20,
           textAlign: 'center'
         }}>
-          LIMS System
+          {collapsed ? 'LIMS' : 'LIMS System'}
         </div>
         <Menu
           theme="dark"
@@ -166,7 +175,20 @@ const MainLayout = () => {
           justifyContent: 'space-between',
           alignItems: 'center'
         }}>
-          <h2 style={{ margin: 0 }}>Laboratory Information Management System</h2>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <Button
+              type="text"
+              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              onClick={() => setCollapsed(!collapsed)}
+              style={{
+                fontSize: '16px',
+                width: 64,
+                height: 64,
+                marginRight: 16,
+              }}
+            />
+            <h2 style={{ margin: 0 }}>Laboratory Information Management System</h2>
+          </div>
           <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
             <Space style={{ cursor: 'pointer' }}>
               <Avatar icon={<UserOutlined />} />
