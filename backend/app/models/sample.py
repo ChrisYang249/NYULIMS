@@ -12,6 +12,7 @@ class SampleType(str, enum.Enum):
     RNA = "rna"
     FOOD = "food"
     MILK = "milk"
+    DNA_PLATE = "dna_plate"
     OTHER = "other"
 
 class SampleStatus(str, enum.Enum):
@@ -50,6 +51,12 @@ class Sample(Base, TimestampMixin):
     storage_shelf = Column(String)
     storage_box = Column(String)
     storage_position = Column(String)
+    storage_location_id = Column(Integer, ForeignKey("storage_locations.id"))
+    
+    # Additional registration fields
+    target_depth = Column(Float)  # Target sequencing depth
+    well_location = Column(String)  # For DNA plates (A1, B2, etc.)
+    due_date = Column(DateTime(timezone=True))  # Inherited from project
     
     # Accessioning info
     received_date = Column(DateTime(timezone=True))
@@ -64,6 +71,7 @@ class Sample(Base, TimestampMixin):
     # Relationships
     project = relationship("Project", back_populates="samples")
     parent_sample = relationship("Sample", remote_side=[id])
+    storage_location = relationship("StorageLocation", back_populates="samples")
     extraction_results = relationship("ExtractionResult", back_populates="sample")
     library_prep_results = relationship("LibraryPrepResult", back_populates="sample")
     sequencing_run_samples = relationship("SequencingRunSample", back_populates="sample")
