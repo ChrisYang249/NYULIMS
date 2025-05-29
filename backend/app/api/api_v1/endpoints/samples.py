@@ -65,7 +65,7 @@ def read_samples(
     limit: int = 100,
     project_id: Optional[int] = Query(None),
     status: Optional[SampleStatus] = Query(None),
-    sample_type: Optional[SampleType] = Query(None),
+    sample_type: Optional[str] = Query(None),
     include_deleted: bool = Query(False, description="Include deleted samples"),
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
@@ -88,7 +88,12 @@ def read_samples(
     if status:
         query = query.filter(Sample.status == status)
     if sample_type:
-        query = query.filter(Sample.sample_type == sample_type)
+        # Import SampleType model
+        from app.models.sample_type import SampleType as SampleTypeModel
+        # Filter by sample_type name from the relationship
+        query = query.join(Sample.sample_type_ref).filter(
+            SampleTypeModel.name == sample_type
+        )
     
     samples = query.offset(skip).limit(limit).all()
     
