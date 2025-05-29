@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, Descriptions, Tabs, Button, Input, List, message, Spin, Tag, Space, Modal, Form, Select, DatePicker, InputNumber, Upload, Table } from 'antd';
+import { Card, Descriptions, Tabs, Button, Input, List, message, Spin, Tag, Space, Modal, Form, Select, DatePicker, InputNumber, Upload, Table, Popconfirm } from 'antd';
 import { ArrowLeftOutlined, EditOutlined, CommentOutlined, UploadOutlined, DownloadOutlined, DeleteOutlined } from '@ant-design/icons';
 import { api } from '../config/api';
+import { useAuthStore } from '../store/authStore';
 import dayjs from 'dayjs';
 
 interface Project {
@@ -50,11 +51,16 @@ const ProjectDetails = () => {
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [clients, setClients] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [attachments, setAttachments] = useState<any[]>([]);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [form] = Form.useForm();
+  const [deleteForm] = Form.useForm();
+  const { user } = useAuthStore();
+  
+  const canDeleteProject = user && ['super_admin', 'pm', 'director'].includes(user.role);
 
   useEffect(() => {
     fetchProject();
@@ -202,6 +208,27 @@ const ProjectDetails = () => {
     }
   };
 
+  const handleDelete = async (reason?: string) => {
+    try {
+      const params = reason ? { reason } : {};
+      await api.delete(`/projects/${id}`, { params });
+      message.success('Project deleted successfully');
+      navigate('/projects');
+    } catch (error: any) {
+      if (error.response?.status === 400) {
+        message.error(error.response.data.detail);
+      } else if (error.response?.status === 403) {
+        message.error('You do not have permission to delete this project');
+      } else {
+        message.error('Failed to delete project');
+      }
+    }
+  };
+
+  const handleDeleteSubmit = async (values: any) => {
+    await handleDelete(values.reason);
+  };
+
   const statusColors: Record<string, string> = {
     pending: 'default',
     pm_review: 'processing',
@@ -210,6 +237,7 @@ const ProjectDetails = () => {
     hold: 'warning',
     cancelled: 'error',
     completed: 'success',
+    deleted: 'default',
   };
 
   if (loading) {
@@ -433,15 +461,37 @@ const ProjectDetails = () => {
           </Button>
           <h1 style={{ margin: 0 }}>Project: {project.project_id}</h1>
         </Space>
-        <Button icon={<EditOutlined />} onClick={() => {
-          setEditModalVisible(true);
-          form.setFieldsValue({
-            ...project,
-            start_date: dayjs(project.start_date),
-            client_id: project.client?.id,
-            sales_rep_id: project.sales_rep?.id
-          });
-        }}>Edit Project</Button>
+        <Space>
+          <Button icon={<EditOutlined />} onClick={() => {
+            setEditModalVisible(true);
+            form.setFieldsValue({
+              ...project,
+              start_date: dayjs(project.start_date),
+              client_id: project.client?.id,
+              sales_rep_id: project.sales_rep?.id
+            });
+          }}>Edit Project</Button>
+          {canDeleteProject && project.status !== 'deleted' && project.status !== 'cancelled' && (
+            user?.role === 'super_admin' ? (
+              <Popconfirm
+                title="Are you sure you want to delete this project?"
+                onConfirm={() => handleDelete()}
+                okText="Yes"
+                cancelText="No"
+              >
+                <Button danger icon={<DeleteOutlined />}>Delete Project</Button>
+              </Popconfirm>
+            ) : (
+              <Button 
+                danger 
+                icon={<DeleteOutlined />}
+                onClick={() => setDeleteModalVisible(true)}
+              >
+                Delete Project
+              </Button>
+            )
+          )}
+        </Space>
       </div>
 
       <Tabs items={items} />
@@ -503,6 +553,7 @@ const ProjectDetails = () => {
               <Select.Option value="hold">On Hold</Select.Option>
               <Select.Option value="cancelled">Cancelled</Select.Option>
               <Select.Option value="completed">Completed</Select.Option>
+              <Select.Option value="deleted">Deleted</Select.Option>
             </Select>
           </Form.Item>
 
@@ -585,6 +636,52 @@ const ProjectDetails = () => {
                 Update
               </Button>
               <Button onClick={() => setEditModalVisible(false)}>
+                Cancel
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="Delete Project"
+        open={deleteModalVisible}
+        onCancel={() => {
+          setDeleteModalVisible(false);
+          deleteForm.resetFields();
+        }}
+        footer={null}
+      >
+        <Form
+          form={deleteForm}
+          layout="vertical"
+          onFinish={handleDeleteSubmit}
+        >
+          <p>
+            You are about to delete project <strong>{project?.project_id}</strong>.
+            As a Project Manager, you must provide a reason for deletion.
+          </p>
+          
+          <Form.Item
+            name="reason"
+            label="Reason for Deletion"
+            rules={[{ required: true, message: 'Please provide a reason for deletion' }]}
+          >
+            <Input.TextArea 
+              rows={4} 
+              placeholder="Please explain why this project is being deleted..."
+            />
+          </Form.Item>
+
+          <Form.Item>
+            <Space>
+              <Button type="primary" danger htmlType="submit">
+                Delete Project
+              </Button>
+              <Button onClick={() => {
+                setDeleteModalVisible(false);
+                deleteForm.resetFields();
+              }}>
                 Cancel
               </Button>
             </Space>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Select, InputNumber, message, DatePicker } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
-import { Link } from 'react-router-dom';
+import { Table, Button, Space, Modal, Form, Input, Select, InputNumber, message, DatePicker, Popconfirm, Tag, Checkbox, Row, Col } from 'antd';
+import { PlusOutlined, DeleteOutlined, FilterOutlined, SearchOutlined } from '@ant-design/icons';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../config/api';
 import { useAuthStore } from '../store/authStore';
 import dayjs from 'dayjs';
@@ -22,24 +22,35 @@ interface Employee {
 }
 
 const Projects = () => {
+  const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [clientModalVisible, setClientModalVisible] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<any>(null);
   const [nextProjectId, setNextProjectId] = useState<string>('');
   const [dueDate, setDueDate] = useState<dayjs.Dayjs | null>(null);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [searchText, setSearchText] = useState('');
+  const [filteredProjects, setFilteredProjects] = useState([]);
   const [form] = Form.useForm();
   const [clientForm] = Form.useForm();
+  const [deleteForm] = Form.useForm();
   const { user } = useAuthStore();
   
   const canCreateProject = user && ['super_admin', 'pm', 'director'].includes(user.role);
+  const canDeleteProject = user && ['super_admin', 'pm', 'director'].includes(user.role);
 
   const fetchProjects = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/projects');
+      const response = await api.get('/projects', {
+        params: { include_deleted: showDeleted }
+      });
       setProjects(response.data);
     } catch (error) {
       message.error('Failed to fetch projects');
@@ -109,13 +120,33 @@ const Projects = () => {
     fetchProjects();
     fetchClients();
     fetchEmployees();
-  }, []);
+  }, [showDeleted]);
+
+  useEffect(() => {
+    // Apply search filter
+    let filtered = [...projects];
+    
+    if (searchText) {
+      filtered = filtered.filter((project: any) => {
+        const searchLower = searchText.toLowerCase();
+        return (
+          project.project_id.toLowerCase().includes(searchLower) ||
+          (project.client?.name || '').toLowerCase().includes(searchLower) ||
+          (project.client?.institution || '').toLowerCase().includes(searchLower) ||
+          (project.sales_rep?.name || '').toLowerCase().includes(searchLower)
+        );
+      });
+    }
+    
+    setFilteredProjects(filtered);
+  }, [projects, searchText]);
 
   const columns = [
     {
       title: 'Project ID',
       dataIndex: 'project_id',
       key: 'project_id',
+      sorter: (a: any, b: any) => a.project_id.localeCompare(b.project_id),
       render: (text: string, record: any) => (
         <Link to={`/projects/${record.id}`}>{text}</Link>
       ),
@@ -123,6 +154,7 @@ const Projects = () => {
     {
       title: 'Institution',
       key: 'institution',
+      sorter: (a: any, b: any) => (a.client?.institution || '').localeCompare(b.client?.institution || ''),
       render: (_, record: any) => (
         <span>{record.client?.institution || '-'}</span>
       ),
@@ -131,6 +163,18 @@ const Projects = () => {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
+      filters: [
+        { text: 'Pending', value: 'pending' },
+        { text: 'PM Review', value: 'pm_review' },
+        { text: 'Lab', value: 'lab' },
+        { text: 'BIS', value: 'bis' },
+        { text: 'On Hold', value: 'hold' },
+        { text: 'Cancelled', value: 'cancelled' },
+        { text: 'Completed', value: 'completed' },
+        { text: 'Deleted', value: 'deleted' },
+      ],
+      filteredValue: statusFilter,
+      onFilter: (value: any, record: any) => record.status === value,
       render: (status: string) => {
         const statusMap: { [key: string]: string } = {
           'pending': 'Pending',
@@ -139,9 +183,24 @@ const Projects = () => {
           'bis': 'BIS',
           'hold': 'On Hold',
           'cancelled': 'Cancelled',
-          'completed': 'Completed'
+          'completed': 'Completed',
+          'deleted': 'Deleted'
         };
-        return statusMap[status] || status;
+        const statusColors: { [key: string]: string } = {
+          'pending': 'default',
+          'pm_review': 'processing',
+          'lab': 'blue',
+          'bis': 'purple',
+          'hold': 'warning',
+          'cancelled': 'error',
+          'completed': 'success',
+          'deleted': 'default'
+        };
+        return (
+          <Tag color={statusColors[status] || 'default'}>
+            {statusMap[status] || status}
+          </Tag>
+        );
       },
     },
     {
@@ -155,18 +214,46 @@ const Projects = () => {
       title: 'Due Date',
       dataIndex: 'due_date',
       key: 'due_date',
+      sorter: (a: any, b: any) => dayjs(a.due_date).unix() - dayjs(b.due_date).unix(),
       render: (date: string) => dayjs(date).format('YYYY-MM-DD'),
     },
     {
       title: 'Expected Samples',
       dataIndex: 'expected_sample_count',
       key: 'expected_sample_count',
+      sorter: (a: any, b: any) => a.expected_sample_count - b.expected_sample_count,
     },
     {
       title: 'Action',
       key: 'action',
       render: (_, record) => (
-        <Button type="link">Edit</Button>
+        <Space size="small">
+          <Button type="link" onClick={() => navigate(`/projects/${record.id}`)}>View</Button>
+          {canDeleteProject && record.status !== 'deleted' && record.status !== 'cancelled' && (
+            user?.role === 'super_admin' ? (
+              <Popconfirm
+                title="Are you sure you want to delete this project?"
+                onConfirm={() => handleDelete(record.id)}
+                okText="Yes"
+                cancelText="No"
+              >
+                <Button type="link" danger icon={<DeleteOutlined />}>Delete</Button>
+              </Popconfirm>
+            ) : (
+              <Button 
+                type="link" 
+                danger 
+                icon={<DeleteOutlined />}
+                onClick={() => {
+                  setSelectedProject(record);
+                  setDeleteModalVisible(true);
+                }}
+              >
+                Delete
+              </Button>
+            )
+          )}
+        </Space>
       ),
     },
   ];
@@ -253,26 +340,81 @@ const Projects = () => {
     setModalVisible(true);
   };
 
+  const handleDelete = async (projectId: number, reason?: string) => {
+    try {
+      const params = reason ? { reason } : {};
+      await api.delete(`/projects/${projectId}`, { params });
+      message.success('Project deleted successfully');
+      setDeleteModalVisible(false);
+      deleteForm.resetFields();
+      fetchProjects();
+    } catch (error: any) {
+      if (error.response?.status === 400) {
+        message.error(error.response.data.detail);
+      } else if (error.response?.status === 403) {
+        message.error('You do not have permission to delete projects');
+      } else {
+        message.error('Failed to delete project');
+      }
+    }
+  };
+
+  const handleDeleteSubmit = async (values: any) => {
+    if (selectedProject) {
+      await handleDelete(selectedProject.id, values.reason);
+    }
+  };
+
   return (
     <div>
-      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
-        <h1>Projects</h1>
-        {canCreateProject && (
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={handleOpenModal}
-          >
-            New Project
-          </Button>
-        )}
+      <div style={{ marginBottom: 16 }}>
+        <Row gutter={[16, 16]} align="middle">
+          <Col span={12}>
+            <h1 style={{ display: 'inline-block', marginRight: 16, marginBottom: 0 }}>Projects</h1>
+            <Checkbox 
+              checked={showDeleted} 
+              onChange={(e) => setShowDeleted(e.target.checked)}
+            >
+              Show deleted projects
+            </Checkbox>
+          </Col>
+          <Col span={12} style={{ textAlign: 'right' }}>
+            {canCreateProject && (
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={handleOpenModal}
+              >
+                New Project
+              </Button>
+            )}
+          </Col>
+        </Row>
+        <Row style={{ marginTop: 16 }}>
+          <Col span={8}>
+            <Input
+              placeholder="Search projects, clients, or sales reps..."
+              prefix={<SearchOutlined />}
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              allowClear
+            />
+          </Col>
+        </Row>
       </div>
 
       <Table
         columns={columns}
-        dataSource={projects}
+        dataSource={filteredProjects}
         loading={loading}
         rowKey="id"
+        onChange={(pagination, filters, sorter) => {
+          setStatusFilter(filters.status as string[] || []);
+        }}
+        pagination={{
+          showSizeChanger: true,
+          showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} projects`,
+        }}
       />
 
       <Modal
@@ -498,6 +640,52 @@ const Projects = () => {
                 Create Client
               </Button>
               <Button onClick={() => setClientModalVisible(false)}>
+                Cancel
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="Delete Project"
+        open={deleteModalVisible}
+        onCancel={() => {
+          setDeleteModalVisible(false);
+          deleteForm.resetFields();
+        }}
+        footer={null}
+      >
+        <Form
+          form={deleteForm}
+          layout="vertical"
+          onFinish={handleDeleteSubmit}
+        >
+          <p>
+            You are about to delete project <strong>{selectedProject?.project_id}</strong>.
+            As a Project Manager, you must provide a reason for deletion.
+          </p>
+          
+          <Form.Item
+            name="reason"
+            label="Reason for Deletion"
+            rules={[{ required: true, message: 'Please provide a reason for deletion' }]}
+          >
+            <Input.TextArea 
+              rows={4} 
+              placeholder="Please explain why this project is being deleted..."
+            />
+          </Form.Item>
+
+          <Form.Item>
+            <Space>
+              <Button type="primary" danger htmlType="submit">
+                Delete Project
+              </Button>
+              <Button onClick={() => {
+                setDeleteModalVisible(false);
+                deleteForm.resetFields();
+              }}>
                 Cancel
               </Button>
             </Space>
