@@ -25,6 +25,48 @@ const formatDepthWithGB = (depthM: number | null | undefined): string => {
   return `${depthM}M (${gb}GB)`;
 };
 
+// Helper function to abbreviate institution names
+const abbreviateInstitution = (institution: string): string => {
+  if (!institution) return '-';
+  
+  // Common abbreviations
+  const abbreviations: Record<string, string> = {
+    'university': 'U',
+    'institute': 'Inst',
+    'hospital': 'Hosp',
+    'medical center': 'MC',
+    'research center': 'RC',
+    'laboratory': 'Lab',
+    'laboratories': 'Labs',
+    'college': 'Col',
+    'foundation': 'Found',
+    'corporation': 'Corp',
+    'company': 'Co',
+    'department': 'Dept',
+    'center': 'Ctr',
+    'national': 'Natl',
+    'international': 'Intl',
+  };
+  
+  let abbreviated = institution;
+  
+  // Replace common words with abbreviations
+  Object.entries(abbreviations).forEach(([full, abbr]) => {
+    const regex = new RegExp(`\\b${full}\\b`, 'gi');
+    abbreviated = abbreviated.replace(regex, abbr);
+  });
+  
+  // If still too long, show first word + abbreviation
+  if (abbreviated.length > 20) {
+    const words = abbreviated.split(' ');
+    if (words.length > 1) {
+      abbreviated = words[0] + ' ' + words.slice(1).map(w => w[0]).join('');
+    }
+  }
+  
+  return abbreviated;
+};
+
 interface Sample {
   id: number;
   barcode: string;
@@ -393,21 +435,32 @@ const Samples = () => {
       ellipsis: true,
     },
     {
-      title: 'Project',
-      key: 'project',
-      width: 150,
-      ellipsis: true,
-      render: (_: any, record: Sample) => (
+      title: 'Project ID',
+      dataIndex: 'project_code',
+      key: 'project_code',
+      width: 100,
+      render: (text: string, record: Sample) => (
         <Popover content={
           <div>
-            <div><strong>Project ID:</strong> {record.project_code}</div>
-            <div><strong>Name:</strong> {record.project_name || 'N/A'}</div>
-            <div><strong>Institution:</strong> {record.client_institution}</div>
+            <div><strong>Project:</strong> {record.project_name || 'N/A'}</div>
             <div><strong>Due:</strong> {record.due_date ? dayjs(record.due_date).format('YYYY-MM-DD') : '-'}</div>
           </div>
         }>
-          <span style={{ cursor: 'pointer' }}>
-            {record.project_code} - {record.client_institution}
+          <a style={{ cursor: 'pointer' }} onClick={() => window.location.href = `/projects/${record.project_id}`}>
+            {text}
+          </a>
+        </Popover>
+      ),
+    },
+    {
+      title: 'Institution',
+      key: 'institution',
+      width: 120,
+      ellipsis: true,
+      render: (_: any, record: Sample) => (
+        <Popover content={record.client_institution}>
+          <span style={{ cursor: 'help', fontSize: '12px' }}>
+            {abbreviateInstitution(record.client_institution)}
           </span>
         </Popover>
       ),
@@ -601,7 +654,7 @@ const Samples = () => {
         loading={loading}
         rowKey="id"
         size="small"
-        scroll={{ x: 1000 }}
+        scroll={{ x: 1200 }}
         rowSelection={rowSelection}
         pagination={{
           pageSize: 50,
