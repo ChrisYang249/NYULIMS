@@ -5,6 +5,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../config/api';
 import { useAuthStore } from '../store/authStore';
 import dayjs from 'dayjs';
+import type { RangePickerProps } from 'antd/es/date-picker';
+
+const { RangePicker } = DatePicker;
 
 interface Client {
   id: number;
@@ -35,12 +38,15 @@ const Projects = () => {
   const [dueDate, setDueDate] = useState<dayjs.Dayjs | null>(null);
   const [showDeleted, setShowDeleted] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
   const [searchText, setSearchText] = useState('');
   const [filteredProjects, setFilteredProjects] = useState([]);
   const [form] = Form.useForm();
   const [clientForm] = Form.useForm();
   const [deleteForm] = Form.useForm();
   const { user } = useAuthStore();
+  
+  const allStatuses = ['pending', 'pm_review', 'lab', 'bis', 'hold', 'cancelled', 'completed', 'deleted'];
   
   const canCreateProject = user && ['super_admin', 'pm', 'director'].includes(user.role);
   const canDeleteProject = user && ['super_admin', 'pm', 'director'].includes(user.role);
@@ -123,7 +129,7 @@ const Projects = () => {
   }, [showDeleted]);
 
   useEffect(() => {
-    // Apply search filter
+    // Apply search and date filters
     let filtered = [...projects];
     
     if (searchText) {
@@ -138,8 +144,17 @@ const Projects = () => {
       });
     }
     
+    // Apply date range filter
+    if (dateRange && dateRange[0] && dateRange[1]) {
+      filtered = filtered.filter((project: any) => {
+        const dueDate = dayjs(project.due_date);
+        return dueDate.isAfter(dateRange[0].startOf('day')) && 
+               dueDate.isBefore(dateRange[1].endOf('day'));
+      });
+    }
+    
     setFilteredProjects(filtered);
-  }, [projects, searchText]);
+  }, [projects, searchText, dateRange]);
 
   const columns: any[] = [
     {
@@ -163,16 +178,61 @@ const Projects = () => {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
-      filters: [
-        { text: 'Pending', value: 'pending' },
-        { text: 'PM Review', value: 'pm_review' },
-        { text: 'Lab', value: 'lab' },
-        { text: 'BIS', value: 'bis' },
-        { text: 'On Hold', value: 'hold' },
-        { text: 'Cancelled', value: 'cancelled' },
-        { text: 'Completed', value: 'completed' },
-        { text: 'Deleted', value: 'deleted' },
-      ],
+      filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }) => (
+        <div style={{ padding: 8 }}>
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Checkbox
+              indeterminate={selectedKeys.length > 0 && selectedKeys.length < allStatuses.length}
+              checked={selectedKeys.length === allStatuses.length}
+              onChange={(e) => {
+                if (e.target.checked) {
+                  setSelectedKeys(allStatuses);
+                } else {
+                  setSelectedKeys([]);
+                }
+              }}
+            >
+              Select All
+            </Checkbox>
+            <Checkbox.Group
+              options={[
+                { label: 'Pending', value: 'pending' },
+                { label: 'PM Review', value: 'pm_review' },
+                { label: 'Lab', value: 'lab' },
+                { label: 'BIS', value: 'bis' },
+                { label: 'On Hold', value: 'hold' },
+                { label: 'Cancelled', value: 'cancelled' },
+                { label: 'Completed', value: 'completed' },
+                { label: 'Deleted', value: 'deleted' },
+              ]}
+              value={selectedKeys}
+              onChange={(checkedValues) => setSelectedKeys(checkedValues)}
+              style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
+            />
+            <Space>
+              <Button
+                type="primary"
+                size="small"
+                onClick={() => {
+                  confirm();
+                  setStatusFilter(selectedKeys as string[]);
+                }}
+              >
+                Filter
+              </Button>
+              <Button
+                size="small"
+                onClick={() => {
+                  clearFilters?.();
+                  setStatusFilter([]);
+                }}
+              >
+                Reset
+              </Button>
+            </Space>
+          </Space>
+        </div>
+      ),
       filteredValue: statusFilter,
       onFilter: (value: any, record: any) => record.status === value,
       render: (status: string) => {
@@ -394,8 +454,8 @@ const Projects = () => {
             )}
           </Col>
         </Row>
-        <Row style={{ marginTop: 16 }}>
-          <Col span={8}>
+        <Row style={{ marginTop: 16 }} gutter={16}>
+          <Col span={10}>
             <Input
               placeholder="Search projects, clients, or sales reps..."
               prefix={<SearchOutlined />}
@@ -403,6 +463,34 @@ const Projects = () => {
               onChange={(e) => setSearchText(e.target.value)}
               allowClear
             />
+          </Col>
+          <Col span={10}>
+            <RangePicker
+              placeholder={['Due Date From', 'Due Date To']}
+              onChange={(dates) => {
+                if (dates && dates[0] && dates[1]) {
+                  setDateRange([dates[0], dates[1]]);
+                } else {
+                  setDateRange(null);
+                }
+              }}
+              style={{ width: '100%' }}
+              format="YYYY-MM-DD"
+              allowClear
+            />
+          </Col>
+          <Col span={4}>
+            {(searchText || dateRange) && (
+              <Button 
+                onClick={() => {
+                  setSearchText('');
+                  setDateRange(null);
+                }}
+                style={{ width: '100%' }}
+              >
+                Clear Filters
+              </Button>
+            )}
           </Col>
         </Row>
       </div>
