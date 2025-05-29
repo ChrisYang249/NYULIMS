@@ -141,7 +141,7 @@ const Projects = () => {
     setFilteredProjects(filtered);
   }, [projects, searchText]);
 
-  const columns = [
+  const columns: any[] = [
     {
       title: 'Project ID',
       dataIndex: 'project_id',
@@ -223,13 +223,17 @@ const Projects = () => {
       key: 'expected_sample_count',
       sorter: (a: any, b: any) => a.expected_sample_count - b.expected_sample_count,
     },
-    {
+  ];
+
+  // Only show Action column if user can delete projects
+  if (canDeleteProject) {
+    columns.push({
       title: 'Action',
       key: 'action',
+      width: 100,
       render: (_, record) => (
-        <Space size="small">
-          <Button type="link" onClick={() => navigate(`/projects/${record.id}`)}>View</Button>
-          {canDeleteProject && record.status !== 'deleted' && record.status !== 'cancelled' && (
+        <>
+          {record.status !== 'deleted' && record.status !== 'cancelled' && (
             user?.role === 'super_admin' ? (
               <Popconfirm
                 title="Are you sure you want to delete this project?"
@@ -253,10 +257,10 @@ const Projects = () => {
               </Button>
             )
           )}
-        </Space>
+        </>
       ),
-    },
-  ];
+    });
+  }
 
   const handleSubmit = async (values: any) => {
     try {
