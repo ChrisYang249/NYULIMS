@@ -173,13 +173,18 @@ const Projects = () => {
 
   const handleSubmit = async (values: any) => {
     try {
-      // Remove project_id and due_date from submission
-      const { project_id, due_date, ...submitData } = values;
+      // Remove due_date from submission (calculated on backend)
+      const { due_date, ...submitData } = values;
       
       const formData = {
         ...submitData,
         start_date: values.start_date.toISOString(),
       };
+      
+      // Only include project_id if user provided one
+      if (values.project_id && values.project_id.trim()) {
+        formData.project_id = values.project_id.trim();
+      }
       
       await api.post('/projects/', formData);
       message.success('Project created successfully');
