@@ -11,6 +11,7 @@ from app.models import (
     ExtractionResult, LibraryPrepResult, SequencingRunSample, SequencingRun,
     SampleLog
 )
+from app.models.user import User as UserModel
 from app.schemas.sample import (
     Sample as SampleSchema, 
     SampleCreate, 
@@ -344,7 +345,7 @@ def update_sample(
                 create_sample_log(
                     db=db,
                     sample_id=sample.id,
-                    comment=f"{field.replace('_', ' ').title()} updated",
+                    comment=f"{change['field'].replace('_', ' ').title()} updated",
                     log_type="update",
                     old_value=change['old'],
                     new_value=change['new'],
@@ -482,27 +483,39 @@ def read_sample_logs(
     if not sample:
         raise HTTPException(status_code=404, detail="Sample not found")
     
-    logs = db.query(SampleLog).filter(
+    logs = db.query(SampleLog).options(
+        joinedload(SampleLog.created_by)
+    ).filter(
         SampleLog.sample_id == sample_id
     ).order_by(SampleLog.created_at.desc()).all()
     
-    # Include user info
+    # Convert to schema with user info
+    result = []
     for log in logs:
-        if log.created_by:
-            log.created_by = {
+        log_dict = {
+            "id": log.id,
+            "sample_id": log.sample_id,
+            "comment": log.comment,
+            "log_type": log.log_type,
+            "old_value": log.old_value,
+            "new_value": log.new_value,
+            "created_at": log.created_at,
+            "created_by_id": log.created_by_id,
+            "created_by": {
                 "id": log.created_by.id,
                 "full_name": log.created_by.full_name,
                 "username": log.created_by.username
-            }
+            } if log.created_by else None
+        }
+        result.append(log_dict)
     
-    return logs
+    return result
 
 @router.post("/{sample_id}/logs", response_model=SampleLogSchema)
 def create_sample_comment(
     sample_id: int,
-    *,
+    comment: str = Query(..., description="Comment text"),
     db: Session = Depends(deps.get_db),
-    comment_in: dict,
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
     """Add a comment to a sample"""
@@ -513,7 +526,7 @@ def create_sample_comment(
     log = create_sample_log(
         db=db,
         sample_id=sample_id,
-        comment=comment_in.get("comment"),
+        comment=comment,
         log_type="comment",
         user_id=current_user.id
     )
@@ -521,11 +534,19 @@ def create_sample_comment(
     db.commit()
     db.refresh(log)
     
-    # Include user info
-    log.created_by = {
-        "id": current_user.id,
-        "full_name": current_user.full_name,
-        "username": current_user.username
+    # Return with user info
+    return {
+        "id": log.id,
+        "sample_id": log.sample_id,
+        "comment": log.comment,
+        "log_type": log.log_type,
+        "old_value": log.old_value,
+        "new_value": log.new_value,
+        "created_at": log.created_at,
+        "created_by_id": log.created_by_id,
+        "created_by": {
+            "id": current_user.id,
+            "full_name": current_user.full_name,
+            "username": current_user.username
+        }
     }
-    
-    return log
