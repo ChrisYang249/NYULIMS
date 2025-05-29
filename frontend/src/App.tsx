@@ -12,6 +12,7 @@ import Storage from './pages/Storage';
 import Clients from './pages/Clients';
 import Employees from './pages/Employees';
 import Logs from './pages/Logs';
+import SampleTypes from './pages/SampleTypes';
 // Queue pages
 import Accessioning from './pages/samples/Accessioning';
 import ExtractionQueue from './pages/samples/ExtractionQueue';
@@ -59,6 +60,7 @@ function App() {
             <Route path="samples/extraction" element={<Extraction />} />
             <Route path="samples/reprocess" element={<ReprocessQueue />} />
             <Route path="storage" element={<Storage />} />
+            <Route path="sample-types" element={<SampleTypes />} />
             <Route path="logs" element={<Logs />} />
           </Route>
         </Routes>

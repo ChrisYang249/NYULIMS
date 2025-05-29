@@ -33,7 +33,7 @@ def get_dashboard_stats(
     
     # Count samples with status in_analysis
     pending_analysis = db.query(func.count(Sample.id)).filter(
-        Sample.status == SampleStatus.in_analysis
+        Sample.status == SampleStatus.IN_ANALYSIS
     ).scalar() or 0
     
     return {

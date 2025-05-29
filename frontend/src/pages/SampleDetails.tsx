@@ -34,6 +34,7 @@ interface Sample {
   project_code: string;
   client_institution: string;
   sample_type: string;
+  sample_type_other?: string;
   status: string;
   target_depth: number;
   well_location: string;
@@ -235,7 +236,12 @@ const SampleDetails = () => {
           {sample.client_sample_id || '-'}
         </Descriptions.Item>
         <Descriptions.Item label="Sample Type">
-          <Tag>{sample.sample_type.toUpperCase()}</Tag>
+          <Tag>
+            {sample.sample_type.toUpperCase()}
+            {sample.sample_type === 'other' && sample.sample_type_other && (
+              <span> - {sample.sample_type_other}</span>
+            )}
+          </Tag>
         </Descriptions.Item>
         <Descriptions.Item label="Status">
           <Tag color={statusColors[sample.status] || 'default'}>

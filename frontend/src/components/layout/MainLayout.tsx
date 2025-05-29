@@ -9,6 +9,7 @@ import {
   TeamOutlined,
   FileTextOutlined,
   InboxOutlined,
+  TagsOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../../store/authStore';
 import { canAccessRoute } from '../../config/rolePermissions';
@@ -74,6 +75,11 @@ const MainLayout = () => {
       key: '/storage',
       icon: <InboxOutlined />,
       label: 'Storage',
+    },
+    {
+      key: '/sample-types',
+      icon: <TagsOutlined />,
+      label: 'Sample Types',
     },
     {
       key: '/logs',

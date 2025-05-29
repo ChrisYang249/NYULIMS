@@ -38,6 +38,10 @@ ROLE_PERMISSIONS = {
     "manage_users": ["super_admin"],
     "view_users": ["super_admin", "director"],
     
+    # Sample type management
+    "createSampleTypes": ["super_admin", "lab_manager", "director"],
+    "editSampleTypes": ["super_admin", "lab_manager", "director"],
+    
     # Storage management
     "manage_storage": ["super_admin", "lab_manager", "director"],
     "view_storage": ["super_admin", "lab_tech", "lab_manager", "director"],

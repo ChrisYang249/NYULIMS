@@ -12,6 +12,7 @@ from app.models import (
     SampleLog
 )
 from app.models.user import User as UserModel
+from app.models.sample_type import SampleType as SampleTypeModel
 from app.schemas.sample import (
     Sample as SampleSchema, 
     SampleCreate, 
@@ -730,3 +731,34 @@ def get_queue_samples(
         result.append(SampleWithLabData(**sample_dict))
     
     return result
+
+@router.delete("/{sample_id}")
+def delete_sample(
+    sample_id: int,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """Delete a sample"""
+    # Check permissions
+    from app.api.permissions import check_permission
+    check_permission(current_user, "deleteSamples")
+    
+    sample = db.query(Sample).filter(Sample.id == sample_id).first()
+    if not sample:
+        raise HTTPException(status_code=404, detail="Sample not found")
+    
+    # Create final log entry before deletion
+    create_sample_log(
+        db=db,
+        sample_id=sample.id,
+        comment="Sample deleted",
+        log_type="delete",
+        old_value=str(sample.status),
+        new_value="deleted",
+        user_id=current_user.id
+    )
+    
+    db.delete(sample)
+    db.commit()
+    
+    return {"message": "Sample deleted successfully"}

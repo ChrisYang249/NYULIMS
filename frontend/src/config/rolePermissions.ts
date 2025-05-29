@@ -76,6 +76,9 @@ export const routePermissions: RoutePermission[] = [
   // Storage
   { path: '/storage', allowedRoles: ['super_admin', 'lab_tech', 'lab_manager', 'director'] },
   
+  // Sample Types
+  { path: '/sample-types', allowedRoles: ['super_admin', 'lab_manager', 'director'] },
+  
   // Logs
   { path: '/logs', allowedRoles: ['super_admin', 'director'] },
 ];
@@ -104,6 +107,10 @@ export const actionPermissions = {
   // Storage management
   createStorageLocations: ['super_admin', 'lab_manager', 'director'],
   editStorageLocations: ['super_admin', 'lab_manager', 'director'],
+  
+  // Sample type management
+  createSampleTypes: ['super_admin', 'lab_manager', 'director'],
+  editSampleTypes: ['super_admin', 'lab_manager', 'director'],
 };
 
 // Helper functions

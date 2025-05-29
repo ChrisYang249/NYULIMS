@@ -6,14 +6,81 @@ from app.models.base import TimestampMixin
 import enum
 
 class SampleType(str, enum.Enum):
+    ABSCESS = "abscess"
+    AIR_FILTER_FLUID = "air_filter_fluid"
+    AMNIOTIC_FLUID = "amniotic_fluid"
+    ANIMAL_WOUND_SWABS = "animal_wound_swabs"
+    BACTERIAL_BIOFILMS = "bacterial_biofilms"
+    BAL = "bal"
+    BIOFILM_CULTURED = "biofilm_cultured"
+    BIOFLUIDS = "biofluids"
+    BIOPSY_EXTRACT = "biopsy_extract"
+    BLOOD = "blood"
+    BREAST_MILK = "breast_milk"
+    BUCCAL_SWAB = "buccal_swab"
+    BUFFER = "buffer"
+    CAPSULE = "capsule"
+    CARCASS_SWAB = "carcass_swab"
+    CDNA = "cdna"
+    CECUM = "cecum"
+    CONTROL = "control"
+    COW_RUMEN = "cow_rumen"
+    DNA = "dna"
+    DNA_CDNA = "dna_cdna"
+    DNA_LIBRARY = "dna_library"
+    DNA_PLATE = "dna_plate"
+    ENVIRONMENTAL_SAMPLE = "environmental_sample"
+    ENVIRONMENTAL_SWAB = "environmental_swab"
+    ENZYMES = "enzymes"
+    EQUIPMENT_SWABS = "equipment_swabs"
+    FECAL_SWAB = "fecal_swab"
+    FFPE_BLOCK = "ffpe_block"
+    FILTER = "filter"
+    FOOD_PRODUCT = "food_product"
+    HAIR = "hair"
+    ICELLPELLET = "icellpellet"
+    ISOLATE = "isolate"
+    LIBRARY_POOL = "library_pool"
+    LIQUID = "liquid"
+    LYOPHILIZED_POWDER = "lyophilized_powder"
+    MCELLPELLET = "mcellpellet"
+    MEDIA = "media"
+    MILK = "milk"
+    MOCK_COMMUNITY_STANDARD = "mock_community_standard"
+    MUCOSA = "mucosa"
+    NASAL_SAMPLE = "nasal_sample"
+    NASAL_SWAB = "nasal_swab"
+    OCULAR_SWAB = "ocular_swab"
+    ORAL_SAMPLE = "oral_sample"
+    ORAL_SWAB = "oral_swab"
+    OTHER = "other"
+    PAPER_POINTS = "paper_points"
+    PLAQUE = "plaque"
+    PLANT = "plant"
+    PLASMA = "plasma"
+    PLASMA_TUMOR = "plasma_tumor"
+    PROBIOTIC = "probiotic"
+    RECTAL_SWAB = "rectal_swab"
+    RNA = "rna"
+    RNA_LIBRARY = "rna_library"
+    RUMEN_FLUID_PELLET = "rumen_fluid_pellet"
+    SALIVA = "saliva"
+    SEA_MUCILAGE = "sea_mucilage"
+    SKIN_STRIP = "skin_strip"
+    SKIN_SWAB = "skin_swab"
+    SOIL = "soil"
+    SPECIALITY = "speciality"
+    SPUTUM = "sputum"
     STOOL = "stool"
     SWAB = "swab"
-    DNA = "dna"
-    RNA = "rna"
-    FOOD = "food"
-    MILK = "milk"
-    DNA_PLATE = "dna_plate"
-    OTHER = "other"
+    TISSUE = "tissue"
+    TUMOR_SAMPLES = "tumor_samples"
+    URINE = "urine"
+    VAGINAL_SWAB = "vaginal_swab"
+    VITREOUS_WASH_SAMPLE = "vitreous_wash_sample"
+    WASTEWATER = "wastewater"
+    WATER = "water"
+    WOUND_SWAB = "wound_swab"
 
 class SampleStatus(str, enum.Enum):
     REGISTERED = "registered"
@@ -38,7 +105,9 @@ class Sample(Base, TimestampMixin):
     barcode = Column(String, unique=True, index=True, nullable=False)  # Auto-generated 6-8 digits
     client_sample_id = Column(String)  # Client's original sample ID
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
-    sample_type = Column(Enum(SampleType), nullable=False)
+    sample_type = Column(Enum(SampleType), nullable=False)  # Keep for backward compatibility
+    sample_type_id = Column(Integer, ForeignKey("sample_types.id"))  # New foreign key
+    sample_type_other = Column(String)  # Description when sample_type is OTHER
     status = Column(Enum(SampleStatus), default=SampleStatus.REGISTERED)
     
     # Re-processing tracking
@@ -85,6 +154,7 @@ class Sample(Base, TimestampMixin):
     project = relationship("Project", back_populates="samples")
     parent_sample = relationship("Sample", remote_side=[id])
     storage_location = relationship("StorageLocation", back_populates="samples")
+    sample_type_ref = relationship("SampleType", back_populates="samples")
     extraction_results = relationship("ExtractionResult", back_populates="sample")
     library_prep_results = relationship("LibraryPrepResult", back_populates="sample")
     sequencing_run_samples = relationship("SequencingRunSample", back_populates="sample")

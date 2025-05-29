@@ -2,14 +2,14 @@ import { useState, useEffect } from 'react';
 import { 
   Table, Button, Tag, Space, message, Modal, Form, Select, 
   InputNumber, Input, Divider, Row, Col, Card, Upload,
-  Tabs, Alert, Popover, Typography, Dropdown, Menu
+  Tabs, Alert, Popover, Typography, Dropdown, Menu, Popconfirm
 } from 'antd';
 import type { UploadProps } from 'antd';
 import { 
   PlusOutlined, BarcodeOutlined, UploadOutlined,
   SaveOutlined, EditOutlined, ReloadOutlined,
   DownloadOutlined, EnvironmentOutlined,
-  FileTextOutlined, CheckCircleOutlined
+  FileTextOutlined, CheckCircleOutlined, DeleteOutlined
 } from '@ant-design/icons';
 import { api } from '../config/api';
 import dayjs from 'dayjs';
@@ -19,7 +19,13 @@ import { usePermissions } from '../hooks/usePermissions';
 
 const { Text } = Typography;
 
-// Helper function to convert M reads to GB (1GB = 6.6M reads)
+// Helper function to format depth in M reads
+const formatDepth = (depthM: number | null | undefined): string => {
+  if (!depthM) return '-';
+  return `${depthM}M`;
+};
+
+// Helper function to convert M reads to GB (1GB = 6.6M reads) - for forms
 const formatDepthWithGB = (depthM: number | null | undefined): string => {
   if (!depthM) return '-';
   const gb = (depthM / 6.6).toFixed(1);
@@ -77,6 +83,7 @@ interface Sample {
   project_code: string;  // The CMBP ID
   client_institution: string;
   sample_type: string;
+  sample_type_other?: string;
   status: string;
   target_depth: number;
   well_location: string;
@@ -116,6 +123,7 @@ const Samples = () => {
   const [samples, setSamples] = useState<Sample[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [storageLocations, setStorageLocations] = useState<StorageLocation[]>([]);
+  const [sampleTypes, setSampleTypes] = useState<{value: number; label: string; name: string; requires_description: boolean}[]>([]);
   const [loading, setLoading] = useState(false);
   const [isRegisterModalVisible, setIsRegisterModalVisible] = useState(false);
   const [isBulkRegister, setIsBulkRegister] = useState(false);
@@ -158,10 +166,29 @@ const Samples = () => {
     }
   };
 
+  const fetchSampleTypes = async () => {
+    try {
+      const response = await api.get('/sample-types');
+      // Transform the response to match the expected format
+      const types = response.data.map((st: any) => ({
+        value: st.id,  // Use ID as value
+        label: st.display_name,
+        name: st.name,
+        requires_description: st.requires_description
+      }));
+      setSampleTypes(types);
+    } catch (error) {
+      console.error('Failed to fetch sample types');
+      // Use hardcoded list as fallback
+      setSampleTypes(sampleTypesFallback);
+    }
+  };
+
   useEffect(() => {
     fetchSamples();
     fetchProjects();
     fetchStorageLocations();
+    fetchSampleTypes();
   }, []);
 
   const statusColors: Record<string, string> = {
@@ -181,15 +208,82 @@ const Samples = () => {
     cancelled: 'default'
   };
 
-  const sampleTypes = [
+  const sampleTypesFallback = [
+    { value: 'abscess', label: 'Abscess' },
+    { value: 'air_filter_fluid', label: 'Air Filter Fluid' },
+    { value: 'amniotic_fluid', label: 'Amniotic Fluid' },
+    { value: 'animal_wound_swabs', label: 'Animal wound swabs' },
+    { value: 'bacterial_biofilms', label: 'Bacterial Biofilms' },
+    { value: 'bal', label: 'BAL' },
+    { value: 'biofilm_cultured', label: 'Biofilm Cultured' },
+    { value: 'biofluids', label: 'Biofluids' },
+    { value: 'biopsy_extract', label: 'Biopsy Extract' },
+    { value: 'blood', label: 'Blood' },
+    { value: 'breast_milk', label: 'Breast Milk' },
+    { value: 'buccal_swab', label: 'Buccal Swab' },
+    { value: 'buffer', label: 'Buffer' },
+    { value: 'capsule', label: 'Capsule' },
+    { value: 'carcass_swab', label: 'Carcass Swab' },
+    { value: 'cdna', label: 'cDNA' },
+    { value: 'cecum', label: 'Cecum' },
+    { value: 'control', label: 'Control' },
+    { value: 'cow_rumen', label: 'Cow Rumen' },
+    { value: 'dna', label: 'DNA' },
+    { value: 'dna_cdna', label: 'DNA + cDNA' },
+    { value: 'dna_library', label: 'DNA Library' },
+    { value: 'dna_plate', label: 'DNA Plate' },
+    { value: 'environmental_sample', label: 'Environmental Sample' },
+    { value: 'environmental_swab', label: 'Environmental Swab' },
+    { value: 'enzymes', label: 'Enzymes' },
+    { value: 'equipment_swabs', label: 'Equipment swabs' },
+    { value: 'fecal_swab', label: 'Fecal Swab' },
+    { value: 'ffpe_block', label: 'FFPE Block' },
+    { value: 'filter', label: 'Filter' },
+    { value: 'food_product', label: 'Food Product' },
+    { value: 'hair', label: 'Hair' },
+    { value: 'icellpellet', label: 'ICellPellet' },
+    { value: 'isolate', label: 'Isolate' },
+    { value: 'library_pool', label: 'Library Pool' },
+    { value: 'liquid', label: 'Liquid' },
+    { value: 'lyophilized_powder', label: 'Lyophilized powder' },
+    { value: 'mcellpellet', label: 'MCellPellet' },
+    { value: 'media', label: 'Media' },
+    { value: 'milk', label: 'Milk' },
+    { value: 'mock_community_standard', label: 'Mock Community Standard' },
+    { value: 'mucosa', label: 'Mucosa' },
+    { value: 'nasal_sample', label: 'Nasal Sample' },
+    { value: 'nasal_swab', label: 'Nasal Swab' },
+    { value: 'ocular_swab', label: 'Ocular Swab' },
+    { value: 'oral_sample', label: 'Oral Sample' },
+    { value: 'oral_swab', label: 'Oral Swab' },
+    { value: 'other', label: 'Other' },
+    { value: 'paper_points', label: 'Paper Points' },
+    { value: 'plaque', label: 'Plaque' },
+    { value: 'plant', label: 'Plant' },
+    { value: 'plasma', label: 'Plasma' },
+    { value: 'plasma_tumor', label: 'Plasma/Tumor' },
+    { value: 'probiotic', label: 'Probiotic' },
+    { value: 'rectal_swab', label: 'Rectal Swab' },
+    { value: 'rna', label: 'RNA' },
+    { value: 'rna_library', label: 'RNA Library' },
+    { value: 'rumen_fluid_pellet', label: 'Rumen Fluid Pellet' },
+    { value: 'saliva', label: 'Saliva' },
+    { value: 'sea_mucilage', label: 'Sea Mucilage' },
+    { value: 'skin_strip', label: 'Skin Strip' },
+    { value: 'skin_swab', label: 'Skin Swab' },
+    { value: 'soil', label: 'Soil' },
+    { value: 'speciality', label: 'Speciality' },
+    { value: 'sputum', label: 'Sputum' },
     { value: 'stool', label: 'Stool' },
     { value: 'swab', label: 'Swab' },
-    { value: 'dna', label: 'DNA' },
-    { value: 'rna', label: 'RNA' },
-    { value: 'food', label: 'Food' },
-    { value: 'milk', label: 'Milk' },
-    { value: 'dna_plate', label: 'DNA Plate' },
-    { value: 'other', label: 'Other' }
+    { value: 'tissue', label: 'Tissue' },
+    { value: 'tumor_samples', label: 'Tumor Samples' },
+    { value: 'urine', label: 'Urine' },
+    { value: 'vaginal_swab', label: 'Vaginal Swab' },
+    { value: 'vitreous_wash_sample', label: 'Vitreous Wash sample' },
+    { value: 'wastewater', label: 'Wastewater' },
+    { value: 'water', label: 'Water' },
+    { value: 'wound_swab', label: 'Wound Swab' }
   ];
 
   const statusOptions = [
@@ -222,12 +316,19 @@ const Samples = () => {
 
   const handleRegisterSubmit = async (values: any) => {
     try {
+      // Transform the values to use sample_type_id
+      const submitData = {
+        ...values,
+        sample_type_id: values.sample_type,  // sample_type now contains the ID
+      };
+      delete submitData.sample_type;  // Remove the old field
+      
       if (isBulkRegister) {
         // Bulk registration
         const bulkData = {
           count: bulkCount,
-          project_id: values.project_id,
-          sample_type: values.sample_type,
+          project_id: submitData.project_id,
+          sample_type_id: submitData.sample_type_id,
           samples: bulkSamples
         };
         
@@ -235,7 +336,7 @@ const Samples = () => {
         message.success(`Successfully registered ${response.data.length} samples`);
       } else {
         // Single registration
-        const response = await api.post('/samples', values);
+        const response = await api.post('/samples', submitData);
         message.success(`Sample registered with barcode: ${response.data.barcode}`);
       }
       
@@ -280,6 +381,15 @@ const Samples = () => {
     }
   };
 
+  const handleDeleteSample = async (sampleId: number) => {
+    try {
+      await api.delete(`/samples/${sampleId}`);
+      message.success('Sample deleted successfully');
+      fetchSamples();
+    } catch (error) {
+      message.error('Failed to delete sample');
+    }
+  };
 
   const downloadExcelTemplate = () => {
     // Create a new workbook
@@ -497,9 +607,17 @@ const Samples = () => {
       title: 'Type',
       dataIndex: 'sample_type',
       key: 'sample_type',
-      width: 80,
-      render: (type: string) => (
-        <Tag style={{ fontSize: '11px' }}>{type.toUpperCase()}</Tag>
+      width: 120,
+      render: (type: string, record: Sample) => (
+        <Popover 
+          content={type === 'other' && record.sample_type_other ? record.sample_type_other : null}
+          trigger={type === 'other' && record.sample_type_other ? 'hover' : 'none'}
+        >
+          <Tag style={{ fontSize: '11px', cursor: type === 'other' ? 'help' : 'default' }}>
+            {type.toUpperCase()}
+            {type === 'other' && record.sample_type_other && ' (*)'}
+          </Tag>
+        </Popover>
       ),
     },
     {
@@ -559,6 +677,28 @@ const Samples = () => {
       },
     },
     {
+      title: 'Target Depth',
+      dataIndex: 'target_depth',
+      key: 'target_depth',
+      width: 80,
+      render: (depth: number | null) => (
+        <span style={{ fontSize: '12px' }}>
+          {formatDepth(depth)}
+        </span>
+      ),
+    },
+    {
+      title: 'Actual Depth',
+      dataIndex: 'achieved_depth',
+      key: 'achieved_depth',
+      width: 80,
+      render: (depth: number | null) => (
+        <span style={{ fontSize: '12px' }}>
+          {formatDepth(depth)}
+        </span>
+      ),
+    },
+    {
       title: 'Storage',
       key: 'storage',
       width: 120,
@@ -585,29 +725,33 @@ const Samples = () => {
       },
     },
     {
-      title: 'Target/Actual',
-      key: 'depth',
-      width: 150,
-      render: (_: any, record: Sample) => (
-        <span style={{ fontSize: '12px' }}>
-          {formatDepthWithGB(record.target_depth)} / {formatDepthWithGB(record.achieved_depth)}
-        </span>
-      ),
-    },
-    {
       title: 'Action',
       key: 'action',
       fixed: 'right' as const,
-      width: 120,
+      width: 80,
       render: (_: any, record: Sample) => (
-        <Button 
-          type="link" 
-          size="small"
-          onClick={() => window.location.href = `/samples/${record.id}`}
-          style={{ padding: '0 4px' }}
-        >
-          View Details
-        </Button>
+        <Space size="small">
+          {canPerform('deleteSamples') && (
+            <Popconfirm
+              title="Delete Sample"
+              description="Are you sure you want to delete this sample? This action cannot be undone."
+              onConfirm={() => handleDeleteSample(record.id)}
+              okText="Yes"
+              cancelText="No"
+              okButtonProps={{ danger: true }}
+            >
+              <Button 
+                type="link" 
+                danger
+                size="small"
+                icon={<DeleteOutlined />}
+                style={{ padding: '0 4px' }}
+              >
+                Delete
+              </Button>
+            </Popconfirm>
+          )}
+        </Space>
       ),
     },
   ];
@@ -685,7 +829,7 @@ const Samples = () => {
         loading={loading}
         rowKey="id"
         size="small"
-        scroll={{ x: 1200 }}
+        scroll={{ x: 1300 }}
         rowSelection={rowSelection}
         pagination={{
           pageSize: 50,
@@ -783,17 +927,32 @@ const Samples = () => {
                   prevValues.sample_type !== currentValues.sample_type
                 }
               >
-                {({ getFieldValue }) => 
-                  getFieldValue('sample_type') === 'dna_plate' ? (
-                    <Form.Item
-                      name="well_location"
-                      label="Well Location"
-                      rules={[{ required: true, message: 'Well location required for DNA plates' }]}
-                    >
-                      <Input placeholder="e.g., A1, B2" />
-                    </Form.Item>
-                  ) : null
-                }
+                {({ getFieldValue }) => {
+                  const sampleTypeId = getFieldValue('sample_type');
+                  const selectedType = sampleTypes.find(st => st.value === sampleTypeId);
+                  return (
+                    <>
+                      {selectedType?.name === 'dna_plate' && (
+                        <Form.Item
+                          name="well_location"
+                          label="Well Location"
+                          rules={[{ required: true, message: 'Well location required for DNA plates' }]}
+                        >
+                          <Input placeholder="e.g., A1, B2" />
+                        </Form.Item>
+                      )}
+                      {selectedType?.requires_description && (
+                        <Form.Item
+                          name="sample_type_other"
+                          label="Sample Type Description"
+                          rules={[{ required: true, message: 'Please describe the sample type' }]}
+                        >
+                          <Input placeholder="Please specify the sample type" />
+                        </Form.Item>
+                      )}
+                    </>
+                  );
+                }}
               </Form.Item>
 
               <Form.Item

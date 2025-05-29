@@ -6,7 +6,9 @@ from app.models.sample import SampleType, SampleStatus
 class SampleBase(BaseModel):
     client_sample_id: Optional[str] = None
     project_id: int
-    sample_type: SampleType
+    sample_type: Optional[SampleType] = None  # For backward compatibility
+    sample_type_id: Optional[int] = None  # New field
+    sample_type_other: Optional[str] = None
     parent_sample_id: Optional[int] = None
     reprocess_type: Optional[str] = None
     reprocess_reason: Optional[str] = None
@@ -20,9 +22,17 @@ class SampleBase(BaseModel):
         if values.get('sample_type') == SampleType.DNA_PLATE and not v:
             raise ValueError('Well location is required for DNA plate samples')
         return v
+    
+    @validator('sample_type_other')
+    def validate_sample_type_other(cls, v, values):
+        # Will need to check if sample_type_id references "other" type
+        # For now, keep backward compatibility
+        if values.get('sample_type') == SampleType.OTHER and not v:
+            raise ValueError('Description is required when sample type is Other')
+        return v
 
 class SampleCreate(SampleBase):
-    pass
+    sample_type_id: int  # Required for new samples
 
 class SampleBulkCreate(BaseModel):
     count: int  # Number of samples to create
@@ -33,6 +43,7 @@ class SampleBulkCreate(BaseModel):
 class SampleUpdate(BaseModel):
     client_sample_id: Optional[str] = None
     sample_type: Optional[SampleType] = None
+    sample_type_other: Optional[str] = None
     storage_location_id: Optional[int] = None
     target_depth: Optional[float] = None
     well_location: Optional[str] = None
@@ -79,6 +90,7 @@ class Sample(SampleBase):
     received_date: Optional[datetime] = None
     accessioned_date: Optional[datetime] = None
     storage_location: Optional[StorageLocation] = None
+    sample_type_other: Optional[str] = None
     
     # Storage fields (for backwards compatibility)
     storage_unit: Optional[str] = None
