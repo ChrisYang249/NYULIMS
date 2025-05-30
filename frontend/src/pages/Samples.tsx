@@ -89,6 +89,7 @@ interface Sample {
   client_institution: string;
   sample_type: string;
   sample_type_other?: string;
+  service_type?: string;
   status: string;
   target_depth: number;
   well_location: string;
@@ -159,6 +160,10 @@ const Samples = () => {
     return [start ? dayjs(start) : null, end ? dayjs(end) : null];
   });
   const [showDeleted, setShowDeleted] = useState(searchParams.get('deleted') === 'true');
+  
+  // Pagination state
+  const [pageSize, setPageSize] = useState(Number(searchParams.get('pageSize')) || 50);
+  const [currentPage, setCurrentPage] = useState(Number(searchParams.get('page')) || 1);
   
   // Upload validation states
   const [isValidationModalVisible, setIsValidationModalVisible] = useState(false);
@@ -994,6 +999,31 @@ const Samples = () => {
       ),
     },
     {
+      title: 'Service',
+      dataIndex: 'service_type',
+      key: 'service_type',
+      width: 80,
+      render: (serviceType: string) => {
+        if (!serviceType) return '-';
+        const serviceColors: Record<string, string> = {
+          'WGS': 'blue',
+          'V1V3_16S': 'green',
+          'V3V4_16S': 'green',
+          'ONT_WGS': 'purple',
+          'ONT_V1V8': 'purple',
+          'ANALYSIS_ONLY': 'orange',
+          'INTERNAL': 'default',
+          'CLINICAL': 'red',
+          'OTHER': 'default'
+        };
+        return (
+          <Tag color={serviceColors[serviceType] || 'default'} style={{ fontSize: '10px' }}>
+            {serviceType.replace(/_/g, '-')}
+          </Tag>
+        );
+      },
+    },
+    {
       title: (
         <Space>
           Status
@@ -1424,12 +1454,27 @@ const Samples = () => {
         loading={loading}
         rowKey="id"
         size="small"
-        scroll={{ x: 1300 }}
+        scroll={{ x: 1400 }}
         rowSelection={rowSelection}
         pagination={{
-          pageSize: 50,
+          current: currentPage,
+          pageSize: pageSize,
           showSizeChanger: true,
+          pageSizeOptions: ['20', '50', '100', '200'],
           showTotal: (total) => `Total ${total} samples`,
+          onChange: (page, size) => {
+            setCurrentPage(page);
+            if (size !== pageSize) {
+              setPageSize(size);
+              setCurrentPage(1); // Reset to first page when page size changes
+            }
+            updateURLParams({ page, pageSize: size });
+          },
+          onShowSizeChange: (current, size) => {
+            setPageSize(size);
+            setCurrentPage(1);
+            updateURLParams({ page: 1, pageSize: size });
+          }
         }}
       />
 

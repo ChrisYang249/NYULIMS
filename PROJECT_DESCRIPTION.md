@@ -8,9 +8,13 @@ A modern, CFR Part 11 compliant Laboratory Information Management System (LIMS) 
 
 ### 🔬 Sample Management
 - **Barcode Generation**: Automatic 6-8 digit barcode generation with support for re-processing (e.g., 123456-R1 for rerun)
-- **Sample Tracking**: Complete chain of custody from receipt through delivery
-- **Multiple Sample Types**: Support for stool, swab, DNA, RNA, food, milk, and other sample types
-- **Workflow States**: Received → Accessioned → Extracted → Library Prepped → Sequenced → Analyzed → Delivered
+- **Sample Tracking**: Complete chain of custody from receipt through delivery with activity logging
+- **Multiple Sample Types**: Support for 70+ sample types including stool, swab, DNA, RNA, tissue, environmental samples
+- **Workflow States**: Registered → Received → Accessioned → Extracted → Library Prepped → Sequenced → Analyzed → Delivered
+- **Bulk Operations**: Import samples via CSV/Excel, bulk status updates, bulk deletion
+- **Service Type Tracking**: Track specific sequencing service requirements (WGS, 16S V1V3, V3V4, ONT, etc.)
+- **Storage Management**: Comprehensive freezer/shelf/box/position tracking with occupancy visualization
+- **Activity Timeline**: Complete comment and change history for each sample
 
 ### 📊 Project Management
 - **Project Tracking**: Unique project IDs (CP + 5 digits) with client association
@@ -47,8 +51,14 @@ A modern, CFR Part 11 compliant Laboratory Information Management System (LIMS) 
 ### Frontend (React + TypeScript)
 - **UI Framework**: Ant Design components for professional interface
 - **State Management**: Zustand for efficient state handling
-- **Routing**: React Router with protected routes
+- **Routing**: React Router with protected routes and URL-based filter persistence
 - **API Integration**: Axios with automatic auth token handling
+- **Advanced Features**: 
+  - Searchable dropdowns with real-time filtering
+  - Bulk import with validation preview
+  - CSV/Excel template generation
+  - Keyboard shortcuts (Cmd/Ctrl+Click for new tab)
+  - Persistent filter states across navigation
 
 ### Deployment & Portability
 - **Containerization Ready**: Designed for Docker deployment
@@ -79,14 +89,41 @@ A modern, CFR Part 11 compliant Laboratory Information Management System (LIMS) 
 - Quality Assurance Teams
 - Client Service Representatives
 
+## Recent Updates (January 2025)
+
+### Sample Management Enhancements
+- ✅ Comprehensive sample details page with tabs for basic info, lab data, comments, and activity logs
+- ✅ Bulk sample import from CSV/Excel with validation preview
+- ✅ Bulk operations (status update, delete) for efficient sample management
+- ✅ Service type tracking for each sample
+- ✅ Clickable barcodes for quick navigation
+- ✅ Storage management system with visual occupancy tracking
+
+### User Experience Improvements
+- ✅ URL-based filter persistence (maintain filters when navigating)
+- ✅ Searchable client selection in project creation
+- ✅ Open samples/projects in new tab with Cmd/Ctrl/Shift+Click
+- ✅ Configurable pagination (20/50/100/200 items per page)
+- ✅ Excel and CSV template generation with instructions
+
+### Data Integrity & Compliance
+- ✅ Soft delete with audit trail and deletion reasons
+- ✅ Comprehensive activity logging for all sample operations
+- ✅ Comment system for sample-specific notes
+- ✅ Automatic sample name cleaning for consistency
+
 ## Future Roadmap
 
 - Instrument integration (sequencers, liquid handlers)
-- Advanced analytics and reporting
-- Client portal for sample submission
+- Advanced analytics and reporting dashboards
+- Client portal for sample submission and tracking
 - Mobile app for barcode scanning
 - Integration with ERP/billing systems
-- Automated sequencing run planning
+- Automated sequencing run planning based on sample queue
+- Email notifications for status changes
+- Batch QR code label printing
+- Sample pooling and dilution calculations
+- Integration with bioinformatics pipelines
 
 ---
 

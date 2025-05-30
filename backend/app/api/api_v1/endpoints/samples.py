@@ -124,6 +124,7 @@ def read_samples(
             "project_name": sample.project.name if sample.project else None,
             "project_code": sample.project.project_id if sample.project else None,  # The CMBP ID
             "client_institution": sample.project.client.institution if sample.project and sample.project.client else None,
+            "service_type": sample.project.project_type.value if sample.project and sample.project.project_type else None,
         }
         
         # Add extraction data
@@ -193,6 +194,7 @@ def read_sample(
         "project_name": sample.project.name if sample.project else None,
         "project_code": sample.project.project_id if sample.project else None,  # The CMBP ID
         "client_institution": sample.project.client.institution if sample.project and sample.project.client else None,
+        "service_type": sample.project.project_type.value if sample.project and sample.project.project_type else None,
     }
     
     # Add lab data (same logic as list endpoint)

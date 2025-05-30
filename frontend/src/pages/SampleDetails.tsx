@@ -35,6 +35,7 @@ interface Sample {
   client_institution: string;
   sample_type: string;
   sample_type_other?: string;
+  service_type?: string;
   status: string;
   target_depth: number;
   well_location: string;
@@ -254,7 +255,14 @@ const SampleDetails = () => {
             {sample.project_code}
           </a>
         </Descriptions.Item>
-        <Descriptions.Item label="Client Institution">
+        <Descriptions.Item label="Service Type">
+          {sample.service_type ? (
+            <Tag color="blue" style={{ margin: 0 }}>
+              {sample.service_type.replace(/_/g, '-')}
+            </Tag>
+          ) : '-'}
+        </Descriptions.Item>
+        <Descriptions.Item label="Client Institution" span={2}>
           {sample.client_institution}
         </Descriptions.Item>
         <Descriptions.Item label="Target Depth">

@@ -145,6 +145,7 @@ class SampleWithLabData(Sample):
     project_name: Optional[str] = None
     project_code: Optional[str] = None
     client_institution: Optional[str] = None
+    service_type: Optional[str] = None
     
     class Config:
         from_attributes = True
