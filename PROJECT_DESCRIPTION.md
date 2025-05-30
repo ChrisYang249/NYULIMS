@@ -10,11 +10,20 @@ A modern, CFR Part 11 compliant Laboratory Information Management System (LIMS) 
 - **Barcode Generation**: Automatic 6-8 digit barcode generation with support for re-processing (e.g., 123456-R1 for rerun)
 - **Sample Tracking**: Complete chain of custody from receipt through delivery with activity logging
 - **Multiple Sample Types**: Support for 70+ sample types including stool, swab, DNA, RNA, tissue, environmental samples
-- **Workflow States**: Registered → Received → Accessioned → Extracted → Library Prepped → Sequenced → Analyzed → Delivered
+- **Enhanced Workflow States**: 
+  - Registered → Received → Accessioning → Accessioned
+  - Accessioned → Extraction Queue → In Extraction → Extracted
+  - Extracted → DNA Quant Queue → Library Prep → Sequenced → Analyzed → Delivered
+- **Accessioning System**: 
+  - Pre-treatment options (Metapolyzyme, Proteinase K, etc.)
+  - Spike-in tracking (Zymo standards)
+  - Flag system with abbreviations (LOW_VOL, CONTAM, PROK, etc.)
+  - Discrepancy management with PM approval workflow
 - **Bulk Operations**: Import samples via CSV/Excel, bulk status updates, bulk deletion
 - **Service Type Tracking**: Track specific sequencing service requirements (WGS, 16S V1V3, V3V4, ONT, etc.)
 - **Storage Management**: Comprehensive freezer/shelf/box/position tracking with occupancy visualization
 - **Activity Timeline**: Complete comment and change history for each sample
+- **Smart Sorting**: Samples automatically sorted by due date and project for prioritization
 
 ### 📊 Project Management
 - **Project Tracking**: Unique project IDs (CP + 5 digits) with client association
@@ -23,10 +32,17 @@ A modern, CFR Part 11 compliant Laboratory Information Management System (LIMS) 
 - **File Attachments**: Support for quotes and submission forms
 
 ### 🧪 Laboratory Operations
+- **Extraction Queue Management**: 
+  - Lab manager interface for assigning samples to technicians
+  - Automatic plate ID generation (EXT-YYYYMMDD-XXXX)
+  - Method selection (Qiagen PowerSoil, DNeasy, Zymo, etc.)
+  - Well position tracking (A1-H12)
+  - QC data capture (concentration, volume, purity ratios)
 - **Extraction Planning**: 96-well plate management with 3 control positions
 - **Library Prep Planning**: Batch processing across multiple projects
 - **Sequencing Run Management**: Track flowcells, reagents, yields, and QC metrics
 - **Re-processing Support**: Handle re-extraction, re-prep, and re-sequencing workflows
+- **Smart Routing**: DNA/DNA Plate samples skip extraction queue
 
 ### 🔐 Regulatory Compliance (CFR Part 11)
 - **Electronic Signatures**: Timestamped approval workflows with reason capture
@@ -98,6 +114,16 @@ A modern, CFR Part 11 compliant Laboratory Information Management System (LIMS) 
 - ✅ Service type tracking for each sample
 - ✅ Clickable barcodes for quick navigation
 - ✅ Storage management system with visual occupancy tracking
+- ✅ Smart sorting by due date and project for prioritization
+
+### Accessioning & Workflow Enhancements
+- ✅ New ACCESSIONING status between RECEIVED and ACCESSIONED
+- ✅ Pre-treatment tracking (Metapolyzyme, Proteinase K, etc.)
+- ✅ Spike-in options for quality control (Zymo standards)
+- ✅ Flag system with standardized abbreviations
+- ✅ Discrepancy management with electronic approval workflow
+- ✅ Extraction queue management system
+- ✅ Lab manager interface for assigning extraction work
 
 ### User Experience Improvements
 - ✅ URL-based filter persistence (maintain filters when navigating)
@@ -105,12 +131,14 @@ A modern, CFR Part 11 compliant Laboratory Information Management System (LIMS) 
 - ✅ Open samples/projects in new tab with Cmd/Ctrl/Shift+Click
 - ✅ Configurable pagination (20/50/100/200 items per page)
 - ✅ Excel and CSV template generation with instructions
+- ✅ Consistent table styling across all pages
 
 ### Data Integrity & Compliance
 - ✅ Soft delete with audit trail and deletion reasons
 - ✅ Comprehensive activity logging for all sample operations
 - ✅ Comment system for sample-specific notes
 - ✅ Automatic sample name cleaning for consistency
+- ✅ Electronic signatures for discrepancy approvals
 
 ## Future Roadmap
 

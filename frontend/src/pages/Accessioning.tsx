@@ -266,48 +266,76 @@ const Accessioning = () => {
   };
 
   const handleDiscrepancy = async (values: any) => {
-    if (!currentSample) return;
+    // Determine which samples to process
+    const samplesToProcess = currentSample 
+      ? [currentSample.id] 
+      : selectedSamples;
+
+    if (samplesToProcess.length === 0) return;
 
     try {
-      // First update the sample to mark it has discrepancy
-      await api.put(`/samples/${currentSample.id}`, {
-        has_discrepancy: true,
-        discrepancy_notes: values.discrepancy_notes
-      });
+      let successCount = 0;
+      let failCount = 0;
 
-      // Then create a formal discrepancy approval request
-      const response = await api.post(`/samples/${currentSample.id}/discrepancy-approvals`, {
-        discrepancy_type: values.discrepancy_type,
-        discrepancy_details: values.discrepancy_notes
-      });
+      // Process each sample
+      for (const sampleId of samplesToProcess) {
+        try {
+          // First update the sample to mark it has discrepancy
+          await api.put(`/samples/${sampleId}`, {
+            has_discrepancy: true,
+            discrepancy_notes: values.discrepancy_notes
+          });
 
-      const discrepancyId = response.data.id;
+          // Then create a formal discrepancy approval request
+          const response = await api.post(`/samples/${sampleId}/discrepancy-approvals`, {
+            discrepancy_type: values.discrepancy_type,
+            discrepancy_details: values.discrepancy_notes
+          });
 
-      // Upload any attachments
-      if (fileList.length > 0) {
-        for (const file of fileList) {
-          if (file.originFileObj) {
-            const formData = new FormData();
-            formData.append('file', file.originFileObj);
-            
-            await api.post(
-              `/samples/${currentSample.id}/discrepancy-approvals/${discrepancyId}/attachments`,
-              formData,
-              {
-                headers: {
-                  'Content-Type': 'multipart/form-data',
-                },
+          const discrepancyId = response.data.id;
+
+          // Upload any attachments (only for single sample, not bulk)
+          if (currentSample && fileList.length > 0) {
+            for (const file of fileList) {
+              if (file.originFileObj) {
+                const formData = new FormData();
+                formData.append('file', file.originFileObj);
+                
+                await api.post(
+                  `/samples/${sampleId}/discrepancy-approvals/${discrepancyId}/attachments`,
+                  formData,
+                  {
+                    headers: {
+                      'Content-Type': 'multipart/form-data',
+                    },
+                  }
+                );
               }
-            );
+            }
           }
+          successCount++;
+        } catch (error) {
+          failCount++;
+          console.error(`Failed to process sample ${sampleId}:`, error);
         }
       }
 
-      message.success('Discrepancy recorded and sent to PM for approval');
+      if (successCount > 0) {
+        message.success(
+          `Discrepancy recorded for ${successCount} sample${successCount > 1 ? 's' : ''} and sent to PM for approval`
+        );
+      }
+      if (failCount > 0) {
+        message.error(
+          `Failed to record discrepancy for ${failCount} sample${failCount > 1 ? 's' : ''}`
+        );
+      }
+
       setIsDiscrepancyModalVisible(false);
       discrepancyForm.resetFields();
       setCurrentSample(null);
       setFileList([]);
+      setSelectedSamples([]);
       fetchSamples();
     } catch (error: any) {
       message.error(error.response?.data?.detail || 'Failed to record discrepancy');
@@ -491,22 +519,35 @@ const Accessioning = () => {
                 Refresh
               </Button>
               {selectedSamples.length > 0 && (
-                <Button
-                  type="primary"
-                  icon={<CheckCircleOutlined />}
-                  onClick={() => {
-                    if (showCompleted) {
-                      // Handle moving to extraction queue
-                      handleMoveToExtractionQueue();
-                    } else {
-                      setIsAccessionModalVisible(true);
-                    }
-                  }}
-                >
-                  {showCompleted 
-                    ? `Move to Extraction Queue (${selectedSamples.length})`
-                    : `Accession Selected (${selectedSamples.length})`}
-                </Button>
+                <Space>
+                  <Button
+                    type="primary"
+                    icon={<CheckCircleOutlined />}
+                    onClick={() => {
+                      if (showCompleted) {
+                        // Handle moving to extraction queue
+                        handleMoveToExtractionQueue();
+                      } else {
+                        setIsAccessionModalVisible(true);
+                      }
+                    }}
+                  >
+                    {showCompleted 
+                      ? `Move to Extraction Queue (${selectedSamples.length})`
+                      : `Accession Selected (${selectedSamples.length})`}
+                  </Button>
+                  {!showCompleted && (
+                    <Button
+                      icon={<WarningOutlined />}
+                      onClick={() => {
+                        setCurrentSample(null); // null indicates bulk operation
+                        setIsDiscrepancyModalVisible(true);
+                      }}
+                    >
+                      Report Discrepancy ({selectedSamples.length})
+                    </Button>
+                  )}
+                </Space>
               )}
             </Space>
           </Col>
@@ -733,7 +774,7 @@ const Accessioning = () => {
 
       {/* Discrepancy Modal */}
       <Modal
-        title="Report Discrepancy"
+        title={`Report Discrepancy${!currentSample && selectedSamples.length > 0 ? ` for ${selectedSamples.length} Samples` : ''}`}
         open={isDiscrepancyModalVisible}
         onCancel={() => {
           setIsDiscrepancyModalVisible(false);
@@ -744,18 +785,34 @@ const Accessioning = () => {
         footer={null}
         width={600}
       >
-        {currentSample && (
+        {currentSample ? (
           <div style={{ marginBottom: 16 }}>
             <Text strong>Sample: </Text>
             <Tag>{currentSample.barcode}</Tag>
             <Text strong> Client ID: </Text>
             <Text>{currentSample.client_sample_id || 'N/A'}</Text>
           </div>
+        ) : selectedSamples.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <Text strong>Selected Samples: </Text>
+            <Tag color="orange">{selectedSamples.length} samples</Tag>
+            {selectedSamples.length <= 5 && (
+              <div style={{ marginTop: 8 }}>
+                {filteredSamples
+                  .filter(s => selectedSamples.includes(s.id))
+                  .map(s => (
+                    <Tag key={s.id} style={{ marginBottom: 4 }}>
+                      {s.barcode} - {s.client_sample_id || 'N/A'}
+                    </Tag>
+                  ))}
+              </div>
+            )}
+          </div>
         )}
 
         <Alert
           message="Discrepancy Reporting"
-          description="Document any issues with this sample. The PM will be notified and must approve before the sample can proceed."
+          description={`Document any issues with ${currentSample ? 'this sample' : 'these samples'}. The PM will be notified and must approve before the sample${!currentSample && selectedSamples.length > 1 ? 's' : ''} can proceed.`}
           type="warning"
           showIcon
           style={{ marginBottom: 16 }}
@@ -798,24 +855,26 @@ const Accessioning = () => {
             />
           </Form.Item>
 
-          <Form.Item label="Attachments (Optional)">
-            <Upload.Dragger {...uploadProps}>
-              <p className="ant-upload-drag-icon">
-                <InboxOutlined />
-              </p>
-              <p className="ant-upload-text">Click or drag files to upload</p>
-              <p className="ant-upload-hint">
-                Support for images (JPEG, PNG), PDFs, and documents. Max file size: 10MB
-              </p>
-            </Upload.Dragger>
-            {fileList.length > 0 && (
-              <div style={{ marginTop: 8 }}>
-                <Text type="secondary">
-                  <PaperClipOutlined /> {fileList.length} file(s) selected
-                </Text>
-              </div>
-            )}
-          </Form.Item>
+          {currentSample && (
+            <Form.Item label="Attachments (Optional)">
+              <Upload.Dragger {...uploadProps}>
+                <p className="ant-upload-drag-icon">
+                  <InboxOutlined />
+                </p>
+                <p className="ant-upload-text">Click or drag files to upload</p>
+                <p className="ant-upload-hint">
+                  Support for images (JPEG, PNG), PDFs, and documents. Max file size: 10MB
+                </p>
+              </Upload.Dragger>
+              {fileList.length > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  <Text type="secondary">
+                    <PaperClipOutlined /> {fileList.length} file(s) selected
+                  </Text>
+                </div>
+              )}
+            </Form.Item>
+          )}
 
           <Form.Item>
             <Space style={{ width: '100%', justifyContent: 'flex-end' }}>

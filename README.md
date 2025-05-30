@@ -61,8 +61,14 @@ create_user(db, user_data)
 ### Core Functionality
 - **Project Management**: Track projects from quote to delivery with service type tracking
 - **Sample Tracking**: Barcode-based sample management with full chain of custody
+- **Enhanced Accessioning**: 
+  - Pre-treatment options (Metapolyzyme, Proteinase K, etc.)
+  - Spike-in tracking for quality control (Zymo standards)
+  - Flag system with standardized abbreviations
+  - Discrepancy management with electronic approvals
 - **Bulk Operations**: Import samples via CSV/Excel, bulk status updates, bulk deletion
 - **Storage Management**: Track freezer locations with visual occupancy indicators
+- **Extraction Queue Management**: Lab manager interface for assigning work to technicians
 - **Workflow Management**: Extraction and library prep planning with 96-well plate layouts
 - **Sequencing Run Planning**: Track runs, yields, and QC metrics
 - **Activity Logging**: Complete timeline of all sample activities and comments
@@ -73,6 +79,8 @@ create_user(db, user_data)
 - **Searchable Dropdowns**: Fast client and project selection
 - **Flexible Pagination**: Choose between 20, 50, 100, or 200 items per page
 - **Import Templates**: Download pre-formatted CSV/Excel templates with validation
+- **Smart Sorting**: Samples automatically sorted by due date and project
+- **Consistent UI**: Compact table styling across all pages
 
 ### Compliance & Security
 - **CFR Part 11 Compliance**: 
@@ -97,13 +105,17 @@ create_user(db, user_data)
 
 1. **Project Creation** (PM) - Define project with service type (WGS, 16S, etc.)
 2. **Sample Registration** (PM) - Single or bulk import via CSV/Excel
-3. **Sample Accessioning** (Accessioner) - Receive and verify samples
-4. **Storage Assignment** - Track freezer/shelf/box locations
-5. **DNA Extraction** (Lab Tech) - Process samples in 96-well plates
-6. **Library Preparation** (Lab Tech) - Prepare sequencing libraries
-7. **Sequencing** (Lab Tech) - Run samples on sequencer
-8. **Data Analysis** (BIS Analyst) - Process sequencing data
-9. **Delivery** (PM) - Deliver results to client
+3. **Sample Receipt** (PM) - Mark samples as received
+4. **Accessioning Queue** (PM) - Assign samples to accessioning status
+5. **Sample Accessioning** (Accessioner) - Verify, apply pre-treatments, add flags
+6. **Extraction Queue** (Accessioner) - Move accessioned samples to extraction queue
+7. **Extraction Assignment** (Lab Manager) - Assign samples to technicians
+8. **DNA Extraction** (Lab Tech) - Process samples in 96-well plates
+9. **DNA Quantification** - Measure concentration and purity
+10. **Library Preparation** (Lab Tech) - Prepare sequencing libraries
+11. **Sequencing** (Lab Tech) - Run samples on sequencer
+12. **Data Analysis** (BIS Analyst) - Process sequencing data
+13. **Delivery** (PM) - Deliver results to client
 
 ## Recent Updates (January 2025)
 
@@ -117,6 +129,13 @@ create_user(db, user_data)
 - Searchable client selection
 - Configurable pagination
 - Excel/CSV template generation
+- Enhanced accessioning workflow with pre-treatments and spike-ins
+- Flag system with standardized abbreviations
+- Discrepancy management with electronic approvals
+- Extraction queue management system
+- Lab manager interface for work assignment
+- Smart sample sorting by due date and project
+- Consistent table styling across all pages
 
 ### 🚀 Next Steps
 
