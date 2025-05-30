@@ -85,6 +85,20 @@ class SampleUpdate(BaseModel):
     flag_notes: Optional[str] = None
     has_discrepancy: Optional[bool] = None
     discrepancy_notes: Optional[str] = None
+    # Extraction workflow fields
+    extraction_plate_id: Optional[str] = None
+    extraction_tech_id: Optional[int] = None
+    extraction_assigned_date: Optional[datetime] = None
+    extraction_started_date: Optional[datetime] = None
+    extraction_completed_date: Optional[datetime] = None
+    extraction_method: Optional[str] = None
+    extraction_notes: Optional[str] = None
+    extraction_well_position: Optional[str] = None
+    extraction_qc_pass: Optional[bool] = None
+    extraction_concentration: Optional[float] = None
+    extraction_volume: Optional[float] = None
+    extraction_260_280: Optional[float] = None
+    extraction_260_230: Optional[float] = None
     
 class SampleAccession(BaseModel):
     accessioning_notes: Optional[str] = None
@@ -145,6 +159,21 @@ class Sample(SampleBase):
     discrepancy_notes: Optional[str] = None
     discrepancy_resolved: Optional[bool] = None
     discrepancy_resolution_date: Optional[datetime] = None
+    
+    # Extraction workflow fields
+    extraction_plate_id: Optional[str] = None
+    extraction_tech_id: Optional[int] = None
+    extraction_assigned_date: Optional[datetime] = None
+    extraction_started_date: Optional[datetime] = None
+    extraction_completed_date: Optional[datetime] = None
+    extraction_method: Optional[str] = None
+    extraction_notes: Optional[str] = None
+    extraction_well_position: Optional[str] = None
+    extraction_qc_pass: Optional[bool] = None
+    extraction_concentration: Optional[float] = None
+    extraction_volume: Optional[float] = None
+    extraction_260_280: Optional[float] = None
+    extraction_260_230: Optional[float] = None
     
     class Config:
         from_attributes = True

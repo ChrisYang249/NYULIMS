@@ -513,6 +513,7 @@ const Projects = () => {
         dataSource={filteredProjects}
         loading={loading}
         rowKey="id"
+        size="small"
         onChange={(pagination, filters, sorter) => {
           setStatusFilter(filters.status as string[] || []);
         }}

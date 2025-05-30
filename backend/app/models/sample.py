@@ -87,8 +87,10 @@ class SampleStatus(str, enum.Enum):
     RECEIVED = "RECEIVED"
     ACCESSIONING = "ACCESSIONING"  # New status
     ACCESSIONED = "ACCESSIONED"
+    EXTRACTION_QUEUE = "extraction_queue"  # Samples ready for extraction planning
     IN_EXTRACTION = "IN_EXTRACTION"
     EXTRACTED = "EXTRACTED"
+    DNA_QUANT_QUEUE = "dna_quant_queue"  # Samples ready for quantification
     IN_LIBRARY_PREP = "IN_LIBRARY_PREP"
     LIBRARY_PREPPED = "LIBRARY_PREPPED"
     IN_SEQUENCING = "IN_SEQUENCING"
@@ -162,6 +164,21 @@ class Sample(Base, TimestampMixin):
     extraction_due_date = Column(DateTime(timezone=True))
     library_prep_due_date = Column(DateTime(timezone=True))
     sequencing_due_date = Column(DateTime(timezone=True))
+    
+    # Extraction workflow fields
+    extraction_plate_id = Column(String)  # Plate identifier
+    extraction_tech_id = Column(Integer, ForeignKey("users.id"))
+    extraction_assigned_date = Column(DateTime(timezone=True))
+    extraction_started_date = Column(DateTime(timezone=True))
+    extraction_completed_date = Column(DateTime(timezone=True))
+    extraction_method = Column(String)
+    extraction_notes = Column(Text)
+    extraction_well_position = Column(String)  # A1-H12
+    extraction_qc_pass = Column(Boolean)
+    extraction_concentration = Column(Float)  # ng/ul
+    extraction_volume = Column(Float)  # ul
+    extraction_260_280 = Column(Float)  # Purity ratio
+    extraction_260_230 = Column(Float)  # Purity ratio
     
     # Relationships
     project = relationship("Project", back_populates="samples")

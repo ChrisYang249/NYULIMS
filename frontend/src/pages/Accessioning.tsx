@@ -247,6 +247,24 @@ const Accessioning = () => {
     }
   };
 
+  const handleMoveToExtractionQueue = async () => {
+    try {
+      // Use bulk update endpoint to move samples to extraction queue
+      await api.post('/samples/bulk-update', {
+        sample_ids: selectedSamples,
+        update_data: {
+          status: 'extraction_queue'
+        }
+      });
+
+      message.success(`${selectedSamples.length} samples moved to extraction queue`);
+      setSelectedSamples([]);
+      fetchSamples();
+    } catch (error: any) {
+      message.error(error.response?.data?.detail || 'Failed to move samples to extraction queue');
+    }
+  };
+
   const handleDiscrepancy = async (values: any) => {
     if (!currentSample) return;
 
@@ -476,9 +494,18 @@ const Accessioning = () => {
                 <Button
                   type="primary"
                   icon={<CheckCircleOutlined />}
-                  onClick={() => setIsAccessionModalVisible(true)}
+                  onClick={() => {
+                    if (showCompleted) {
+                      // Handle moving to extraction queue
+                      handleMoveToExtractionQueue();
+                    } else {
+                      setIsAccessionModalVisible(true);
+                    }
+                  }}
                 >
-                  Accession Selected ({selectedSamples.length})
+                  {showCompleted 
+                    ? `Move to Extraction Queue (${selectedSamples.length})`
+                    : `Accession Selected (${selectedSamples.length})`}
                 </Button>
               )}
             </Space>
@@ -584,6 +611,7 @@ const Accessioning = () => {
         dataSource={filteredSamples}
         loading={loading}
         rowKey="id"
+        size="small"
         rowSelection={rowSelection}
         scroll={{ x: 1200 }}
         pagination={{
