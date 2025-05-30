@@ -10,7 +10,8 @@ import {
   ExperimentOutlined, HistoryOutlined, EnvironmentOutlined,
   FileTextOutlined, CheckCircleOutlined, UserOutlined,
   CommentOutlined, ClockCircleOutlined, PlusOutlined,
-  ArrowRightOutlined
+  ArrowRightOutlined, WarningOutlined, SafetyOutlined,
+  CloseCircleOutlined, PaperClipOutlined
 } from '@ant-design/icons';
 import { api } from '../config/api';
 import dayjs from 'dayjs';
@@ -172,6 +173,7 @@ const SampleDetails = () => {
       console.error('Failed to fetch logs');
     }
   };
+
 
   const handleCommentSubmit = async () => {
     const comment = commentForm.getFieldValue('comment');
@@ -355,21 +357,23 @@ const SampleDetails = () => {
               </>
             )}
             {sample.has_discrepancy && (
-              <>
-                <Descriptions.Item label="Discrepancy Status">
-                  <Tag color={sample.discrepancy_resolved ? 'green' : 'orange'}>
-                    {sample.discrepancy_resolved ? 'RESOLVED' : 'PENDING'}
+              <Descriptions.Item label="Discrepancy" span={2}>
+                <Space>
+                  <Tag 
+                    color={sample.discrepancy_resolved ? 'green' : 'orange'}
+                    icon={<WarningOutlined />}
+                  >
+                    {sample.discrepancy_resolved ? 'RESOLVED' : 'PENDING REVIEW'}
                   </Tag>
-                  {sample.discrepancy_resolution_date && (
-                    <Text type="secondary" style={{ marginLeft: 8 }}>
-                      ({dayjs(sample.discrepancy_resolution_date).format('YYYY-MM-DD')})
-                    </Text>
-                  )}
-                </Descriptions.Item>
-                <Descriptions.Item label="Discrepancy Notes">
-                  {sample.discrepancy_notes || '-'}
-                </Descriptions.Item>
-              </>
+                  <Button
+                    size="small"
+                    type="link"
+                    onClick={() => navigate('/discrepancy-management')}
+                  >
+                    View Details →
+                  </Button>
+                </Space>
+              </Descriptions.Item>
             )}
           </Descriptions>
         </>
@@ -600,6 +604,7 @@ const SampleDetails = () => {
       </Card>
     );
   };
+
 
   return (
     <div>

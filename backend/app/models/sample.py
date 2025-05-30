@@ -244,14 +244,34 @@ class DiscrepancyApproval(Base, TimestampMixin):
     sample_id = Column(Integer, ForeignKey("samples.id"), nullable=False)
     discrepancy_type = Column(String, nullable=False)  # Type of discrepancy
     discrepancy_details = Column(Text, nullable=False)  # Detailed description
+    created_by_id = Column(Integer, ForeignKey("users.id"))  # User who created the discrepancy
     
     # Electronic signature fields (CFR Part 11)
-    approved = Column(Boolean, default=False)
+    approved = Column(Boolean, nullable=True)  # NULL = pending, True = approved, False = rejected
     approved_by_id = Column(Integer, ForeignKey("users.id"))
     approval_date = Column(DateTime(timezone=True))
-    approval_reason = Column(Text, nullable=False)  # Why approved despite discrepancy
+    approval_reason = Column(Text)  # Why approved despite discrepancy
     signature_meaning = Column(String, default="I approve this sample to proceed despite the noted discrepancy")
     
     # Relationships
     sample = relationship("Sample", backref="discrepancy_approvals")
+    created_by = relationship("User", foreign_keys=[created_by_id])
     approved_by = relationship("User", foreign_keys=[approved_by_id])
+    attachments = relationship("DiscrepancyAttachment", back_populates="discrepancy_approval", cascade="all, delete-orphan")
+
+
+class DiscrepancyAttachment(Base, TimestampMixin):
+    __tablename__ = "discrepancy_attachments"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    discrepancy_approval_id = Column(Integer, ForeignKey("discrepancy_approvals.id"), nullable=False)
+    filename = Column(String, nullable=False)  # Stored filename (UUID)
+    original_filename = Column(String, nullable=False)  # Original filename from user
+    file_path = Column(String, nullable=False)  # Full path to file
+    file_size = Column(Integer)  # Size in bytes
+    file_type = Column(String)  # MIME type
+    uploaded_by_id = Column(Integer, ForeignKey("users.id"))
+    
+    # Relationships
+    discrepancy_approval = relationship("DiscrepancyApproval", back_populates="attachments")
+    uploaded_by = relationship("User", foreign_keys=[uploaded_by_id])

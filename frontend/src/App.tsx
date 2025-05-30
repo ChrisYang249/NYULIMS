@@ -14,6 +14,7 @@ import Employees from './pages/Employees';
 import Logs from './pages/Logs';
 import SampleTypes from './pages/SampleTypes';
 import DeletionLogs from './pages/DeletionLogs';
+import DiscrepancyManagement from './pages/DiscrepancyManagement';
 // Queue pages
 import Accessioning from './pages/Accessioning';
 import ExtractionQueue from './pages/samples/ExtractionQueue';
@@ -61,6 +62,7 @@ function App() {
               <Route path="samples/extraction-queue" element={<ExtractionQueue />} />
               <Route path="samples/extraction" element={<Extraction />} />
               <Route path="samples/reprocess" element={<ReprocessQueue />} />
+              <Route path="discrepancy-management" element={<DiscrepancyManagement />} />
               <Route path="storage" element={<Storage />} />
               <Route path="sample-types" element={<SampleTypes />} />
               <Route path="logs" element={<Logs />} />

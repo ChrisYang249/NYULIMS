@@ -13,6 +13,7 @@ import {
   DeleteOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  WarningOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../../store/authStore';
 import { canAccessRoute } from '../../config/rolePermissions';
@@ -74,6 +75,11 @@ const MainLayout = () => {
           label: 'Reprocess Queue',
         },
       ],
+    },
+    {
+      key: '/discrepancy-management',
+      icon: <WarningOutlined />,
+      label: 'Discrepancies',
     },
     {
       key: '/storage',

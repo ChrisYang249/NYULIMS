@@ -165,6 +165,8 @@ class SampleWithLabData(Sample):
     project_code: Optional[str] = None
     client_institution: Optional[str] = None
     service_type: Optional[str] = None
+    has_discrepancy: Optional[bool] = False
+    discrepancy_resolved: Optional[bool] = False
     
     class Config:
         from_attributes = True
@@ -189,6 +191,27 @@ class SampleLog(SampleLogBase):
     class Config:
         from_attributes = True
 
+# Discrepancy Attachment Schemas
+class DiscrepancyAttachmentBase(BaseModel):
+    original_filename: str
+    file_size: Optional[int] = None
+    file_type: Optional[str] = None
+
+class DiscrepancyAttachmentCreate(DiscrepancyAttachmentBase):
+    filename: str
+    file_path: str
+    
+class DiscrepancyAttachment(DiscrepancyAttachmentBase):
+    id: int
+    discrepancy_approval_id: int
+    filename: str
+    uploaded_by_id: Optional[int] = None
+    created_at: datetime
+    uploaded_by: Optional[dict] = None
+    
+    class Config:
+        from_attributes = True
+
 # Discrepancy Approval Schemas
 class DiscrepancyApprovalBase(BaseModel):
     discrepancy_type: str
@@ -196,17 +219,19 @@ class DiscrepancyApprovalBase(BaseModel):
     approval_reason: Optional[str] = None
 
 class DiscrepancyApprovalCreate(DiscrepancyApprovalBase):
-    sample_id: int
+    pass
     
 class DiscrepancyApprovalResponse(DiscrepancyApprovalBase):
     id: int
     sample_id: int
-    approved: bool
+    approved: Optional[bool] = None  # None = pending, True = approved, False = rejected
     approved_by_id: Optional[int] = None
     approval_date: Optional[datetime] = None
-    signature_meaning: str
+    signature_meaning: Optional[str] = None
     created_at: datetime
     approved_by: Optional[dict] = None  # Will include user info
+    created_by: Optional[dict] = None  # Will include user info
+    attachments: Optional[List['DiscrepancyAttachment']] = []
     
     class Config:
         from_attributes = True

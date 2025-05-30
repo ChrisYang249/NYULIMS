@@ -1,9 +1,12 @@
 from typing import Any, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, UploadFile, File
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, and_
 import random
 from datetime import datetime
+import os
+import uuid
+import shutil
 
 from app.api import deps
 from app.models import (
@@ -13,7 +16,7 @@ from app.models import (
 )
 from app.models.user import User as UserModel
 from app.models.sample_type import SampleType as SampleTypeModel
-from app.models.sample import DiscrepancyApproval
+from app.models.sample import DiscrepancyApproval, DiscrepancyAttachment
 from app.schemas.sample import (
     Sample as SampleSchema, 
     SampleCreate, 
@@ -128,6 +131,8 @@ def read_samples(
             "project_code": sample.project.project_id if sample.project else None,  # The CMBP ID
             "client_institution": sample.project.client.institution if sample.project and sample.project.client else None,
             "service_type": sample.project.project_type.value if sample.project and sample.project.project_type else None,
+            "has_discrepancy": sample.has_discrepancy,
+            "discrepancy_resolved": sample.discrepancy_resolved,
         }
         
         # Add extraction data
@@ -198,6 +203,8 @@ def read_sample(
         "project_code": sample.project.project_id if sample.project else None,  # The CMBP ID
         "client_institution": sample.project.client.institution if sample.project and sample.project.client else None,
         "service_type": sample.project.project_type.value if sample.project and sample.project.project_type else None,
+        "has_discrepancy": sample.has_discrepancy,
+        "discrepancy_resolved": sample.discrepancy_resolved,
     }
     
     # Add lab data (same logic as list endpoint)
@@ -893,6 +900,8 @@ def get_queue_samples(
             "project_name": sample.project.name if sample.project else None,
             "project_code": sample.project.project_id if sample.project else None,
             "client_institution": sample.project.client.institution if sample.project and sample.project.client else None,
+            "has_discrepancy": sample.has_discrepancy,
+            "discrepancy_resolved": sample.discrepancy_resolved,
         }
         
         # Add lab data (same as before)
@@ -1076,21 +1085,61 @@ def get_sample_discrepancy_approvals(
     if not sample:
         raise HTTPException(status_code=404, detail="Sample not found")
     
-    approvals = db.query(DiscrepancyApproval).filter(
+    approvals = db.query(DiscrepancyApproval).options(
+        joinedload(DiscrepancyApproval.attachments).joinedload(DiscrepancyAttachment.uploaded_by)
+    ).filter(
         DiscrepancyApproval.sample_id == sample_id
     ).order_by(DiscrepancyApproval.created_at.desc()).all()
     
-    # Include user info
+    # Convert to response format with user info
+    results = []
     for approval in approvals:
+        approved_by_dict = None
         if approval.approved_by_id:
             user = db.query(User).filter(User.id == approval.approved_by_id).first()
-            approval.approved_by = {
+            approved_by_dict = {
                 "id": user.id,
                 "full_name": user.full_name,
                 "username": user.username
             } if user else None
+        
+        created_by_dict = None
+        if approval.created_by_id:
+            user = db.query(User).filter(User.id == approval.created_by_id).first()
+            created_by_dict = {
+                "id": user.id,
+                "full_name": user.full_name,
+                "username": user.username
+            } if user else None
+        
+        # Convert attachments to dict format
+        attachments_list = []
+        for attachment in approval.attachments:
+            attachments_list.append({
+                "id": attachment.id,
+                "original_filename": attachment.original_filename,
+                "file_size": attachment.file_size,
+                "file_type": attachment.file_type,
+                "created_at": attachment.created_at
+            })
+        
+        results.append(DiscrepancyApprovalResponse(
+            id=approval.id,
+            sample_id=approval.sample_id,
+            discrepancy_type=approval.discrepancy_type,
+            discrepancy_details=approval.discrepancy_details,
+            approved=approval.approved,
+            approved_by_id=approval.approved_by_id,
+            approval_date=approval.approval_date,
+            approval_reason=approval.approval_reason,
+            signature_meaning=approval.signature_meaning,
+            created_at=approval.created_at,
+            approved_by=approved_by_dict,
+            created_by=created_by_dict,
+            attachments=attachments_list
+        ))
     
-    return approvals
+    return results
 
 @router.post("/{sample_id}/discrepancy-approvals", response_model=DiscrepancyApprovalResponse)
 def create_discrepancy_approval(
@@ -1137,7 +1186,136 @@ def create_discrepancy_approval(
     db.commit()
     db.refresh(approval)
     
-    return approval
+    # Return the approval with proper formatting
+    result = DiscrepancyApprovalResponse(
+        id=approval.id,
+        sample_id=approval.sample_id,
+        discrepancy_type=approval.discrepancy_type,
+        discrepancy_details=approval.discrepancy_details,
+        approved=approval.approved,
+        approved_by_id=approval.approved_by_id,
+        approval_date=approval.approval_date,
+        approval_reason=approval.approval_reason,
+        signature_meaning=approval.signature_meaning,
+        created_at=approval.created_at,
+        created_by={
+            "id": current_user.id,
+            "full_name": current_user.full_name,
+            "username": current_user.username
+        },
+        attachments=[]
+    )
+    
+    return result
+
+@router.post("/{sample_id}/discrepancy-approvals/{approval_id}/attachments")
+def upload_discrepancy_attachment(
+    *,
+    db: Session = Depends(deps.get_db),
+    sample_id: int,
+    approval_id: int,
+    file: UploadFile = File(...),
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """Upload an attachment for a discrepancy approval"""
+    # Check if discrepancy approval exists
+    approval = db.query(DiscrepancyApproval).filter(
+        DiscrepancyApproval.id == approval_id,
+        DiscrepancyApproval.sample_id == sample_id
+    ).first()
+    
+    if not approval:
+        raise HTTPException(status_code=404, detail="Discrepancy approval not found")
+    
+    # Validate file type
+    allowed_types = [
+        'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/bmp',
+        'application/pdf', 'application/msword', 
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'text/plain'
+    ]
+    
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"File type not allowed. Allowed types: {', '.join(allowed_types)}"
+        )
+    
+    # Generate unique filename
+    file_extension = os.path.splitext(file.filename)[1]
+    unique_filename = f"{uuid.uuid4()}{file_extension}"
+    file_path = os.path.join("uploads", "discrepancies", unique_filename)
+    
+    # Save file
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    # Create attachment record
+    attachment = DiscrepancyAttachment(
+        discrepancy_approval_id=approval_id,
+        filename=unique_filename,
+        original_filename=file.filename,
+        file_path=file_path,
+        file_size=os.path.getsize(file_path),
+        file_type=file.content_type,
+        uploaded_by_id=current_user.id
+    )
+    db.add(attachment)
+    
+    # Log the upload
+    create_sample_log(
+        db=db,
+        sample_id=sample_id,
+        comment=f"Uploaded attachment for discrepancy: {file.filename}",
+        log_type="attachment",
+        user_id=current_user.id
+    )
+    
+    db.commit()
+    db.refresh(attachment)
+    
+    return {
+        "id": attachment.id,
+        "filename": attachment.original_filename,
+        "file_size": attachment.file_size,
+        "file_type": attachment.file_type,
+        "uploaded_at": attachment.created_at
+    }
+
+@router.get("/{sample_id}/discrepancy-approvals/{approval_id}/attachments/{attachment_id}")
+def download_discrepancy_attachment(
+    *,
+    db: Session = Depends(deps.get_db),
+    sample_id: int,
+    approval_id: int,
+    attachment_id: int,
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """Download a discrepancy attachment"""
+    from fastapi.responses import FileResponse
+    
+    # Get attachment
+    attachment = db.query(DiscrepancyAttachment).join(
+        DiscrepancyApproval
+    ).filter(
+        DiscrepancyAttachment.id == attachment_id,
+        DiscrepancyAttachment.discrepancy_approval_id == approval_id,
+        DiscrepancyApproval.sample_id == sample_id
+    ).first()
+    
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+    
+    # Check if file exists
+    if not os.path.exists(attachment.file_path):
+        raise HTTPException(status_code=404, detail="File not found on server")
+    
+    return FileResponse(
+        path=attachment.file_path,
+        filename=attachment.original_filename,
+        media_type=attachment.file_type
+    )
 
 @router.put("/{sample_id}/discrepancy-approvals/{approval_id}", response_model=DiscrepancyApprovalResponse)
 def approve_discrepancy(
@@ -1192,12 +1370,33 @@ def approve_discrepancy(
     db.commit()
     db.refresh(approval)
     
-    # Include user info
+    # Include user info in response
     user = db.query(User).filter(User.id == approval.approved_by_id).first()
-    approval.approved_by = {
+    approved_by_dict = {
         "id": user.id,
         "full_name": user.full_name,
         "username": user.username
     } if user else None
     
-    return approval
+    created_by_user = db.query(User).filter(User.id == approval.created_by_id).first()
+    created_by_dict = {
+        "id": created_by_user.id,
+        "full_name": created_by_user.full_name,
+        "username": created_by_user.username
+    } if created_by_user else None
+    
+    return DiscrepancyApprovalResponse(
+        id=approval.id,
+        sample_id=approval.sample_id,
+        discrepancy_type=approval.discrepancy_type,
+        discrepancy_details=approval.discrepancy_details,
+        approved=approval.approved,
+        approved_by_id=approval.approved_by_id,
+        approval_date=approval.approval_date,
+        approval_reason=approval.approval_reason,
+        signature_meaning=approval.signature_meaning,
+        created_at=approval.created_at,
+        approved_by=approved_by_dict,
+        created_by=created_by_dict,
+        attachments=[]
+    )

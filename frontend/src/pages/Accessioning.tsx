@@ -2,14 +2,16 @@ import { useState, useEffect } from 'react';
 import { 
   Table, Button, Tag, Space, message, Modal, Form, Input, 
   Divider, Row, Col, Card, Select, Alert, Typography,
-  Popover, Badge, Switch, DatePicker, Checkbox, Tooltip
+  Popover, Badge, Switch, DatePicker, Checkbox, Tooltip, Upload
 } from 'antd';
 import type { ColumnsType } from 'antd';
+import type { UploadFile } from 'antd/es/upload';
 import { 
   CheckCircleOutlined, WarningOutlined, FlagOutlined,
   MedicineBoxOutlined, ExperimentOutlined, SyncOutlined,
   UserOutlined, CalendarOutlined, FileTextOutlined,
-  SearchOutlined, FilterOutlined
+  SearchOutlined, FilterOutlined, InboxOutlined,
+  PaperClipOutlined, DeleteOutlined
 } from '@ant-design/icons';
 import { api } from '../config/api';
 import dayjs from 'dayjs';
@@ -61,6 +63,8 @@ const Accessioning = () => {
   const [showCompleted, setShowCompleted] = useState(false);
   const [form] = Form.useForm();
   const [discrepancyForm] = Form.useForm();
+  const [fileList, setFileList] = useState<UploadFile[]>([]);
+  const [currentDiscrepancyId, setCurrentDiscrepancyId] = useState<number | null>(null);
   
   // Filter states
   const [searchText, setSearchText] = useState('');
@@ -246,19 +250,71 @@ const Accessioning = () => {
     if (!currentSample) return;
 
     try {
+      // First update the sample to mark it has discrepancy
       await api.put(`/samples/${currentSample.id}`, {
         has_discrepancy: true,
         discrepancy_notes: values.discrepancy_notes
       });
 
-      message.success('Discrepancy recorded');
+      // Then create a formal discrepancy approval request
+      const response = await api.post(`/samples/${currentSample.id}/discrepancy-approvals`, {
+        discrepancy_type: values.discrepancy_type,
+        discrepancy_details: values.discrepancy_notes
+      });
+
+      const discrepancyId = response.data.id;
+
+      // Upload any attachments
+      if (fileList.length > 0) {
+        for (const file of fileList) {
+          if (file.originFileObj) {
+            const formData = new FormData();
+            formData.append('file', file.originFileObj);
+            
+            await api.post(
+              `/samples/${currentSample.id}/discrepancy-approvals/${discrepancyId}/attachments`,
+              formData,
+              {
+                headers: {
+                  'Content-Type': 'multipart/form-data',
+                },
+              }
+            );
+          }
+        }
+      }
+
+      message.success('Discrepancy recorded and sent to PM for approval');
       setIsDiscrepancyModalVisible(false);
       discrepancyForm.resetFields();
       setCurrentSample(null);
+      setFileList([]);
       fetchSamples();
     } catch (error: any) {
       message.error(error.response?.data?.detail || 'Failed to record discrepancy');
     }
+  };
+
+  const uploadProps = {
+    onRemove: (file: UploadFile) => {
+      const index = fileList.indexOf(file);
+      const newFileList = fileList.slice();
+      newFileList.splice(index, 1);
+      setFileList(newFileList);
+    },
+    beforeUpload: (file: UploadFile) => {
+      // Check file size (max 10MB)
+      const isLt10M = file.size! / 1024 / 1024 < 10;
+      if (!isLt10M) {
+        message.error('File must be smaller than 10MB!');
+        return false;
+      }
+      
+      setFileList([...fileList, file]);
+      return false; // Prevent automatic upload
+    },
+    fileList,
+    accept: 'image/*,.pdf,.doc,.docx,.txt',
   };
 
   const columns: ColumnsType<Sample> = [
@@ -662,6 +718,7 @@ const Accessioning = () => {
           setIsDiscrepancyModalVisible(false);
           discrepancyForm.resetFields();
           setCurrentSample(null);
+          setFileList([]);
         }}
         footer={null}
         width={600}
@@ -689,6 +746,24 @@ const Accessioning = () => {
           onFinish={handleDiscrepancy}
         >
           <Form.Item
+            name="discrepancy_type"
+            label="Discrepancy Type"
+            rules={[{ required: true, message: 'Please select discrepancy type' }]}
+          >
+            <Select placeholder="Select discrepancy type">
+              <Select.Option value="label_mismatch">Label Mismatch</Select.Option>
+              <Select.Option value="insufficient_volume">Insufficient Volume</Select.Option>
+              <Select.Option value="damaged_container">Damaged Container</Select.Option>
+              <Select.Option value="missing_sample">Missing Sample</Select.Option>
+              <Select.Option value="contamination">Contamination Suspected</Select.Option>
+              <Select.Option value="wrong_sample_type">Wrong Sample Type</Select.Option>
+              <Select.Option value="temperature_excursion">Temperature Excursion</Select.Option>
+              <Select.Option value="documentation_issue">Documentation Issue</Select.Option>
+              <Select.Option value="other">Other</Select.Option>
+            </Select>
+          </Form.Item>
+          
+          <Form.Item
             name="discrepancy_notes"
             label="Discrepancy Details"
             rules={[
@@ -702,12 +777,32 @@ const Accessioning = () => {
             />
           </Form.Item>
 
+          <Form.Item label="Attachments (Optional)">
+            <Upload.Dragger {...uploadProps}>
+              <p className="ant-upload-drag-icon">
+                <InboxOutlined />
+              </p>
+              <p className="ant-upload-text">Click or drag files to upload</p>
+              <p className="ant-upload-hint">
+                Support for images (JPEG, PNG), PDFs, and documents. Max file size: 10MB
+              </p>
+            </Upload.Dragger>
+            {fileList.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <Text type="secondary">
+                  <PaperClipOutlined /> {fileList.length} file(s) selected
+                </Text>
+              </div>
+            )}
+          </Form.Item>
+
           <Form.Item>
             <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
               <Button onClick={() => {
                 setIsDiscrepancyModalVisible(false);
                 discrepancyForm.resetFields();
                 setCurrentSample(null);
+                setFileList([]);
               }}>
                 Cancel
               </Button>
