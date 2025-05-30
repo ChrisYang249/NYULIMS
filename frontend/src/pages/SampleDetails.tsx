@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Card, Descriptions, Button, Tag, Space, message, Modal,
   Tabs, Timeline, Badge, Select, Form, Input, DatePicker,
@@ -79,6 +79,7 @@ interface SampleLog {
 const SampleDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [sample, setSample] = useState<Sample | null>(null);
   const [logs, setLogs] = useState<SampleLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -530,7 +531,14 @@ const SampleDetails = () => {
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Space>
-          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/samples')}>
+          <Button 
+            icon={<ArrowLeftOutlined />} 
+            onClick={() => {
+              // Navigate back to samples with preserved search params
+              const searchParams = new URLSearchParams(location.search);
+              navigate(`/samples${searchParams.toString() ? '?' + searchParams.toString() : ''}`);
+            }}
+          >
             Back to Samples
           </Button>
           <Title level={3} style={{ margin: 0 }}>

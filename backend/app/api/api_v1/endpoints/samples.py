@@ -18,6 +18,8 @@ from app.schemas.sample import (
     SampleCreate, 
     SampleUpdate,
     SampleBulkCreate,
+    SampleBulkImport,
+    SampleImportData,
     SampleAccession,
     SampleFailure,
     SampleWithLabData,
@@ -357,6 +359,129 @@ def create_samples_bulk(
     db.commit()
     
     return samples
+
+@router.post("/bulk-import", response_model=dict)
+def import_samples_bulk(
+    *,
+    db: Session = Depends(deps.get_db),
+    import_data: SampleBulkImport,
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """Import multiple samples from CSV/Excel files"""
+    from app.models.sample_type import SampleType as SampleTypeModel
+    from app.api.permissions import check_permission
+    
+    # Check permission
+    check_permission(current_user, "registerSamples")
+    
+    imported_samples = []
+    errors = []
+    
+    # Get all projects and sample types for validation
+    projects = {p.project_id: p for p in db.query(Project).all()}
+    sample_types = {st.name: st for st in db.query(SampleTypeModel).all()}
+    
+    for i, sample_data in enumerate(import_data.samples):
+        try:
+            # Validate project
+            if sample_data.project_id not in projects:
+                errors.append(f"Sample {i+1}: Invalid project_id '{sample_data.project_id}'")
+                continue
+            
+            project = projects[sample_data.project_id]
+            
+            # Validate sample type
+            if sample_data.sample_type not in sample_types:
+                errors.append(f"Sample {i+1}: Invalid sample_type '{sample_data.sample_type}'")
+                continue
+            
+            sample_type = sample_types[sample_data.sample_type]
+            
+            # Validate service type matches project if provided
+            if sample_data.service_type:
+                project_type = project.project_type.value if project.project_type else None
+                if project_type and sample_data.service_type != project_type:
+                    errors.append(f"Sample {i+1}: Service type '{sample_data.service_type}' does not match project type '{project_type}'")
+                    continue
+            
+            # Validate DNA plate well location
+            if sample_type.name == 'dna_plate' and not sample_data.well_location:
+                errors.append(f"Sample {i+1}: well_location is required for dna_plate samples")
+                continue
+            
+            # Create or find storage location
+            storage_location_id = None
+            if sample_data.storage_freezer and sample_data.storage_shelf and sample_data.storage_box:
+                storage_location = db.query(StorageLocation).filter(
+                    and_(
+                        StorageLocation.freezer == sample_data.storage_freezer,
+                        StorageLocation.shelf == sample_data.storage_shelf,
+                        StorageLocation.box == sample_data.storage_box,
+                        StorageLocation.position == sample_data.storage_position
+                    )
+                ).first()
+                
+                if not storage_location:
+                    # Create new storage location
+                    storage_location = StorageLocation(
+                        freezer=sample_data.storage_freezer,
+                        shelf=sample_data.storage_shelf,
+                        box=sample_data.storage_box,
+                        position=sample_data.storage_position
+                    )
+                    db.add(storage_location)
+                    db.flush()  # Get the ID
+                
+                storage_location_id = storage_location.id
+            
+            # Generate barcode
+            barcode = generate_barcode(db)
+            
+            # Create sample
+            sample = Sample(
+                barcode=barcode,
+                project_id=project.id,
+                sample_type_id=sample_type.id,
+                client_sample_id=sample_data.client_sample_id,
+                target_depth=sample_data.target_depth,
+                well_location=sample_data.well_location,
+                storage_location_id=storage_location_id,
+                due_date=project.due_date,  # Inherit from project
+                created_by_id=current_user.id,
+                status=SampleStatus.REGISTERED
+            )
+            
+            db.add(sample)
+            db.flush()  # Get the ID for logging
+            
+            # Create log entry
+            create_sample_log(
+                db=db,
+                sample_id=sample.id,
+                comment=f"Sample imported from file with barcode {sample.barcode}",
+                log_type="creation",
+                user_id=current_user.id
+            )
+            
+            imported_samples.append(sample)
+            
+        except Exception as e:
+            errors.append(f"Sample {i+1}: {str(e)}")
+    
+    if errors:
+        db.rollback()
+        raise HTTPException(
+            status_code=400, 
+            detail={"message": "Import failed with errors", "errors": errors}
+        )
+    
+    db.commit()
+    
+    return {
+        "imported": len(imported_samples),
+        "message": f"Successfully imported {len(imported_samples)} samples",
+        "sample_ids": [s.id for s in imported_samples]
+    }
 
 @router.put("/{sample_id}", response_model=SampleSchema)
 def update_sample(
@@ -824,3 +949,112 @@ def delete_sample(
     db.refresh(sample)
     
     return {"message": "Sample marked as deleted"}
+
+@router.post("/bulk-update")
+def update_samples_bulk(
+    sample_ids: List[int],
+    update_data: SampleUpdate,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """Update multiple samples at once"""
+    from app.api.permissions import check_permission
+    check_permission(current_user, "updateSampleStatus")
+    
+    samples = db.query(Sample).filter(Sample.id.in_(sample_ids)).all()
+    
+    if len(samples) != len(sample_ids):
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Some samples not found. Found {len(samples)} of {len(sample_ids)}"
+        )
+    
+    update_dict = update_data.dict(exclude_unset=True)
+    
+    # Update all samples
+    for sample in samples:
+        # Track changes for logging
+        for field, new_value in update_dict.items():
+            old_value = getattr(sample, field)
+            if old_value != new_value:
+                setattr(sample, field, new_value)
+                
+                # Create appropriate log entry
+                if field == 'status':
+                    create_sample_log(
+                        db=db,
+                        sample_id=sample.id,
+                        comment=f"Status changed from {old_value} to {new_value} (bulk update)",
+                        log_type="status_change",
+                        old_value=str(old_value),
+                        new_value=str(new_value),
+                        user_id=current_user.id
+                    )
+                else:
+                    create_sample_log(
+                        db=db,
+                        sample_id=sample.id,
+                        comment=f"{field.replace('_', ' ').title()} updated (bulk)",
+                        log_type="update",
+                        old_value=str(old_value) if old_value is not None else None,
+                        new_value=str(new_value) if new_value is not None else None,
+                        user_id=current_user.id
+                    )
+        
+        sample.updated_by_id = current_user.id
+        sample.updated_at = func.now()
+    
+    db.commit()
+    
+    return {
+        "message": f"{len(samples)} samples updated successfully",
+        "updated_count": len(samples)
+    }
+
+@router.post("/bulk-delete")
+def delete_samples_bulk(
+    sample_ids: List[int],
+    deletion_reason: str = Query(..., description="Reason for deletion"),
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """Soft delete multiple samples"""
+    # Check permissions
+    from app.api.permissions import check_permission
+    check_permission(current_user, "deleteSamples")
+    
+    samples = db.query(Sample).filter(
+        Sample.id.in_(sample_ids),
+        Sample.status != SampleStatus.DELETED
+    ).all()
+    
+    if len(samples) != len(sample_ids):
+        deleted_count = len(sample_ids) - len(samples)
+        if deleted_count > 0:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"{deleted_count} samples were already deleted or not found"
+            )
+    
+    # Update all samples to deleted status
+    for sample in samples:
+        old_status = sample.status
+        sample.status = SampleStatus.DELETED
+        
+        # Create deletion log entry for each sample
+        create_sample_log(
+            db=db,
+            sample_id=sample.id,
+            comment=f"Sample deleted (bulk): {deletion_reason}",
+            log_type="deletion",
+            old_value=str(old_status),
+            new_value=str(SampleStatus.DELETED),
+            user_id=current_user.id
+        )
+    
+    db.commit()
+    
+    return {
+        "message": f"{len(samples)} samples marked as deleted",
+        "deleted_count": len(samples)
+    }

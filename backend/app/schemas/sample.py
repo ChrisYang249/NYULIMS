@@ -40,6 +40,23 @@ class SampleBulkCreate(BaseModel):
     sample_type: Optional[SampleType] = None  # For backward compatibility
     sample_type_id: Optional[int] = None  # New field
     samples: List[dict]  # List of sample-specific data
+
+class SampleImportData(BaseModel):
+    """Schema for individual sample import data"""
+    project_id: str  # Project ID string (e.g., CMBP00001)
+    client_sample_id: Optional[str] = None
+    sample_type: str  # Sample type name (e.g., stool, dna_plate)
+    service_type: Optional[str] = None  # Service type (e.g., WGS, 16S-V1V3, etc.)
+    target_depth: Optional[float] = None
+    well_location: Optional[str] = None
+    storage_freezer: Optional[str] = None
+    storage_shelf: Optional[str] = None
+    storage_box: Optional[str] = None
+    storage_position: Optional[str] = None
+
+class SampleBulkImport(BaseModel):
+    """Schema for bulk import from CSV/Excel files"""
+    samples: List[SampleImportData]
     
 class SampleUpdate(BaseModel):
     client_sample_id: Optional[str] = None
@@ -151,3 +168,29 @@ class SampleLog(SampleLogBase):
     
     class Config:
         from_attributes = True
+
+__all__ = [
+    "SampleBase",
+    "SampleCreate",
+    "SampleUpdate",
+    "SampleBulkCreate",
+    "SampleBulkImport",
+    "SampleImportData",
+    "SampleAccession",
+    "SampleFailure",
+    "Sample",
+    "SampleInDB",
+    "SampleWithLabData",
+    "ExtractionResultBase",
+    "ExtractionResultCreate",
+    "ExtractionResult",
+    "LibraryPrepResultBase",
+    "LibraryPrepResultCreate",
+    "LibraryPrepResult",
+    "StorageLocationBase",
+    "StorageLocationCreate",
+    "StorageLocation",
+    "SampleLogBase",
+    "SampleLogCreate",
+    "SampleLog"
+]

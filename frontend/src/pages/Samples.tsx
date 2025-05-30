@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { 
   Table, Button, Tag, Space, message, Modal, Form, Select, 
   InputNumber, Input, Divider, Row, Col, Card, Upload,
-  Tabs, Alert, Popover, Typography, Dropdown, Menu, Popconfirm,
+  Tabs, Alert, Popover, Typography, Dropdown, Popconfirm,
   DatePicker, Switch, Checkbox
 } from 'antd';
 import type { UploadProps, ColumnsType } from 'antd';
@@ -19,6 +19,7 @@ import type { Dayjs } from 'dayjs';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { usePermissions } from '../hooks/usePermissions';
+import { Link, useSearchParams } from 'react-router-dom';
 
 const { Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -109,6 +110,7 @@ interface Project {
   id: number;
   project_id: string;  // The actual CMBP ID
   name: string;
+  project_type?: string;  // WGS, V1V3_16S, etc.
   client: {
     name: string;
     institution: string;
@@ -125,6 +127,7 @@ interface StorageLocation {
 }
 
 const Samples = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [samples, setSamples] = useState<Sample[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [storageLocations, setStorageLocations] = useState<StorageLocation[]>([]);
@@ -139,13 +142,29 @@ const Samples = () => {
   const [isBulkStatusModalVisible, setIsBulkStatusModalVisible] = useState(false);
   const [deletingSampleId, setDeletingSampleId] = useState<number | null>(null);
   
-  // Filtering and search states
-  const [searchText, setSearchText] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string[]>([]);
-  const [sampleTypeFilter, setSampleTypeFilter] = useState<string[]>([]);
-  const [projectFilter, setProjectFilter] = useState<number[]>([]);
-  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null]>([null, null]);
-  const [showDeleted, setShowDeleted] = useState(false);
+  // Initialize filter states from URL params
+  const [searchText, setSearchText] = useState(searchParams.get('search') || '');
+  const [statusFilter, setStatusFilter] = useState<string[]>(
+    searchParams.get('status') ? searchParams.get('status')!.split(',') : []
+  );
+  const [sampleTypeFilter, setSampleTypeFilter] = useState<string[]>(
+    searchParams.get('type') ? searchParams.get('type')!.split(',') : []
+  );
+  const [projectFilter, setProjectFilter] = useState<number[]>(
+    searchParams.get('project') ? searchParams.get('project')!.split(',').map(Number) : []
+  );
+  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null]>(() => {
+    const start = searchParams.get('start');
+    const end = searchParams.get('end');
+    return [start ? dayjs(start) : null, end ? dayjs(end) : null];
+  });
+  const [showDeleted, setShowDeleted] = useState(searchParams.get('deleted') === 'true');
+  
+  // Upload validation states
+  const [isValidationModalVisible, setIsValidationModalVisible] = useState(false);
+  const [parsedSamples, setParsedSamples] = useState<any[]>([]);
+  const [validationResults, setValidationResults] = useState<any>(null);
+  const [isUploading, setIsUploading] = useState(false);
   
   const [form] = Form.useForm();
   const [statusForm] = Form.useForm();
@@ -153,11 +172,184 @@ const Samples = () => {
   
   const { canPerform } = usePermissions();
 
-  const fetchSamples = async () => {
+  // Update URL params when filters change
+  const updateURLParams = (updates: Record<string, any>) => {
+    const newParams = new URLSearchParams(searchParams);
+    
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === null || value === undefined || value === '' || 
+          (Array.isArray(value) && value.length === 0)) {
+        newParams.delete(key);
+      } else if (Array.isArray(value)) {
+        newParams.set(key, value.join(','));
+      } else {
+        newParams.set(key, String(value));
+      }
+    });
+    
+    setSearchParams(newParams);
+  };
+
+  // Utility function to clean sample names
+  const cleanSampleName = (name: string): string => {
+    if (!name) return name;
+    
+    return name
+      .replace(/[^a-zA-Z0-9_]/g, '_') // Replace special chars and whitespace with underscore
+      .replace(/_+/g, '_') // Replace multiple underscores with single underscore
+      .replace(/^_+|_+$/g, ''); // Remove leading/trailing underscores
+  };
+
+  // Parse uploaded file (CSV or XLSX)
+  const parseUploadedFile = (file: File): Promise<any[]> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      
+      reader.onload = (e) => {
+        try {
+          const data = e.target?.result;
+          let samples: any[] = [];
+          
+          if (file.name.toLowerCase().endsWith('.xlsx')) {
+            // Parse XLSX file
+            const workbook = XLSX.read(data, { type: 'binary' });
+            const sheetName = workbook.SheetNames[0]; // Use first sheet
+            const worksheet = workbook.Sheets[sheetName];
+            const jsonData = XLSX.utils.sheet_to_json(worksheet);
+            
+            samples = jsonData.map((row: any) => ({
+              project_id: String(row.project_id || ''),
+              client_sample_id: row.client_sample_id ? String(row.client_sample_id) : null,
+              sample_type: String(row.sample_type || ''),
+              service_type: row.service_type ? String(row.service_type) : null,
+              target_depth: row.target_depth ? Number(row.target_depth) : null,
+              well_location: row.well_location ? String(row.well_location) : null,
+              storage_freezer: row.storage_freezer ? String(row.storage_freezer) : null,
+              storage_shelf: row.storage_shelf ? String(row.storage_shelf) : null,
+              storage_box: row.storage_box ? String(row.storage_box) : null,
+              storage_position: row.storage_position ? String(row.storage_position) : null,
+            }));
+          } else {
+            // Parse CSV file
+            const text = data as string;
+            const lines = text.split('\n').filter(line => line.trim() && !line.startsWith('#'));
+            if (lines.length < 2) throw new Error('CSV file must have headers and at least one data row');
+            
+            const headers = lines[0].split(',').map(h => h.trim());
+            
+            for (let i = 1; i < lines.length; i++) {
+              if (lines[i].trim()) {
+                const values = lines[i].split(',').map(v => v.trim());
+                const sample: any = {};
+                
+                headers.forEach((header, index) => {
+                  const value = values[index]?.trim();
+                  if (!value) {
+                    sample[header] = null;
+                  } else if (header === 'target_depth') {
+                    sample[header] = Number(value);
+                  } else {
+                    sample[header] = value;
+                  }
+                });
+                samples.push(sample);
+              }
+            }
+          }
+          
+          resolve(samples);
+        } catch (error) {
+          reject(new Error(`Failed to parse ${file.name}: ${error}`));
+        }
+      };
+      
+      if (file.name.toLowerCase().endsWith('.xlsx')) {
+        reader.readAsBinaryString(file);
+      } else {
+        reader.readAsText(file);
+      }
+    });
+  };
+
+  // Validate parsed samples
+  const validateSamples = (samples: any[]) => {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    const cleanedSamples: any[] = [];
+    const projectIds = projects.map(p => p.project_id);
+    const sampleTypeNames = sampleTypes.map(t => t.name);
+    
+    samples.forEach((sample, index) => {
+      const rowNum = index + 2; // Account for header row
+      const cleanedSample = { ...sample };
+      
+      // Validate required fields
+      if (!sample.project_id) {
+        errors.push(`Row ${rowNum}: project_id is required`);
+      } else if (!projectIds.includes(sample.project_id)) {
+        errors.push(`Row ${rowNum}: Invalid project_id "${sample.project_id}". Valid projects: ${projectIds.slice(0, 5).join(', ')}${projectIds.length > 5 ? '...' : ''}`);
+      }
+      
+      if (!sample.sample_type) {
+        errors.push(`Row ${rowNum}: sample_type is required`);
+      } else if (!sampleTypeNames.includes(sample.sample_type)) {
+        errors.push(`Row ${rowNum}: Invalid sample_type "${sample.sample_type}". Check Valid Sample Types.`);
+      }
+      
+      // Clean client sample ID
+      if (sample.client_sample_id) {
+        const originalId = sample.client_sample_id;
+        const cleanedId = cleanSampleName(originalId);
+        
+        if (originalId !== cleanedId) {
+          cleanedSample.client_sample_id = cleanedId;
+          warnings.push(`Row ${rowNum}: Client Sample ID cleaned from "${originalId}" to "${cleanedId}"`);
+        }
+      }
+      
+      // Validate service type if provided
+      if (sample.service_type) {
+        const validServiceTypes = ['WGS', 'V1V3_16S', 'V3V4_16S', 'ONT_WGS', 'ONT_V1V8', 'ANALYSIS_ONLY', 'INTERNAL', 'CLINICAL', 'OTHER'];
+        if (!validServiceTypes.includes(sample.service_type)) {
+          errors.push(`Row ${rowNum}: Invalid service_type "${sample.service_type}". Valid types: ${validServiceTypes.join(', ')}`);
+        } else if (sample.project_id) {
+          // Check if service type matches project type
+          const project = projects.find(p => p.project_id === sample.project_id);
+          if (project && project.project_type && sample.service_type !== project.project_type) {
+            warnings.push(`Row ${rowNum}: Service type "${sample.service_type}" does not match project type "${project.project_type}"`);
+          }
+        }
+      }
+      
+      // Validate DNA plate well location
+      if (sample.sample_type === 'dna_plate' && !sample.well_location) {
+        errors.push(`Row ${rowNum}: well_location is required for dna_plate samples`);
+      }
+      
+      // Validate target depth
+      if (sample.target_depth && isNaN(Number(sample.target_depth))) {
+        errors.push(`Row ${rowNum}: target_depth must be a number`);
+      }
+      
+      cleanedSamples.push(cleanedSample);
+    });
+    
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings,
+      cleanedSamples,
+      totalSamples: samples.length
+    };
+  };
+
+  const fetchSamples = async (includeDeleted?: boolean) => {
     setLoading(true);
     try {
       const params: any = {};
-      if (showDeleted) params.include_deleted = true;
+      // Use parameter if provided, otherwise use state
+      const shouldIncludeDeleted = includeDeleted !== undefined ? includeDeleted : showDeleted;
+      if (shouldIncludeDeleted) params.include_deleted = true;
       // Don't send filters to backend since we're doing client-side filtering
       // This allows us to support multi-select
       
@@ -206,7 +398,8 @@ const Samples = () => {
   };
 
   useEffect(() => {
-    fetchSamples();
+    // Initial fetch with URL param value
+    fetchSamples(searchParams.get('deleted') === 'true');
     fetchProjects();
     fetchStorageLocations();
     fetchSampleTypes();
@@ -214,7 +407,7 @@ const Samples = () => {
 
   useEffect(() => {
     // Only refetch when showDeleted changes, not for other filters
-    fetchSamples();
+    fetchSamples(showDeleted);
   }, [showDeleted]);
 
   const statusColors: Record<string, string> = {
@@ -388,35 +581,50 @@ const Samples = () => {
 
   const handleBulkStatusUpdate = async (values: any) => {
     try {
-      // Update each selected sample
-      await Promise.all(
-        selectedSamples.map(sampleId => 
-          api.put(`/samples/${sampleId}`, { 
-            status: values.status,
-            queue_notes: values.notes 
-          })
-        )
-      );
+      // Use the bulk update endpoint
+      await api.post('/samples/bulk-update', {
+        sample_ids: selectedSamples,
+        update_data: {
+          status: values.status,
+          queue_notes: values.notes
+        }
+      });
       
       message.success(`${selectedSamples.length} samples updated to ${values.status.replace('_', ' ')}`);
       setSelectedSamples([]);
       setIsBulkStatusModalVisible(false);
       statusForm.resetFields();
       fetchSamples();
-    } catch (error) {
-      message.error('Failed to update some samples');
+    } catch (error: any) {
+      if (error.response?.data?.detail) {
+        message.error(error.response.data.detail);
+      } else {
+        message.error('Failed to update samples');
+      }
     }
   };
 
   const handleDeleteSample = async (sampleId: number, reason: string) => {
     try {
-      await api.delete(`/samples/${sampleId}?deletion_reason=${encodeURIComponent(reason)}`);
-      message.success('Sample marked as deleted');
+      if (sampleId === -1) {
+        // Bulk delete using the bulk endpoint
+        await api.post(`/samples/bulk-delete?deletion_reason=${encodeURIComponent(reason)}`, selectedSamples);
+        message.success(`${selectedSamples.length} samples marked as deleted`);
+        setSelectedSamples([]);
+      } else {
+        // Single delete
+        await api.delete(`/samples/${sampleId}?deletion_reason=${encodeURIComponent(reason)}`);
+        message.success('Sample marked as deleted');
+      }
       setDeletingSampleId(null);  // Close the modal
       deleteForm.resetFields();    // Reset the form
       fetchSamples();
-    } catch (error) {
-      message.error('Failed to delete sample');
+    } catch (error: any) {
+      if (error.response?.data?.detail) {
+        message.error(error.response.data.detail);
+      } else {
+        message.error('Failed to delete sample(s)');
+      }
     }
   };
 
@@ -424,12 +632,13 @@ const Samples = () => {
     // Create a new workbook
     const wb = XLSX.utils.book_new();
     
-    // Sample data with actual project IDs
+    // Sample data with example project IDs (no real project data for security)
     const sampleData = [
       {
-        project_id: projects.length > 0 ? projects[0].project_id : 'CMBP00001',
+        project_id: 'CMBP00001',
         client_sample_id: 'SAMPLE001',
         sample_type: 'stool',
+        service_type: 'WGS',
         target_depth: 30,
         well_location: '',
         storage_freezer: 'Freezer1',
@@ -438,9 +647,10 @@ const Samples = () => {
         storage_position: 'A1'
       },
       {
-        project_id: projects.length > 0 ? projects[0].project_id : 'CMBP00001',
+        project_id: 'CMBP00001',
         client_sample_id: 'SAMPLE002',
         sample_type: 'dna_plate',
+        service_type: 'V3V4_16S',
         target_depth: 50,
         well_location: 'A1',
         storage_freezer: 'Freezer1',
@@ -458,6 +668,7 @@ const Samples = () => {
       { wch: 15 }, // project_id
       { wch: 20 }, // client_sample_id
       { wch: 15 }, // sample_type
+      { wch: 15 }, // service_type
       { wch: 12 }, // target_depth
       { wch: 12 }, // well_location
       { wch: 15 }, // storage_freezer
@@ -469,23 +680,25 @@ const Samples = () => {
     // Add the samples sheet
     XLSX.utils.book_append_sheet(wb, ws, 'Samples');
     
-    // Create reference sheets for dropdowns
-    // Project IDs sheet
-    const projectData = projects.map(p => ({ 
-      project_id: p.project_id, 
-      project_name: p.name,
-      institution: p.client.institution,
-      due_date: dayjs(p.due_date).format('YYYY-MM-DD')
-    }));
-    if (projectData.length > 0) {
-      const wsProjects = XLSX.utils.json_to_sheet(projectData);
-      XLSX.utils.book_append_sheet(wb, wsProjects, 'Valid Projects');
-    }
-    
-    // Sample Types sheet
-    const sampleTypesData = sampleTypes.map(t => ({ sample_type: t.value, label: t.label }));
+    // Sample Types sheet (keep this for reference)
+    const sampleTypesData = sampleTypes.map(t => ({ sample_type: t.name, label: t.label }));
     const wsSampleTypes = XLSX.utils.json_to_sheet(sampleTypesData);
     XLSX.utils.book_append_sheet(wb, wsSampleTypes, 'Valid Sample Types');
+    
+    // Service Types sheet for reference
+    const serviceTypesData = [
+      { service_type: 'WGS', description: 'Whole Genome Sequencing' },
+      { service_type: 'V1V3_16S', description: '16S V1-V3 Region Sequencing' },
+      { service_type: 'V3V4_16S', description: '16S V3-V4 Region Sequencing' },
+      { service_type: 'ONT_WGS', description: 'Oxford Nanopore Whole Genome Sequencing' },
+      { service_type: 'ONT_V1V8', description: 'Oxford Nanopore V1-V8 16S Sequencing' },
+      { service_type: 'ANALYSIS_ONLY', description: 'Analysis Only (no sequencing)' },
+      { service_type: 'INTERNAL', description: 'Internal Project' },
+      { service_type: 'CLINICAL', description: 'Clinical Sequencing' },
+      { service_type: 'OTHER', description: 'Other Service Type' }
+    ];
+    const wsServiceTypes = XLSX.utils.json_to_sheet(serviceTypesData);
+    XLSX.utils.book_append_sheet(wb, wsServiceTypes, 'Valid Service Types');
     
     // Instructions sheet
     const instructionsData = [
@@ -493,17 +706,24 @@ const Samples = () => {
       { Instructions: '' },
       { Instructions: 'How to use this template:' },
       { Instructions: '1. Fill in the sample data in the "Samples" sheet' },
-      { Instructions: '2. Use exact project_id values from "Valid Projects" sheet' },
+      { Instructions: '2. Use valid project_id values (validation will occur during upload)' },
       { Instructions: '3. Use exact sample_type values from "Valid Sample Types" sheet' },
-      { Instructions: '4. well_location is REQUIRED for dna_plate samples' },
-      { Instructions: '5. Due date will be automatically inherited from the project' },
-      { Instructions: '6. Save as CSV when ready to import' },
+      { Instructions: '4. Use exact service_type values from "Valid Service Types" sheet (optional)' },
+      { Instructions: '5. well_location is REQUIRED for dna_plate samples' },
+      { Instructions: '6. Client sample IDs will be automatically cleaned (special chars → underscores)' },
+      { Instructions: '7. Due date will be automatically inherited from the project' },
+      { Instructions: '8. Upload as .xlsx or save as .csv to import' },
       { Instructions: '' },
-      { Instructions: 'Note: Excel data validation is not available in this web export.' },
-      { Instructions: 'Please ensure you use exact values from the reference sheets.' },
+      { Instructions: 'SERVICE TYPE NOTE:' },
+      { Instructions: 'If provided, service_type must match the project\'s service type.' },
+      { Instructions: 'Leave blank to inherit from project.' },
+      { Instructions: '' },
+      { Instructions: 'SECURITY NOTE: Project lists are not included in templates.' },
+      { Instructions: 'Contact your administrator for valid project IDs.' },
+      { Instructions: 'Validation will show available projects if there are errors.' },
     ];
     const wsInstructions = XLSX.utils.json_to_sheet(instructionsData, { header: ['Instructions'] });
-    ws['!cols'] = [{ wch: 60 }];
+    wsInstructions['!cols'] = [{ wch: 60 }];
     XLSX.utils.book_append_sheet(wb, wsInstructions, 'Instructions');
     
     // Generate Excel file
@@ -513,19 +733,20 @@ const Samples = () => {
   };
 
   const downloadCSVTemplate = () => {
-    // Include actual project IDs in the template
-    const projectExample = projects.length > 0 ? projects[0].project_id : 'CMBP00001';
-    const headers = 'project_id,client_sample_id,sample_type,target_depth,well_location,storage_freezer,storage_shelf,storage_box,storage_position';
-    const example1 = `${projectExample},SAMPLE001,stool,30,,Freezer1,Shelf1,Box1,A1`;
-    const example2 = `${projectExample},SAMPLE002,dna_plate,50,A1,Freezer1,Shelf1,Box1,A2`;
+    const headers = 'project_id,client_sample_id,sample_type,service_type,target_depth,well_location,storage_freezer,storage_shelf,storage_box,storage_position';
+    const example1 = `CMBP00001,SAMPLE001,stool,WGS,30,,Freezer1,Shelf1,Box1,A1`;
+    const example2 = `CMBP00001,SAMPLE002,dna_plate,V3V4_16S,50,A1,Freezer1,Shelf1,Box1,A2`;
     
-    // Add comments explaining valid values
+    // Add comments explaining valid values (no real project IDs for security)
     const comments = [
       '# SAMPLE IMPORT TEMPLATE',
       '# ',
       '# Valid sample_types: stool, swab, dna, rna, food, milk, dna_plate, other',
-      `# Valid project_ids: ${projects.map(p => p.project_id).join(', ') || 'Check Projects page for valid IDs'}`,
+      '# Valid service_types: WGS, V1V3_16S, V3V4_16S, ONT_WGS, ONT_V1V8, ANALYSIS_ONLY, INTERNAL, CLINICAL, OTHER',
+      '# Project IDs: Contact administrator for valid project IDs (validation will occur during upload)',
+      '# Note: service_type is optional but must match project type if provided',
       '# Note: well_location is required for dna_plate samples',
+      '# Note: Client sample IDs will be automatically cleaned (special chars → underscores)',
       '# Note: due_date will be inherited from the project',
       '#',
     ].join('\n');
@@ -539,45 +760,78 @@ const Samples = () => {
     a.click();
   };
 
-  const uploadProps: UploadProps = {
-    accept: '.csv',
-    beforeUpload: (file) => {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const text = e.target?.result as string;
-          const lines = text.split('\n');
-          const headers = lines[0].split(',');
-          
-          const samples = [];
-          for (let i = 1; i < lines.length; i++) {
-            if (lines[i].trim()) {
-              const values = lines[i].split(',');
-              const sample: any = {};
-              headers.forEach((header, index) => {
-                const value = values[index]?.trim();
-                if (value) {
-                  if (header === 'project_id' || header === 'target_depth') {
-                    sample[header] = Number(value);
-                  } else {
-                    sample[header] = value;
-                  }
-                }
-              });
-              samples.push(sample);
-            }
-          }
-          
-          // TODO: Implement CSV validation and bulk import endpoint
-          message.info(`Parsed ${samples.length} samples from CSV. Import functionality coming soon!`);
-          console.log('Parsed samples:', samples);
-        } catch (error) {
-          message.error('Failed to parse CSV file');
+  // Handle file upload with validation
+  const handleFileUpload = async (file: File) => {
+    try {
+      // Parse the uploaded file
+      const samples = await parseUploadedFile(file);
+      
+      if (samples.length === 0) {
+        message.error('No valid samples found in the file');
+        return;
+      }
+      
+      // Validate the samples
+      const validation = validateSamples(samples);
+      
+      // Store results for validation modal
+      setParsedSamples(samples);
+      setValidationResults(validation);
+      setIsValidationModalVisible(true);
+      
+    } catch (error: any) {
+      message.error(error.message || 'Failed to process file');
+    }
+  };
+
+  // Handle confirmed upload after validation
+  const handleConfirmedUpload = async () => {
+    if (!validationResults || !validationResults.isValid) {
+      message.error('Please fix validation errors before uploading');
+      return;
+    }
+    
+    setIsUploading(true);
+    try {
+      // Use cleaned samples for upload
+      console.log('Sending data to bulk-import:', {
+        samples: validationResults.cleanedSamples
+      });
+      
+      const response = await api.post('/samples/bulk-import', {
+        samples: validationResults.cleanedSamples
+      });
+      
+      message.success(`Successfully imported ${response.data.imported} samples`);
+      setIsValidationModalVisible(false);
+      setParsedSamples([]);
+      setValidationResults(null);
+      fetchSamples();
+      
+    } catch (error: any) {
+      console.error('Import error:', error.response?.data);
+      if (error.response?.data?.detail) {
+        if (typeof error.response.data.detail === 'string') {
+          message.error(error.response.data.detail);
+        } else if (Array.isArray(error.response.data.detail)) {
+          message.error(error.response.data.detail[0]?.msg || 'Validation failed');
+        } else {
+          message.error(JSON.stringify(error.response.data.detail));
         }
-      };
-      reader.readAsText(file);
-      return false;
+      } else {
+        message.error('Failed to import samples');
+      }
+    }
+    setIsUploading(false);
+  };
+
+  const uploadProps: UploadProps = {
+    accept: '.csv,.xlsx',
+    beforeUpload: (file) => {
+      handleFileUpload(file);
+      return false; // Prevent default upload
     },
+    showUploadList: false,
   };
 
   // Filter samples based on search and date range and client-side filters
@@ -638,11 +892,25 @@ const Samples = () => {
       fixed: 'left' as const,
       width: 100,
       sorter: (a, b) => (a.barcode || '').localeCompare(b.barcode || ''),
-      render: (text: string, record: Sample) => (
-        <a onClick={() => window.location.href = `/samples/${record.id}`}>
-          <strong>{text}</strong>
-        </a>
-      ),
+      render: (text: string, record: Sample) => {
+        const currentSearch = searchParams.toString();
+        const targetPath = `/samples/${record.id}${currentSearch ? '?' + currentSearch : ''}`;
+        
+        return (
+          <Link 
+            to={targetPath}
+            onClick={(e) => {
+              // Open in new tab if cmd/ctrl/shift is pressed
+              if (e.metaKey || e.ctrlKey || e.shiftKey) {
+                e.preventDefault();
+                window.open(targetPath, '_blank');
+              }
+            }}
+          >
+            <strong>{text}</strong>
+          </Link>
+        );
+      },
     },
     {
       title: 'Client ID',
@@ -672,9 +940,19 @@ const Samples = () => {
             <div><strong>Due:</strong> {record.due_date ? dayjs(record.due_date).format('YYYY-MM-DD') : '-'}</div>
           </div>
         }>
-          <a style={{ cursor: 'pointer' }} onClick={() => window.location.href = `/projects/${record.project_id}`}>
+          <Link 
+            to={`/projects/${record.project_id}`}
+            style={{ cursor: 'pointer' }}
+            onClick={(e) => {
+              // Open in new tab if cmd/ctrl/shift is pressed
+              if (e.metaKey || e.ctrlKey || e.shiftKey) {
+                e.preventDefault();
+                window.open(`/projects/${record.project_id}`, '_blank');
+              }
+            }}
+          >
             {text}
-          </a>
+          </Link>
         </Popover>
       ),
     },
@@ -892,8 +1170,8 @@ const Samples = () => {
       key: 'upload',
       icon: <UploadOutlined />,
       label: (
-        <Upload {...uploadProps} showUploadList={false}>
-          Import from CSV
+        <Upload {...uploadProps}>
+          Import from CSV/Excel
         </Upload>
       ),
     },
@@ -905,17 +1183,34 @@ const Samples = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <h1>Samples</h1>
           <Space>
-          {selectedSamples.length > 0 && canPerform('updateSampleStatus') && (
-            <Button
-              onClick={() => setIsBulkStatusModalVisible(true)}
-              icon={<CheckCircleOutlined />}
+          {selectedSamples.length > 0 && (
+            <Dropdown
+              menu={{
+                items: [
+                  canPerform('updateSampleStatus') && {
+                    key: 'status',
+                    icon: <CheckCircleOutlined />,
+                    label: 'Update Status',
+                    onClick: () => setIsBulkStatusModalVisible(true),
+                  },
+                  canPerform('deleteSamples') && {
+                    key: 'delete',
+                    icon: <DeleteOutlined />,
+                    label: 'Delete Selected',
+                    danger: true,
+                    onClick: () => setDeletingSampleId(-1),
+                  },
+                ].filter(Boolean)
+              }}
             >
-              Update Status ({selectedSamples.length})
-            </Button>
+              <Button>
+                Bulk Actions ({selectedSamples.length}) <DownloadOutlined />
+              </Button>
+            </Dropdown>
           )}
           <Button
             icon={<ReloadOutlined />}
-            onClick={fetchSamples}
+            onClick={() => fetchSamples()}
           >
             Refresh
           </Button>
@@ -943,8 +1238,15 @@ const Samples = () => {
             placeholder="Search by barcode, client ID, project..."
             prefix={<SearchOutlined />}
             value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
+            onChange={(e) => {
+              setSearchText(e.target.value);
+              updateURLParams({ search: e.target.value });
+            }}
             allowClear
+            onClear={() => {
+              setSearchText('');
+              updateURLParams({ search: '' });
+            }}
           />
         </Col>
         <Col xs={24} sm={12} md={4}>
@@ -953,7 +1255,10 @@ const Samples = () => {
             style={{ width: '100%' }}
             mode="multiple"
             value={statusFilter}
-            onChange={setStatusFilter}
+            onChange={(value) => {
+              setStatusFilter(value);
+              updateURLParams({ status: value });
+            }}
             maxTagCount={1}
             maxTagTextLength={10}
             popupRender={menu => (
@@ -964,9 +1269,12 @@ const Samples = () => {
                     indeterminate={statusFilter.length > 0 && statusFilter.length < statusOptions.length}
                     onChange={(e) => {
                       if (e.target.checked) {
-                        setStatusFilter(statusOptions.map(s => s.value));
+                        const allStatuses = statusOptions.map(s => s.value);
+                        setStatusFilter(allStatuses);
+                        updateURLParams({ status: allStatuses });
                       } else {
                         setStatusFilter([]);
+                        updateURLParams({ status: [] });
                       }
                     }}
                   >
@@ -992,7 +1300,10 @@ const Samples = () => {
             style={{ width: '100%' }}
             mode="multiple"
             value={sampleTypeFilter}
-            onChange={setSampleTypeFilter}
+            onChange={(value) => {
+              setSampleTypeFilter(value);
+              updateURLParams({ type: value });
+            }}
             maxTagCount={1}
             maxTagTextLength={10}
             popupRender={menu => (
@@ -1003,9 +1314,12 @@ const Samples = () => {
                     indeterminate={sampleTypeFilter.length > 0 && sampleTypeFilter.length < sampleTypes.length}
                     onChange={(e) => {
                       if (e.target.checked) {
-                        setSampleTypeFilter(sampleTypes.map(t => t.name));
+                        const allTypes = sampleTypes.map(t => t.name);
+                        setSampleTypeFilter(allTypes);
+                        updateURLParams({ type: allTypes });
                       } else {
                         setSampleTypeFilter([]);
+                        updateURLParams({ type: [] });
                       }
                     }}
                   >
@@ -1029,7 +1343,10 @@ const Samples = () => {
             style={{ width: '100%' }}
             mode="multiple"
             value={projectFilter}
-            onChange={setProjectFilter}
+            onChange={(value) => {
+              setProjectFilter(value);
+              updateURLParams({ project: value });
+            }}
             maxTagCount={1}
             maxTagTextLength={10}
             optionFilterProp="children"
@@ -1041,9 +1358,12 @@ const Samples = () => {
                     indeterminate={projectFilter.length > 0 && projectFilter.length < projects.length}
                     onChange={(e) => {
                       if (e.target.checked) {
-                        setProjectFilter(projects.map(p => p.id));
+                        const allProjects = projects.map(p => p.id);
+                        setProjectFilter(allProjects);
+                        updateURLParams({ project: allProjects });
                       } else {
                         setProjectFilter([]);
+                        updateURLParams({ project: [] });
                       }
                     }}
                   >
@@ -1065,7 +1385,17 @@ const Samples = () => {
           <RangePicker
             style={{ width: '100%' }}
             value={dateRange}
-            onChange={(dates) => setDateRange(dates as [Dayjs | null, Dayjs | null])}
+            onChange={(dates) => {
+              setDateRange(dates as [Dayjs | null, Dayjs | null]);
+              if (dates && dates[0] && dates[1]) {
+                updateURLParams({ 
+                  start: dates[0].format('YYYY-MM-DD'), 
+                  end: dates[1].format('YYYY-MM-DD') 
+                });
+              } else {
+                updateURLParams({ start: null, end: null });
+              }
+            }}
             placeholder={['Start Date', 'End Date']}
           />
         </Col>
@@ -1077,7 +1407,10 @@ const Samples = () => {
           <Space>
             <Switch
               checked={showDeleted}
-              onChange={setShowDeleted}
+              onChange={(checked) => {
+                setShowDeleted(checked);
+                updateURLParams({ deleted: checked });
+              }}
             />
             <span>Show deleted samples</span>
           </Space>
@@ -1488,7 +1821,7 @@ const Samples = () => {
 
       {/* Delete Sample Modal */}
       <Modal
-        title="Delete Sample"
+        title={deletingSampleId === -1 ? `Delete ${selectedSamples.length} Samples` : "Delete Sample"}
         open={deletingSampleId !== null}
         onCancel={() => {
           setDeletingSampleId(null);
@@ -1499,7 +1832,11 @@ const Samples = () => {
       >
         <Alert
           message="Confirm Deletion"
-          description="This action will mark the sample as deleted. The sample will be removed from active lists but remain in the system for audit purposes."
+          description={
+            deletingSampleId === -1 
+              ? `This action will mark ${selectedSamples.length} samples as deleted. The samples will be removed from active lists but remain in the system for audit purposes.`
+              : "This action will mark the sample as deleted. The sample will be removed from active lists but remain in the system for audit purposes."
+          }
           type="warning"
           showIcon
           style={{ marginBottom: 16 }}
@@ -1537,11 +1874,95 @@ const Samples = () => {
                 Cancel
               </Button>
               <Button type="primary" danger htmlType="submit">
-                Delete Sample
+                {deletingSampleId === -1 ? `Delete ${selectedSamples.length} Samples` : 'Delete Sample'}
               </Button>
             </Space>
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Validation Modal */}
+      <Modal
+        title="Import Validation Results"
+        open={isValidationModalVisible}
+        onCancel={() => {
+          setIsValidationModalVisible(false);
+          setParsedSamples([]);
+          setValidationResults(null);
+        }}
+        footer={null}
+        width={800}
+      >
+        {validationResults && (
+          <div>
+            <div style={{ marginBottom: 16 }}>
+              <Space>
+                <Tag color="blue">Total Samples: {validationResults.totalSamples}</Tag>
+                {validationResults.isValid ? (
+                  <Tag color="green">✓ Ready to Import</Tag>
+                ) : (
+                  <Tag color="red">✗ Has Errors</Tag>
+                )}
+                {validationResults.warnings.length > 0 && (
+                  <Tag color="orange">⚠ {validationResults.warnings.length} Warnings</Tag>
+                )}
+              </Space>
+            </div>
+
+            {validationResults.errors.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <h4 style={{ color: '#ff4d4f' }}>Errors (must fix before import):</h4>
+                <ul style={{ color: '#ff4d4f', marginBottom: 16 }}>
+                  {validationResults.errors.map((error, index) => (
+                    <li key={index}>{error}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {validationResults.warnings.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <h4 style={{ color: '#fa8c16' }}>Warnings (will be applied during import):</h4>
+                <ul style={{ color: '#fa8c16', marginBottom: 16 }}>
+                  {validationResults.warnings.map((warning, index) => (
+                    <li key={index}>{warning}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {validationResults.isValid && (
+              <div style={{ marginBottom: 16 }}>
+                <h4 style={{ color: '#52c41a' }}>Ready to Import</h4>
+                <p>All validation checks passed. Click "Import Samples" to proceed.</p>
+                {validationResults.warnings.length > 0 && (
+                  <p><strong>Note:</strong> Sample names will be automatically cleaned as shown in warnings above.</p>
+                )}
+              </div>
+            )}
+
+            <div style={{ textAlign: 'right' }}>
+              <Space>
+                <Button onClick={() => {
+                  setIsValidationModalVisible(false);
+                  setParsedSamples([]);
+                  setValidationResults(null);
+                }}>
+                  Cancel
+                </Button>
+                {validationResults.isValid && (
+                  <Button 
+                    type="primary" 
+                    loading={isUploading}
+                    onClick={handleConfirmedUpload}
+                  >
+                    Import {validationResults.totalSamples} Samples
+                  </Button>
+                )}
+              </Space>
+            </div>
+          </div>
+        )}
       </Modal>
 
     </div>

@@ -588,6 +588,13 @@ const Projects = () => {
           >
             <Select 
               placeholder="Select client"
+              showSearch
+              filterOption={(input, option) => {
+                const client = clients.find(c => c.id === option?.value);
+                if (!client) return false;
+                const searchText = `${client.name} ${client.institution || ''}`.toLowerCase();
+                return searchText.includes(input.toLowerCase());
+              }}
               dropdownRender={(menu) => (
                 <>
                   {menu}
