@@ -1,5 +1,5 @@
 from typing import Any, List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, and_
 import random
@@ -13,6 +13,7 @@ from app.models import (
 )
 from app.models.user import User as UserModel
 from app.models.sample_type import SampleType as SampleTypeModel
+from app.models.sample import DiscrepancyApproval
 from app.schemas.sample import (
     Sample as SampleSchema, 
     SampleCreate, 
@@ -26,7 +27,9 @@ from app.schemas.sample import (
     StorageLocation as StorageLocationSchema,
     StorageLocationCreate,
     SampleLog as SampleLogSchema,
-    SampleLogCreate
+    SampleLogCreate,
+    DiscrepancyApprovalCreate,
+    DiscrepancyApprovalResponse
 )
 
 router = APIRouter()
@@ -1060,3 +1063,141 @@ def delete_samples_bulk(
         "message": f"{len(samples)} samples marked as deleted",
         "deleted_count": len(samples)
     }
+
+@router.get("/{sample_id}/discrepancy-approvals", response_model=List[DiscrepancyApprovalResponse])
+def get_sample_discrepancy_approvals(
+    *,
+    db: Session = Depends(deps.get_db),
+    sample_id: int,
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """Get all discrepancy approvals for a sample"""
+    sample = db.query(Sample).filter(Sample.id == sample_id).first()
+    if not sample:
+        raise HTTPException(status_code=404, detail="Sample not found")
+    
+    approvals = db.query(DiscrepancyApproval).filter(
+        DiscrepancyApproval.sample_id == sample_id
+    ).order_by(DiscrepancyApproval.created_at.desc()).all()
+    
+    # Include user info
+    for approval in approvals:
+        if approval.approved_by_id:
+            user = db.query(User).filter(User.id == approval.approved_by_id).first()
+            approval.approved_by = {
+                "id": user.id,
+                "full_name": user.full_name,
+                "username": user.username
+            } if user else None
+    
+    return approvals
+
+@router.post("/{sample_id}/discrepancy-approvals", response_model=DiscrepancyApprovalResponse)
+def create_discrepancy_approval(
+    *,
+    db: Session = Depends(deps.get_db),
+    sample_id: int,
+    approval_in: DiscrepancyApprovalCreate,
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """Create a discrepancy approval request"""
+    # Check if user is accessioner or lab_tech
+    if current_user.role not in ['super_admin', 'accessioner', 'lab_tech', 'lab_manager']:
+        raise HTTPException(
+            status_code=403, 
+            detail="Only accessioners and lab techs can create discrepancy reports"
+        )
+    
+    sample = db.query(Sample).filter(Sample.id == sample_id).first()
+    if not sample:
+        raise HTTPException(status_code=404, detail="Sample not found")
+    
+    # Create discrepancy approval record
+    approval = DiscrepancyApproval(
+        sample_id=sample_id,
+        discrepancy_type=approval_in.discrepancy_type,
+        discrepancy_details=approval_in.discrepancy_details,
+        created_by_id=current_user.id
+    )
+    db.add(approval)
+    
+    # Update sample discrepancy flag
+    sample.has_discrepancy = True
+    sample.discrepancy_notes = approval_in.discrepancy_details
+    
+    # Create log entry
+    create_sample_log(
+        db=db,
+        sample_id=sample_id,
+        comment=f"Discrepancy reported: {approval_in.discrepancy_type} - {approval_in.discrepancy_details}",
+        log_type="discrepancy",
+        user_id=current_user.id
+    )
+    
+    db.commit()
+    db.refresh(approval)
+    
+    return approval
+
+@router.put("/{sample_id}/discrepancy-approvals/{approval_id}", response_model=DiscrepancyApprovalResponse)
+def approve_discrepancy(
+    *,
+    db: Session = Depends(deps.get_db),
+    sample_id: int,
+    approval_id: int,
+    approval_reason: str = Body(..., embed=True, description="Reason for approving despite discrepancy"),
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """Approve a discrepancy (PM only)"""
+    # Check if user is PM or higher
+    if current_user.role not in ['super_admin', 'pm', 'director']:
+        raise HTTPException(
+            status_code=403, 
+            detail="Only project managers can approve discrepancies"
+        )
+    
+    approval = db.query(DiscrepancyApproval).filter(
+        DiscrepancyApproval.id == approval_id,
+        DiscrepancyApproval.sample_id == sample_id
+    ).first()
+    
+    if not approval:
+        raise HTTPException(status_code=404, detail="Discrepancy approval not found")
+    
+    if approval.approved:
+        raise HTTPException(status_code=400, detail="Discrepancy already approved")
+    
+    # Approve the discrepancy
+    approval.approved = True
+    approval.approved_by_id = current_user.id
+    approval.approval_date = func.now()
+    approval.approval_reason = approval_reason
+    
+    # Update sample
+    sample = db.query(Sample).filter(Sample.id == sample_id).first()
+    if sample:
+        sample.discrepancy_resolved = True
+        sample.discrepancy_resolution_date = func.now()
+        sample.discrepancy_resolved_by_id = current_user.id
+    
+    # Create log entry
+    create_sample_log(
+        db=db,
+        sample_id=sample_id,
+        comment=f"Discrepancy approved: {approval_reason}",
+        log_type="discrepancy_approval",
+        user_id=current_user.id
+    )
+    
+    db.commit()
+    db.refresh(approval)
+    
+    # Include user info
+    user = db.query(User).filter(User.id == approval.approved_by_id).first()
+    approval.approved_by = {
+        "id": user.id,
+        "full_name": user.full_name,
+        "username": user.username
+    } if user else None
+    
+    return approval

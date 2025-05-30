@@ -85,6 +85,7 @@ class SampleType(str, enum.Enum):
 class SampleStatus(str, enum.Enum):
     REGISTERED = "REGISTERED"
     RECEIVED = "RECEIVED"
+    ACCESSIONING = "ACCESSIONING"  # New status
     ACCESSIONED = "ACCESSIONED"
     IN_EXTRACTION = "IN_EXTRACTION"
     EXTRACTED = "EXTRACTED"
@@ -137,6 +138,17 @@ class Sample(Base, TimestampMixin):
     # Pre-treatment info
     pretreatment_type = Column(String)  # "metapolyzyme", "proteinase_k", etc
     pretreatment_date = Column(DateTime(timezone=True))
+    spike_in_type = Column(String)  # Zymo spike-in options
+    
+    # Flags and discrepancies
+    has_flag = Column(Boolean, default=False)  # General flag indicator
+    flag_abbreviation = Column(String)  # Short code for flags (e.g., "PROK", "LOW_DNA", etc.)
+    flag_notes = Column(Text)  # Detailed flag description
+    has_discrepancy = Column(Boolean, default=False)
+    discrepancy_notes = Column(Text)
+    discrepancy_resolved = Column(Boolean, default=False)
+    discrepancy_resolution_date = Column(DateTime(timezone=True))
+    discrepancy_resolved_by_id = Column(Integer, ForeignKey("users.id"))
     
     # Queue management fields
     queue_priority = Column(Integer, default=0)  # Higher number = higher priority
@@ -224,3 +236,22 @@ class SampleLog(Base, TimestampMixin):
     # Relationships
     sample = relationship("Sample", back_populates="logs")
     created_by = relationship("User", foreign_keys=[created_by_id])
+
+class DiscrepancyApproval(Base, TimestampMixin):
+    __tablename__ = "discrepancy_approvals"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    sample_id = Column(Integer, ForeignKey("samples.id"), nullable=False)
+    discrepancy_type = Column(String, nullable=False)  # Type of discrepancy
+    discrepancy_details = Column(Text, nullable=False)  # Detailed description
+    
+    # Electronic signature fields (CFR Part 11)
+    approved = Column(Boolean, default=False)
+    approved_by_id = Column(Integer, ForeignKey("users.id"))
+    approval_date = Column(DateTime(timezone=True))
+    approval_reason = Column(Text, nullable=False)  # Why approved despite discrepancy
+    signature_meaning = Column(String, default="I approve this sample to proceed despite the noted discrepancy")
+    
+    # Relationships
+    sample = relationship("Sample", backref="discrepancy_approvals")
+    approved_by = relationship("User", foreign_keys=[approved_by_id])

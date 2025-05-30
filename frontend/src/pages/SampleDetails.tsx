@@ -48,6 +48,17 @@ interface Sample {
   storage_box?: string;
   storage_position?: string;
   extraction_kit?: string;
+  // New enhancement fields
+  pretreatment_type?: string;
+  pretreatment_date?: string;
+  spike_in_type?: string;
+  has_flag?: boolean;
+  flag_abbreviation?: string;
+  flag_notes?: string;
+  has_discrepancy?: boolean;
+  discrepancy_notes?: string;
+  discrepancy_resolved?: boolean;
+  discrepancy_resolution_date?: string;
   extraction_lot?: string;
   dna_concentration_ng_ul?: number;
   library_prep_kit?: string;
@@ -93,37 +104,39 @@ const SampleDetails = () => {
   const [commentForm] = Form.useForm();
 
   const statusColors: Record<string, string> = {
-    registered: 'default',
-    received: 'blue',
-    accessioned: 'cyan',
-    in_extraction: 'lime',
-    extracted: 'green',
-    in_library_prep: 'gold',
-    library_prepped: 'orange',
-    in_sequencing: 'purple',
-    sequenced: 'magenta',
-    in_analysis: 'geekblue',
-    analysis_complete: 'cyan',
-    delivered: 'success',
-    failed: 'error',
-    cancelled: 'default'
+    REGISTERED: 'default',
+    RECEIVED: 'blue',
+    ACCESSIONING: 'processing',
+    ACCESSIONED: 'cyan',
+    IN_EXTRACTION: 'lime',
+    EXTRACTED: 'green',
+    IN_LIBRARY_PREP: 'gold',
+    LIBRARY_PREPPED: 'orange',
+    IN_SEQUENCING: 'purple',
+    SEQUENCED: 'magenta',
+    IN_ANALYSIS: 'geekblue',
+    ANALYSIS_COMPLETE: 'cyan',
+    DELIVERED: 'success',
+    FAILED: 'error',
+    CANCELLED: 'default'
   };
 
   const sampleStatuses = [
-    { value: 'registered', label: 'Registered' },
-    { value: 'received', label: 'Received' },
-    { value: 'accessioned', label: 'Accessioned' },
-    { value: 'in_extraction', label: 'In Extraction' },
-    { value: 'extracted', label: 'Extracted' },
-    { value: 'in_library_prep', label: 'In Library Prep' },
-    { value: 'library_prepped', label: 'Library Prepped' },
-    { value: 'in_sequencing', label: 'In Sequencing' },
-    { value: 'sequenced', label: 'Sequenced' },
-    { value: 'in_analysis', label: 'In Analysis' },
-    { value: 'analysis_complete', label: 'Analysis Complete' },
-    { value: 'delivered', label: 'Delivered' },
-    { value: 'failed', label: 'Failed' },
-    { value: 'cancelled', label: 'Cancelled' }
+    { value: 'REGISTERED', label: 'Registered' },
+    { value: 'RECEIVED', label: 'Received' },
+    { value: 'ACCESSIONING', label: 'Accessioning' },
+    { value: 'ACCESSIONED', label: 'Accessioned' },
+    { value: 'IN_EXTRACTION', label: 'In Extraction' },
+    { value: 'EXTRACTED', label: 'Extracted' },
+    { value: 'IN_LIBRARY_PREP', label: 'In Library Prep' },
+    { value: 'LIBRARY_PREPPED', label: 'Library Prepped' },
+    { value: 'IN_SEQUENCING', label: 'In Sequencing' },
+    { value: 'SEQUENCED', label: 'Sequenced' },
+    { value: 'IN_ANALYSIS', label: 'In Analysis' },
+    { value: 'ANALYSIS_COMPLETE', label: 'Analysis Complete' },
+    { value: 'DELIVERED', label: 'Delivered' },
+    { value: 'FAILED', label: 'Failed' },
+    { value: 'CANCELLED', label: 'Cancelled' }
   ];
 
   const fetchSample = async () => {
@@ -308,6 +321,59 @@ const SampleDetails = () => {
           </>
         )}
       </Descriptions>
+
+      {/* Enhancement Information */}
+      {(sample.pretreatment_type || sample.spike_in_type || sample.has_flag || sample.has_discrepancy) && (
+        <>
+          <Divider />
+          <Descriptions bordered column={2} title="Sample Enhancements">
+            {sample.pretreatment_type && (
+              <Descriptions.Item label="Pre-treatment">
+                <Tag color="purple">
+                  {sample.pretreatment_type.replace(/_/g, ' ').toUpperCase()}
+                </Tag>
+                {sample.pretreatment_date && (
+                  <Text type="secondary" style={{ marginLeft: 8 }}>
+                    ({dayjs(sample.pretreatment_date).format('YYYY-MM-DD')})
+                  </Text>
+                )}
+              </Descriptions.Item>
+            )}
+            {sample.spike_in_type && sample.spike_in_type !== 'none' && (
+              <Descriptions.Item label="Spike-in">
+                <Tag color="green">{sample.spike_in_type.replace(/_/g, ' ').toUpperCase()}</Tag>
+              </Descriptions.Item>
+            )}
+            {sample.has_flag && (
+              <>
+                <Descriptions.Item label="Flag">
+                  <Tag color="red">{sample.flag_abbreviation || 'FLAGGED'}</Tag>
+                </Descriptions.Item>
+                <Descriptions.Item label="Flag Notes">
+                  {sample.flag_notes || '-'}
+                </Descriptions.Item>
+              </>
+            )}
+            {sample.has_discrepancy && (
+              <>
+                <Descriptions.Item label="Discrepancy Status">
+                  <Tag color={sample.discrepancy_resolved ? 'green' : 'orange'}>
+                    {sample.discrepancy_resolved ? 'RESOLVED' : 'PENDING'}
+                  </Tag>
+                  {sample.discrepancy_resolution_date && (
+                    <Text type="secondary" style={{ marginLeft: 8 }}>
+                      ({dayjs(sample.discrepancy_resolution_date).format('YYYY-MM-DD')})
+                    </Text>
+                  )}
+                </Descriptions.Item>
+                <Descriptions.Item label="Discrepancy Notes">
+                  {sample.discrepancy_notes || '-'}
+                </Descriptions.Item>
+              </>
+            )}
+          </Descriptions>
+        </>
+      )}
 
       {sample.accessioning_notes && (
         <>

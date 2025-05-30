@@ -103,12 +103,29 @@ const QueueTable: React.FC<QueueTableProps> = ({
   const [selectedSample, setSelectedSample] = useState<any>(null);
   const [form] = Form.useForm();
   const [noteForm] = Form.useForm();
+  const [filteredSamples, setFilteredSamples] = useState<any[]>([]);
+  const [selectedProject, setSelectedProject] = useState<string | undefined>(undefined);
+  const [projectOptions, setProjectOptions] = useState<{ label: string; value: string }[]>([]);
 
   const fetchSamples = async () => {
     setLoading(true);
     try {
       const response = await api.get(`/samples/queues/${queueName}`);
       setSamples(response.data);
+      setFilteredSamples(response.data);
+      
+      // Extract unique projects from samples IN THIS QUEUE ONLY
+      const uniqueProjects = [...new Set(response.data.map((s: any) => s.project_code))]
+        .filter(Boolean)
+        .sort()
+        .map(code => {
+          const sample = response.data.find((s: any) => s.project_code === code);
+          return {
+            label: `${code} - ${sample.project_name || 'N/A'}`,
+            value: code
+          };
+        });
+      setProjectOptions(uniqueProjects);
     } catch (error) {
       message.error('Failed to fetch queue samples');
     }
@@ -118,6 +135,14 @@ const QueueTable: React.FC<QueueTableProps> = ({
   useEffect(() => {
     fetchSamples();
   }, [queueName]);
+
+  useEffect(() => {
+    if (selectedProject) {
+      setFilteredSamples(samples.filter(s => s.project_code === selectedProject));
+    } else {
+      setFilteredSamples(samples);
+    }
+  }, [selectedProject, samples]);
 
   const handleMoveToNext = async (sampleId: number) => {
     if (!nextStatus) return;
@@ -389,14 +414,14 @@ const QueueTable: React.FC<QueueTableProps> = ({
 
   // Calculate queue statistics
   const stats = {
-    total: samples.length,
-    highPriority: samples.filter(s => s.queue_priority >= 5).length,
-    reprocess: samples.filter(s => s.reprocess_count > 0).length,
-    avgWaitTime: samples.length > 0 
-      ? Math.round(samples.reduce((acc, s) => {
+    total: filteredSamples.length,
+    highPriority: filteredSamples.filter(s => s.queue_priority >= 5).length,
+    reprocess: filteredSamples.filter(s => s.reprocess_count > 0).length,
+    avgWaitTime: filteredSamples.length > 0 
+      ? Math.round(filteredSamples.reduce((acc, s) => {
           const date = s.accessioned_date || s.received_date || s.created_at;
           return acc + dayjs().diff(dayjs(date), 'hour');
-        }, 0) / samples.length)
+        }, 0) / filteredSamples.length)
       : 0,
   };
 
@@ -438,25 +463,39 @@ const QueueTable: React.FC<QueueTableProps> = ({
         </Row>
       </Card>
 
-      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
-        <h2>{title}</h2>
-        <Space>
-          {allowBatch && selectedSamples.length > 0 && nextStatus && (
-            <Button
-              type="primary"
-              onClick={handleBatchMove}
-              icon={<CheckCircleOutlined />}
-            >
-              Process Selected ({selectedSamples.length})
-            </Button>
-          )}
-          <Button onClick={fetchSamples}>Refresh</Button>
-        </Space>
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h2>{title}</h2>
+          <Space>
+            <Select
+              style={{ width: 300 }}
+              placeholder="Filter by project"
+              allowClear
+              showSearch
+              value={selectedProject}
+              onChange={setSelectedProject}
+              options={projectOptions}
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+            />
+            {allowBatch && selectedSamples.length > 0 && nextStatus && (
+              <Button
+                type="primary"
+                onClick={handleBatchMove}
+                icon={<CheckCircleOutlined />}
+              >
+                Process Selected ({selectedSamples.length})
+              </Button>
+            )}
+            <Button onClick={fetchSamples}>Refresh</Button>
+          </Space>
+        </div>
       </div>
 
       <Table
         columns={baseColumns}
-        dataSource={samples}
+        dataSource={filteredSamples}
         loading={loading}
         rowKey="id"
         size="small"

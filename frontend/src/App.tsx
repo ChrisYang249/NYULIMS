@@ -15,7 +15,7 @@ import Logs from './pages/Logs';
 import SampleTypes from './pages/SampleTypes';
 import DeletionLogs from './pages/DeletionLogs';
 // Queue pages
-import Accessioning from './pages/samples/Accessioning';
+import Accessioning from './pages/Accessioning';
 import ExtractionQueue from './pages/samples/ExtractionQueue';
 import Extraction from './pages/samples/Extraction';
 import ReprocessQueue from './pages/samples/ReprocessQueue';

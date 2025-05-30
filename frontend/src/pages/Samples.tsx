@@ -3,7 +3,7 @@ import {
   Table, Button, Tag, Space, message, Modal, Form, Select, 
   InputNumber, Input, Divider, Row, Col, Card, Upload,
   Tabs, Alert, Popover, Typography, Dropdown, Popconfirm,
-  DatePicker, Switch, Checkbox
+  DatePicker, Switch, Checkbox, Tooltip
 } from 'antd';
 import type { UploadProps, ColumnsType } from 'antd';
 import { 
@@ -11,7 +11,8 @@ import {
   SaveOutlined, EditOutlined, ReloadOutlined,
   DownloadOutlined, EnvironmentOutlined,
   FileTextOutlined, CheckCircleOutlined, DeleteOutlined,
-  SearchOutlined, FilterOutlined
+  SearchOutlined, FilterOutlined, FlagOutlined,
+  WarningOutlined
 } from '@ant-design/icons';
 import { api } from '../config/api';
 import dayjs from 'dayjs';
@@ -105,6 +106,13 @@ interface Sample {
   sequencing_run_id?: string;
   sequencing_instrument?: string;
   achieved_depth?: number;
+  // Enhancement fields
+  has_flag?: boolean;
+  flag_abbreviation?: string;
+  flag_notes?: string;
+  has_discrepancy?: boolean;
+  discrepancy_notes?: string;
+  discrepancy_resolved?: boolean;
 }
 
 interface Project {
@@ -418,6 +426,7 @@ const Samples = () => {
   const statusColors: Record<string, string> = {
     REGISTERED: 'default',
     RECEIVED: 'blue',
+    ACCESSIONING: 'processing',
     ACCESSIONED: 'cyan',
     IN_EXTRACTION: 'lime',
     EXTRACTED: 'green',
@@ -514,6 +523,7 @@ const Samples = () => {
   const statusOptions = [
     { value: 'REGISTERED', label: 'Registered' },
     { value: 'RECEIVED', label: 'Received' },
+    { value: 'ACCESSIONING', label: 'Accessioning' },
     { value: 'ACCESSIONED', label: 'Accessioned' },
     { value: 'IN_EXTRACTION', label: 'In Extraction' },
     { value: 'EXTRACTED', label: 'Extracted' },
@@ -902,18 +912,30 @@ const Samples = () => {
         const targetPath = `/samples/${record.id}${currentSearch ? '?' + currentSearch : ''}`;
         
         return (
-          <Link 
-            to={targetPath}
-            onClick={(e) => {
-              // Open in new tab if cmd/ctrl/shift is pressed
-              if (e.metaKey || e.ctrlKey || e.shiftKey) {
-                e.preventDefault();
-                window.open(targetPath, '_blank');
-              }
-            }}
-          >
-            <strong>{text}</strong>
-          </Link>
+          <Space size={4}>
+            <Link 
+              to={targetPath}
+              onClick={(e) => {
+                // Open in new tab if cmd/ctrl/shift is pressed
+                if (e.metaKey || e.ctrlKey || e.shiftKey) {
+                  e.preventDefault();
+                  window.open(targetPath, '_blank');
+                }
+              }}
+            >
+              <strong>{text}</strong>
+            </Link>
+            {record.has_flag && (
+              <Tooltip title={`${record.flag_abbreviation}: ${record.flag_notes}`}>
+                <FlagOutlined style={{ color: '#ff4d4f' }} />
+              </Tooltip>
+            )}
+            {record.has_discrepancy && !record.discrepancy_resolved && (
+              <Tooltip title="Has unresolved discrepancy">
+                <WarningOutlined style={{ color: '#faad14' }} />
+              </Tooltip>
+            )}
+          </Space>
         );
       },
     },
@@ -1111,6 +1133,22 @@ const Samples = () => {
       ),
     },
     {
+      title: 'Due Date',
+      dataIndex: 'due_date',
+      key: 'due_date',
+      width: 100,
+      sorter: (a, b) => {
+        const dateA = a.due_date ? dayjs(a.due_date).unix() : 0;
+        const dateB = b.due_date ? dayjs(b.due_date).unix() : 0;
+        return dateA - dateB;
+      },
+      render: (date: string) => (
+        <span style={{ fontSize: '12px' }}>
+          {date ? dayjs(date).format('YYYY-MM-DD') : '-'}
+        </span>
+      ),
+    },
+    {
       title: 'Storage',
       key: 'storage',
       width: 120,
@@ -1135,44 +1173,6 @@ const Samples = () => {
         }
         return '-';
       },
-    },
-    {
-      title: 'Due Date',
-      dataIndex: 'due_date',
-      key: 'due_date',
-      width: 100,
-      sorter: (a, b) => {
-        const dateA = a.due_date ? dayjs(a.due_date).unix() : 0;
-        const dateB = b.due_date ? dayjs(b.due_date).unix() : 0;
-        return dateA - dateB;
-      },
-      render: (date: string) => (
-        <span style={{ fontSize: '12px' }}>
-          {date ? dayjs(date).format('YYYY-MM-DD') : '-'}
-        </span>
-      ),
-    },
-    {
-      title: 'Action',
-      key: 'action',
-      fixed: 'right' as const,
-      width: 80,
-      render: (_: any, record: Sample) => (
-        <Space size="small">
-          {canPerform('deleteSamples') && (
-            <Button 
-              type="link" 
-              danger
-              size="small"
-              icon={<DeleteOutlined />}
-              style={{ padding: '0 4px' }}
-              onClick={() => setDeletingSampleId(record.id)}
-            >
-              Delete
-            </Button>
-          )}
-        </Space>
-      ),
     },
   ];
 
@@ -1454,7 +1454,7 @@ const Samples = () => {
         loading={loading}
         rowKey="id"
         size="small"
-        scroll={{ x: 1400 }}
+        scroll={{ x: 1320 }}
         rowSelection={rowSelection}
         pagination={{
           current: currentPage,

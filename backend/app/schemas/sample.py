@@ -16,6 +16,11 @@ class SampleBase(BaseModel):
     target_depth: Optional[float] = None
     well_location: Optional[str] = None
     due_date: Optional[datetime] = None
+    pretreatment_type: Optional[str] = None
+    spike_in_type: Optional[str] = None
+    has_flag: Optional[bool] = False
+    flag_abbreviation: Optional[str] = None
+    flag_notes: Optional[str] = None
     
     @validator('well_location')
     def validate_well_location(cls, v, values):
@@ -73,6 +78,13 @@ class SampleUpdate(BaseModel):
     queue_priority: Optional[int] = None
     queue_notes: Optional[str] = None
     batch_id: Optional[str] = None
+    pretreatment_type: Optional[str] = None
+    spike_in_type: Optional[str] = None
+    has_flag: Optional[bool] = None
+    flag_abbreviation: Optional[str] = None
+    flag_notes: Optional[str] = None
+    has_discrepancy: Optional[bool] = None
+    discrepancy_notes: Optional[str] = None
     
 class SampleAccession(BaseModel):
     accessioning_notes: Optional[str] = None
@@ -127,6 +139,13 @@ class Sample(SampleBase):
     library_prep_due_date: Optional[datetime] = None
     sequencing_due_date: Optional[datetime] = None
     
+    # New enhancement fields
+    pretreatment_date: Optional[datetime] = None
+    has_discrepancy: Optional[bool] = None
+    discrepancy_notes: Optional[str] = None
+    discrepancy_resolved: Optional[bool] = None
+    discrepancy_resolution_date: Optional[datetime] = None
+    
     class Config:
         from_attributes = True
 
@@ -170,6 +189,28 @@ class SampleLog(SampleLogBase):
     class Config:
         from_attributes = True
 
+# Discrepancy Approval Schemas
+class DiscrepancyApprovalBase(BaseModel):
+    discrepancy_type: str
+    discrepancy_details: str
+    approval_reason: Optional[str] = None
+
+class DiscrepancyApprovalCreate(DiscrepancyApprovalBase):
+    sample_id: int
+    
+class DiscrepancyApprovalResponse(DiscrepancyApprovalBase):
+    id: int
+    sample_id: int
+    approved: bool
+    approved_by_id: Optional[int] = None
+    approval_date: Optional[datetime] = None
+    signature_meaning: str
+    created_at: datetime
+    approved_by: Optional[dict] = None  # Will include user info
+    
+    class Config:
+        from_attributes = True
+
 __all__ = [
     "SampleBase",
     "SampleCreate",
@@ -193,5 +234,8 @@ __all__ = [
     "StorageLocation",
     "SampleLogBase",
     "SampleLogCreate",
-    "SampleLog"
+    "SampleLog",
+    "DiscrepancyApprovalBase",
+    "DiscrepancyApprovalCreate",
+    "DiscrepancyApprovalResponse"
 ]
