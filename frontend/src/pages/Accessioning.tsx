@@ -11,7 +11,7 @@ import {
   MedicineBoxOutlined, ExperimentOutlined, SyncOutlined,
   UserOutlined, CalendarOutlined, FileTextOutlined,
   SearchOutlined, FilterOutlined, InboxOutlined,
-  PaperClipOutlined, DeleteOutlined
+  PaperClipOutlined, DeleteOutlined, InfoCircleOutlined
 } from '@ant-design/icons';
 import { api } from '../config/api';
 import dayjs from 'dayjs';
@@ -40,6 +40,7 @@ interface Sample {
   flag_abbreviation?: string;
   flag_notes?: string;
   has_discrepancy?: boolean;
+  discrepancy_resolved?: boolean;
   discrepancy_notes?: string;
 }
 
@@ -203,9 +204,9 @@ const Accessioning = () => {
     if (flagFilter === 'flagged' && !sample.has_flag) return false;
     if (flagFilter === 'unflagged' && sample.has_flag) return false;
     
-    // Discrepancy filter
-    if (discrepancyFilter === 'has' && !sample.has_discrepancy) return false;
-    if (discrepancyFilter === 'none' && sample.has_discrepancy) return false;
+    // Discrepancy filter - only show unresolved discrepancies
+    if (discrepancyFilter === 'has' && (!sample.has_discrepancy || sample.discrepancy_resolved)) return false;
+    if (discrepancyFilter === 'none' && (sample.has_discrepancy && !sample.discrepancy_resolved)) return false;
     
     return true;
   });
@@ -335,8 +336,8 @@ const Accessioning = () => {
               <FlagOutlined style={{ color: '#ff4d4f' }} />
             </Tooltip>
           )}
-          {record.has_discrepancy && (
-            <Tooltip title="Has discrepancy">
+          {record.has_discrepancy && !record.discrepancy_resolved && (
+            <Tooltip title="Has unresolved discrepancy">
               <WarningOutlined style={{ color: '#faad14' }} />
             </Tooltip>
           )}
@@ -554,9 +555,9 @@ const Accessioning = () => {
             >
               <Select.Option value="all">All Samples</Select.Option>
               <Select.Option value="has">
-                <WarningOutlined style={{ color: '#faad14' }} /> Has Discrepancy
+                <WarningOutlined style={{ color: '#faad14' }} /> Has Unresolved Discrepancy
               </Select.Option>
-              <Select.Option value="none">No Discrepancy</Select.Option>
+              <Select.Option value="none">No Unresolved Discrepancy</Select.Option>
             </Select>
           </Col>
           <Col xs={24} sm={12} md={4}>
@@ -570,21 +571,13 @@ const Accessioning = () => {
         </Row>
       </Card>
 
-      <Alert
-        message="Accessioning Instructions"
-        description={
-          <ul style={{ marginBottom: 0 }}>
-            <li>Verify sample information matches submission form</li>
-            <li>Check for any special handling requirements</li>
-            <li>Note any discrepancies for PM approval</li>
-            <li>Apply pre-treatment or spike-ins as specified</li>
-            <li>Use flags to mark samples requiring special attention</li>
-          </ul>
-        }
-        type="info"
-        showIcon
-        style={{ marginBottom: 16 }}
-      />
+      <div style={{ marginBottom: 16, padding: '8px 16px', background: '#f0f2f5', borderRadius: 4 }}>
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          <InfoCircleOutlined style={{ marginRight: 8 }} />
+          <strong>Quick Reference:</strong>
+          Verify samples match submission • Check special handling • Note discrepancies • Apply pre-treatments • Use flags for attention
+        </Text>
+      </div>
 
       <Table
         columns={columns}

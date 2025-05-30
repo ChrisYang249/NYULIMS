@@ -32,6 +32,7 @@ from app.schemas.sample import (
     SampleLog as SampleLogSchema,
     SampleLogCreate,
     DiscrepancyApprovalCreate,
+    DiscrepancyApprovalUpdate,
     DiscrepancyApprovalResponse
 )
 
@@ -1318,20 +1319,20 @@ def download_discrepancy_attachment(
     )
 
 @router.put("/{sample_id}/discrepancy-approvals/{approval_id}", response_model=DiscrepancyApprovalResponse)
-def approve_discrepancy(
+def update_discrepancy_approval(
     *,
     db: Session = Depends(deps.get_db),
     sample_id: int,
     approval_id: int,
-    approval_reason: str = Body(..., embed=True, description="Reason for approving despite discrepancy"),
+    approval_data: DiscrepancyApprovalUpdate,
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
-    """Approve a discrepancy (PM only)"""
+    """Approve or reject a discrepancy (PM only)"""
     # Check if user is PM or higher
     if current_user.role not in ['super_admin', 'pm', 'director']:
         raise HTTPException(
             status_code=403, 
-            detail="Only project managers can approve discrepancies"
+            detail="Only project managers can approve or reject discrepancies"
         )
     
     approval = db.query(DiscrepancyApproval).filter(
@@ -1342,28 +1343,33 @@ def approve_discrepancy(
     if not approval:
         raise HTTPException(status_code=404, detail="Discrepancy approval not found")
     
-    if approval.approved:
-        raise HTTPException(status_code=400, detail="Discrepancy already approved")
+    if approval.approved is not None:
+        raise HTTPException(status_code=400, detail="Discrepancy already reviewed")
     
-    # Approve the discrepancy
-    approval.approved = True
+    # Update the discrepancy approval
+    approval.approved = approval_data.approved
     approval.approved_by_id = current_user.id
     approval.approval_date = func.now()
-    approval.approval_reason = approval_reason
+    approval.approval_reason = approval_data.approval_reason
+    approval.signature_meaning = approval_data.signature_meaning
     
-    # Update sample
+    # Update sample - only mark as resolved if discrepancy is rejected (invalid)
     sample = db.query(Sample).filter(Sample.id == sample_id).first()
     if sample:
-        sample.discrepancy_resolved = True
-        sample.discrepancy_resolution_date = func.now()
-        sample.discrepancy_resolved_by_id = current_user.id
+        # If rejected (False), the discrepancy is invalid and sample can proceed
+        # If approved (True), the discrepancy is valid and still needs handling
+        if not approval_data.approved:
+            sample.discrepancy_resolved = True
+            sample.discrepancy_resolution_date = func.now()
+            sample.discrepancy_resolved_by_id = current_user.id
     
     # Create log entry
+    action = "confirmed" if approval_data.approved else "rejected"
     create_sample_log(
         db=db,
         sample_id=sample_id,
-        comment=f"Discrepancy approved: {approval_reason}",
-        log_type="discrepancy_approval",
+        comment=f"Discrepancy {action}: {approval_data.approval_reason}",
+        log_type="discrepancy_resolution",
         user_id=current_user.id
     )
     

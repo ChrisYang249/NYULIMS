@@ -10,8 +10,12 @@ from app.core.config import settings
 from app.crud import user as crud_user
 from app.schemas.token import Token
 from app.schemas.user import User
+from pydantic import BaseModel
 
 router = APIRouter()
+
+class PasswordValidation(BaseModel):
+    password: str
 
 @router.post("/login", response_model=Token)
 async def login(
@@ -49,3 +53,19 @@ async def read_users_me(
 ) -> Any:
     """Get current user"""
     return current_user
+
+@router.post("/validate-password")
+async def validate_password(
+    password_data: PasswordValidation,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """Validate current user's password for electronic signatures"""
+    # Use the same authenticate function to validate password
+    user = crud_user.authenticate_user(db, current_user.username, password_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid password",
+        )
+    return {"valid": True}

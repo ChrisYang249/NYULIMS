@@ -33,14 +33,14 @@ interface DiscrepancyApproval {
   created_at: string;
   created_by: {
     id: number;
-    name: string;
-    email: string;
+    full_name: string;
+    username: string;
   };
   approved: boolean | null;
   approved_by: {
     id: number;
-    name: string;
-    email: string;
+    full_name: string;
+    username: string;
   } | null;
   approval_date: string | null;
   approval_reason: string | null;
@@ -64,6 +64,7 @@ const DiscrepancyManagement = () => {
   const [loading, setLoading] = useState(false);
   const [selectedDiscrepancy, setSelectedDiscrepancy] = useState<DiscrepancyApproval | null>(null);
   const [isApprovalModalVisible, setIsApprovalModalVisible] = useState(false);
+  const [isDetailsModalVisible, setIsDetailsModalVisible] = useState(false);
   const [activeTab, setActiveTab] = useState<'pending' | 'resolved'>('pending');
   const [form] = Form.useForm();
   const { user } = useAuthStore();
@@ -126,21 +127,32 @@ const DiscrepancyManagement = () => {
     if (!selectedDiscrepancy) return;
 
     try {
+      // First validate the password
+      try {
+        await api.post('/auth/validate-password', {
+          password: values.password
+        });
+      } catch (error) {
+        message.error('Invalid password. Please enter your correct password.');
+        return;
+      }
+
       await api.put(`/samples/${selectedDiscrepancy.sample_id}/discrepancy-approvals/${selectedDiscrepancy.id}`, {
         approved: values.approved,
         approval_reason: values.approval_reason,
-        signature_meaning: values.signature_meaning
+        signature_meaning: values.signature_meaning,
+        password: values.password  // Include for audit trail
       });
 
-      // If approved, also update the sample to mark discrepancy as resolved
-      if (values.approved) {
+      // If rejected (discrepancy is invalid), also update the sample to mark discrepancy as resolved
+      if (!values.approved) {
         await api.put(`/samples/${selectedDiscrepancy.sample_id}`, {
           discrepancy_resolved: true,
           discrepancy_resolution_date: new Date().toISOString()
         });
       }
 
-      message.success(values.approved ? 'Discrepancy approved' : 'Discrepancy rejected');
+      message.success(values.approved ? 'Discrepancy confirmed - Special handling may be required' : 'Discrepancy rejected - Sample can proceed normally');
       setIsApprovalModalVisible(false);
       form.resetFields();
       setSelectedDiscrepancy(null);
@@ -227,7 +239,7 @@ const DiscrepancyManagement = () => {
       width: 150,
       render: (_, record) => (
         <Space direction="vertical" size={0}>
-          <Text>{record.created_by?.full_name || record.created_by?.name || 'Unknown'}</Text>
+          <Text>{record.created_by?.full_name || record.created_by?.username || 'Unknown'}</Text>
           <Text type="secondary" style={{ fontSize: 11 }}>
             {dayjs(record.created_at).format('YYYY-MM-DD HH:mm')}
           </Text>
@@ -286,29 +298,9 @@ const DiscrepancyManagement = () => {
           <Button
             size="small"
             onClick={() => {
-              console.log('Details button clicked');
-              console.log('Record data:', record);
-              try {
-                Modal.info({
-                  title: 'Discrepancy Details',
-                  width: 700,
-                  content: (
-                    <div>
-                      <h3>Debug Info:</h3>
-                      <p>Sample: {record.sample_barcode}</p>
-                      <p>Type: {record.discrepancy_type}</p>
-                      <p>Details: {record.discrepancy_details}</p>
-                      <p>Approved: {String(record.approved)}</p>
-                      <p>Created: {record.created_at}</p>
-                      <hr />
-                      <pre>{JSON.stringify(record, null, 2)}</pre>
-                    </div>
-                  ),
-                });
-              } catch (error) {
-                console.error('Error showing modal:', error);
-                alert('Error showing details: ' + error.message);
-              }
+              console.log('Details button clicked for:', record.sample_barcode);
+              setSelectedDiscrepancy(record);
+              setIsDetailsModalVisible(true);
             }}
           >
             Details
@@ -477,14 +469,9 @@ const DiscrepancyManagement = () => {
       >
         {selectedDiscrepancy && (
           <>
-            <Alert
-              message="CFR Part 11 Compliance"
-              description="This action requires an electronic signature. Your approval or rejection will be permanently recorded in the audit trail."
-              type="info"
-              showIcon
-              icon={<SafetyOutlined />}
-              style={{ marginBottom: 16 }}
-            />
+            <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 16 }}>
+              <SafetyOutlined /> This action requires an electronic signature and will be permanently recorded in the audit trail.
+            </Text>
 
             <Descriptions column={2} size="small" bordered style={{ marginBottom: 16 }}>
               <Descriptions.Item label="Sample">{selectedDiscrepancy.sample_barcode}</Descriptions.Item>
@@ -496,7 +483,7 @@ const DiscrepancyManagement = () => {
                 {selectedDiscrepancy.discrepancy_details}
               </Descriptions.Item>
               <Descriptions.Item label="Reported By">
-                {selectedDiscrepancy.created_by?.full_name || selectedDiscrepancy.created_by?.name || 'Unknown'}
+                {selectedDiscrepancy.created_by?.full_name || selectedDiscrepancy.created_by?.username || 'Unknown'}
               </Descriptions.Item>
               <Descriptions.Item label="Date">
                 {dayjs(selectedDiscrepancy.created_at).format('YYYY-MM-DD HH:mm')}
@@ -542,13 +529,13 @@ const DiscrepancyManagement = () => {
                   <Select.Option value={true}>
                     <Space>
                       <CheckCircleOutlined style={{ color: '#52c41a' }} />
-                      Approve - Allow sample to proceed despite discrepancy
+                      Approve - Confirm discrepancy exists (may require special handling)
                     </Space>
                   </Select.Option>
                   <Select.Option value={false}>
                     <Space>
                       <CloseCircleOutlined style={{ color: '#f5222d' }} />
-                      Reject - Do not allow sample to proceed
+                      Reject - Discrepancy claim is invalid (sample can proceed normally)
                     </Space>
                   </Select.Option>
                 </Select>
@@ -556,7 +543,7 @@ const DiscrepancyManagement = () => {
 
               <Form.Item
                 name="approval_reason"
-                label="Reason for Decision"
+                label="Justification for Decision"
                 rules={[
                   { required: true, message: 'Please provide a reason' },
                   { min: 20, message: 'Please provide more detail (min 20 characters)' }
@@ -564,7 +551,7 @@ const DiscrepancyManagement = () => {
               >
                 <TextArea
                   rows={4}
-                  placeholder="Explain your decision and any corrective actions taken or required..."
+                  placeholder="Explain your decision. If confirming discrepancy, describe resolution. If rejecting claim, explain why it's invalid..."
                 />
               </Form.Item>
 
@@ -584,24 +571,23 @@ const DiscrepancyManagement = () => {
                 rules={[{ required: true, message: 'Please specify signature meaning' }]}
               >
                 <Select placeholder="Select signature meaning">
-                  <Select.Option value="I approve this discrepancy and authorize sample processing to continue">
-                    I approve this discrepancy and authorize sample processing to continue
+                  <Select.Option value="I confirm this discrepancy exists and have documented the resolution">
+                    I confirm this discrepancy exists and have documented the resolution
                   </Select.Option>
-                  <Select.Option value="I reject this discrepancy and the sample must not be processed">
-                    I reject this discrepancy and the sample must not be processed
+                  <Select.Option value="I reject this discrepancy claim and authorize sample processing to continue">
+                    I reject this discrepancy claim and authorize sample processing to continue
                   </Select.Option>
-                  <Select.Option value="I have reviewed and documented this discrepancy for quality records">
-                    I have reviewed and documented this discrepancy for quality records
+                  <Select.Option value="I have reviewed and documented this matter for quality records">
+                    I have reviewed and documented this matter for quality records
                   </Select.Option>
                 </Select>
               </Form.Item>
 
-              <Alert
-                message="Legal Notice"
-                description={`By providing your password and submitting this form, you are electronically signing this record. This signature is legally binding and equivalent to a handwritten signature. User: ${user?.name} (${user?.email})`}
-                type="warning"
-                style={{ marginBottom: 16 }}
-              />
+              <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 16 }}>
+                By providing your password and submitting this form, you are electronically signing this record. 
+                This signature is legally binding and equivalent to a handwritten signature. 
+                User: {user?.full_name || user?.username} ({user?.email})
+              </Text>
 
               <Form.Item>
                 <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
@@ -619,6 +605,124 @@ const DiscrepancyManagement = () => {
               </Form.Item>
             </Form>
           </>
+        )}
+      </Modal>
+
+      {/* Details Modal */}
+      <Modal
+        title="Discrepancy Details"
+        open={isDetailsModalVisible}
+        onCancel={() => {
+          setIsDetailsModalVisible(false);
+          setSelectedDiscrepancy(null);
+        }}
+        footer={[
+          <Button key="close" onClick={() => {
+            setIsDetailsModalVisible(false);
+            setSelectedDiscrepancy(null);
+          }}>
+            Close
+          </Button>
+        ]}
+        width={800}
+      >
+        {selectedDiscrepancy && (
+          <div>
+            <Descriptions column={2} size="small" bordered>
+              <Descriptions.Item label="Discrepancy ID">
+                <strong>DISC-{selectedDiscrepancy.id.toString().padStart(6, '0')}</strong>
+              </Descriptions.Item>
+              <Descriptions.Item label="Sample">
+                <Link to={`/samples/${selectedDiscrepancy.sample_id}`}>
+                  <strong>{selectedDiscrepancy.sample_barcode}</strong>
+                </Link>
+              </Descriptions.Item>
+              <Descriptions.Item label="Client ID">
+                {selectedDiscrepancy.sample_client_id || 'N/A'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Project Code">
+                {selectedDiscrepancy.project_code}
+              </Descriptions.Item>
+              <Descriptions.Item label="Client Institution" span={2}>
+                {selectedDiscrepancy.client_institution}
+              </Descriptions.Item>
+              <Descriptions.Item label="Discrepancy Type" span={2}>
+                <Tag color="warning">
+                  {discrepancyTypeLabels[selectedDiscrepancy.discrepancy_type] || selectedDiscrepancy.discrepancy_type}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="Details" span={2}>
+                <Text>{selectedDiscrepancy.discrepancy_details}</Text>
+              </Descriptions.Item>
+              <Descriptions.Item label="Reported By">
+                {selectedDiscrepancy.created_by?.full_name || selectedDiscrepancy.created_by?.username || 'Unknown'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Reported Date">
+                {dayjs(selectedDiscrepancy.created_at).format('YYYY-MM-DD HH:mm')}
+              </Descriptions.Item>
+              <Descriptions.Item label="Status">
+                {selectedDiscrepancy.approved === null ? (
+                  <Tag color="warning" icon={<ClockCircleOutlined />}>Pending Review</Tag>
+                ) : selectedDiscrepancy.approved ? (
+                  <Tag color="success" icon={<CheckCircleOutlined />}>Approved</Tag>
+                ) : (
+                  <Tag color="error" icon={<CloseCircleOutlined />}>Rejected</Tag>
+                )}
+              </Descriptions.Item>
+              <Descriptions.Item label="Resolution By">
+                {selectedDiscrepancy.approved_by ? (
+                  <div>
+                    <Text>{selectedDiscrepancy.approved_by.full_name || selectedDiscrepancy.approved_by.username}</Text>
+                    <br />
+                    <Text type="secondary" style={{ fontSize: 11 }}>
+                      {dayjs(selectedDiscrepancy.approval_date).format('YYYY-MM-DD HH:mm')}
+                    </Text>
+                  </div>
+                ) : (
+                  'Pending'
+                )}
+              </Descriptions.Item>
+            </Descriptions>
+
+            {selectedDiscrepancy.approval_reason && (
+              <div style={{ marginTop: 16 }}>
+                <Divider orientation="left">Resolution Reason</Divider>
+                <Text>{selectedDiscrepancy.approval_reason}</Text>
+              </div>
+            )}
+
+            {selectedDiscrepancy.signature_meaning && (
+              <div style={{ marginTop: 16 }}>
+                <Divider orientation="left">Electronic Signature</Divider>
+                <Text italic>"{selectedDiscrepancy.signature_meaning}"</Text>
+              </div>
+            )}
+
+            {selectedDiscrepancy.attachments && selectedDiscrepancy.attachments.length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <Divider orientation="left">Attachments ({selectedDiscrepancy.attachments.length})</Divider>
+                {selectedDiscrepancy.attachments.map((attachment: any) => (
+                  <div key={attachment.id} style={{ marginBottom: 8 }}>
+                    <Button
+                      size="small"
+                      icon={<PaperClipOutlined />}
+                      onClick={() => {
+                        window.open(
+                          `/api/v1/samples/${selectedDiscrepancy.sample_id}/discrepancy-approvals/${selectedDiscrepancy.id}/attachments/${attachment.id}`,
+                          '_blank'
+                        );
+                      }}
+                    >
+                      {attachment.original_filename}
+                    </Button>
+                    <Text type="secondary" style={{ marginLeft: 8 }}>
+                      ({(attachment.file_size / 1024).toFixed(1)} KB)
+                    </Text>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </Modal>
     </div>

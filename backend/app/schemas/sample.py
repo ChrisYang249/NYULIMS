@@ -220,6 +220,12 @@ class DiscrepancyApprovalBase(BaseModel):
 
 class DiscrepancyApprovalCreate(DiscrepancyApprovalBase):
     pass
+
+class DiscrepancyApprovalUpdate(BaseModel):
+    approved: bool
+    approval_reason: str
+    signature_meaning: str
+    password: Optional[str] = None
     
 class DiscrepancyApprovalResponse(DiscrepancyApprovalBase):
     id: int
@@ -262,5 +268,6 @@ __all__ = [
     "SampleLog",
     "DiscrepancyApprovalBase",
     "DiscrepancyApprovalCreate",
+    "DiscrepancyApprovalUpdate",
     "DiscrepancyApprovalResponse"
 ]
