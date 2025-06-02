@@ -20,6 +20,7 @@ import Accessioning from './pages/Accessioning';
 import ExtractionQueue from './pages/samples/ExtractionQueue';
 import Extraction from './pages/samples/Extraction';
 import ReprocessQueue from './pages/samples/ReprocessQueue';
+import DNAQuantQueue from './pages/samples/DNAQuantQueue';
 import MainLayout from './components/layout/MainLayout';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
@@ -61,6 +62,7 @@ function App() {
               <Route path="samples/accessioning" element={<Accessioning />} />
               <Route path="samples/extraction-queue" element={<ExtractionQueue />} />
               <Route path="samples/extraction" element={<Extraction />} />
+              <Route path="samples/dna-quant-queue" element={<DNAQuantQueue />} />
               <Route path="samples/reprocess" element={<ReprocessQueue />} />
               <Route path="discrepancy-management" element={<DiscrepancyManagement />} />
               <Route path="storage" element={<Storage />} />

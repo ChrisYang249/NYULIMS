@@ -112,7 +112,7 @@ class Sample(Base, TimestampMixin):
     sample_type = Column(Enum(SampleType))  # Deprecated - use sample_type_id instead
     sample_type_id = Column(Integer, ForeignKey("sample_types.id"))  # New foreign key
     sample_type_other = Column(String)  # Description when sample_type is OTHER
-    status = Column(Enum(SampleStatus), default=SampleStatus.REGISTERED)
+    status = Column(String, default=SampleStatus.REGISTERED.value)
     
     # Re-processing tracking
     parent_sample_id = Column(Integer, ForeignKey("samples.id"))

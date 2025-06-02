@@ -838,9 +838,10 @@ def get_queue_samples(
     """Get samples in a specific queue"""
     # Map queue names to status filters
     queue_map = {
-        "accessioning": [SampleStatus.RECEIVED],
-        "extraction": [SampleStatus.ACCESSIONED],
+        "accessioning": [SampleStatus.RECEIVED, SampleStatus.ACCESSIONING],
+        "extraction": [SampleStatus.EXTRACTION_QUEUE],  # Updated to use new status
         "extraction_active": [SampleStatus.IN_EXTRACTION],
+        "dna_quant": [SampleStatus.DNA_QUANT_QUEUE],  # New queue for DNA samples
         "library_prep": [SampleStatus.EXTRACTED],
         "library_prep_active": [SampleStatus.IN_LIBRARY_PREP],
         "sequencing": [SampleStatus.LIBRARY_PREPPED],
@@ -984,7 +985,12 @@ def update_samples_bulk(
             detail=f"Some samples not found. Found {len(samples)} of {len(sample_ids)}"
         )
     
+    # Convert update_data to dict, ensuring enum values are converted to strings
     update_dict = update_data.dict(exclude_unset=True)
+    
+    # Ensure status is a string value if it's an enum
+    if 'status' in update_dict and hasattr(update_dict['status'], 'value'):
+        update_dict['status'] = update_dict['status'].value
     
     # Update all samples
     for sample in samples:

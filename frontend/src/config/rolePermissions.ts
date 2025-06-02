@@ -34,7 +34,7 @@ export const routePermissions: RoutePermission[] = [
   // Sample Queues - TODO: Adjust these based on your workflow
   { 
     path: '/samples/accessioning', 
-    allowedRoles: ['super_admin', 'accessioner', 'lab_manager', 'director'],
+    allowedRoles: ['super_admin', 'pm', 'accessioner', 'lab_manager', 'director'],
     label: 'Accessioning Queue'
   },
   { 
@@ -46,6 +46,11 @@ export const routePermissions: RoutePermission[] = [
     path: '/samples/extraction', 
     allowedRoles: ['super_admin', 'lab_tech', 'lab_manager', 'director'],
     label: 'In Extraction'
+  },
+  { 
+    path: '/samples/dna-quant-queue', 
+    allowedRoles: ['super_admin', 'lab_tech', 'lab_manager', 'director'],
+    label: 'DNA Quant Queue'
   },
   { 
     path: '/samples/library-prep-queue', 
@@ -90,6 +95,7 @@ export const actionPermissions = {
   // Sample actions
   registerSamples: ['super_admin', 'pm', 'lab_manager', 'director'],
   accessionSamples: ['super_admin', 'accessioner', 'lab_manager', 'director'],
+  reviewAndRouteSamples: ['super_admin', 'pm', 'lab_manager', 'director'],
   failSamples: ['super_admin', 'lab_tech', 'lab_manager', 'director'],
   updateSampleStatus: ['super_admin', 'lab_tech', 'lab_manager', 'director'],
   editSamples: ['super_admin', 'lab_manager', 'director'],

@@ -1,0 +1,765 @@
+
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>LIMS System - Intern Onboarding Guide</title>
+        <style>
+            /* Screen styles */
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                max-width: 800px;
+                margin: 0 auto;
+                padding: 20px;
+                background-color: #fff;
+            }
+            
+            /* Print-specific styles */
+            @media print {
+                body {
+                    max-width: none;
+                    margin: 0;
+                    padding: 0;
+                    font-size: 11pt;
+                }
+                h1 {
+                    page-break-after: avoid;
+                }
+                h2, h3 {
+                    page-break-after: avoid;
+                }
+                pre {
+                    page-break-inside: avoid;
+                }
+                table {
+                    page-break-inside: avoid;
+                }
+                .no-print {
+                    display: none;
+                }
+            }
+            
+            h1 {
+                color: #2c3e50;
+                border-bottom: 3px solid #3498db;
+                padding-bottom: 10px;
+                margin-top: 40px;
+                font-size: 2em;
+            }
+            h1:first-child {
+                margin-top: 0;
+            }
+            h2 {
+                color: #34495e;
+                border-bottom: 2px solid #ecf0f1;
+                padding-bottom: 8px;
+                margin-top: 30px;
+                font-size: 1.5em;
+            }
+            h3 {
+                color: #7f8c8d;
+                margin-top: 25px;
+                font-size: 1.2em;
+            }
+            code {
+                background-color: #f5f5f5;
+                padding: 2px 5px;
+                border-radius: 3px;
+                font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                font-size: 0.9em;
+                color: #e74c3c;
+            }
+            pre {
+                background-color: #2c3e50;
+                color: #ecf0f1;
+                padding: 15px;
+                border-radius: 5px;
+                overflow-x: auto;
+                margin: 15px 0;
+                font-size: 0.9em;
+            }
+            pre code {
+                background-color: transparent;
+                color: #ecf0f1;
+                padding: 0;
+            }
+            blockquote {
+                border-left: 4px solid #3498db;
+                padding-left: 15px;
+                margin-left: 0;
+                color: #7f8c8d;
+                font-style: italic;
+            }
+            table {
+                border-collapse: collapse;
+                width: 100%;
+                margin: 20px 0;
+            }
+            th, td {
+                border: 1px solid #ddd;
+                padding: 12px;
+                text-align: left;
+            }
+            th {
+                background-color: #3498db;
+                color: white;
+                font-weight: bold;
+            }
+            tr:nth-child(even) {
+                background-color: #f2f2f2;
+            }
+            ul, ol {
+                margin: 15px 0;
+                padding-left: 30px;
+            }
+            li {
+                margin: 5px 0;
+            }
+            strong {
+                color: #2c3e50;
+                font-weight: 600;
+            }
+            hr {
+                border: none;
+                border-top: 2px solid #ecf0f1;
+                margin: 30px 0;
+            }
+            /* Print button styles */
+            .print-button {
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background-color: #3498db;
+                color: white;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 5px;
+                cursor: pointer;
+                font-size: 16px;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            }
+            .print-button:hover {
+                background-color: #2980b9;
+            }
+            .instructions {
+                background-color: #e8f5e9;
+                border: 1px solid #4caf50;
+                border-radius: 5px;
+                padding: 15px;
+                margin: 20px 0;
+            }
+        </style>
+    </head>
+    <body>
+        <button class="print-button no-print" onclick="window.print()">🖨️ Print to PDF</button>
+        
+        <div class="instructions no-print">
+            <h3>📄 How to Save as PDF:</h3>
+            <ol>
+                <li>Click the "Print to PDF" button above, or press <strong>Cmd+P</strong> (Mac) / <strong>Ctrl+P</strong> (Windows)</li>
+                <li>In the print dialog, choose "Save as PDF" from the destination dropdown</li>
+                <li>Choose your save location and click "Save"</li>
+            </ol>
+        </div>
+        
+        <h1 id="lims-system-intern-onboarding-guide">LIMS System - Intern Onboarding Guide</h1>
+
+<p><strong>Laboratory Information Management System (LIMS)</strong><br />
+<em>Development Environment Setup &amp; Guidelines</em></p>
+
+<hr />
+
+<h2 id="table-of-contents">Table of Contents</h2>
+
+<ol>
+<li><a href="#system-overview">System Overview</a></li>
+<li><a href="#technology-stack">Technology Stack</a></li>
+<li><a href="#repository-setup--branching">Repository Setup &amp; Branching</a></li>
+<li><a href="#development-environment-setup">Development Environment Setup</a></li>
+<li><a href="#project-structure">Project Structure</a></li>
+<li><a href="#development-workflow">Development Workflow</a></li>
+<li><a href="#feature-development-guidelines">Feature Development Guidelines</a></li>
+<li><a href="#testing-guidelines">Testing Guidelines</a></li>
+<li><a href="#key-resources">Key Resources</a></li>
+</ol>
+
+<hr />
+
+<h2 id="system-overview">System Overview</h2>
+
+<p>The LIMS is a comprehensive laboratory management system designed for genomics/DNA sequencing laboratories. It tracks samples through their entire lifecycle from registration to final delivery, ensuring CFR Part 11 compliance for regulatory requirements.</p>
+
+<h3 id="core-functionality">Core Functionality</h3>
+
+<ul>
+<li><strong>Sample Management</strong>: Track samples through 18+ workflow states</li>
+<li><strong>Project Management</strong>: Handle multi-client projects with unique identifiers (CMBP00001 format)</li>
+<li><strong>Storage Tracking</strong>: Monitor freezer locations and sample positions</li>
+<li><strong>Extraction Workflow</strong>: Manage 96-well plate extractions with controls</li>
+<li><strong>Audit Trail</strong>: Complete activity logging for compliance</li>
+</ul>
+
+<hr />
+
+<h2 id="technology-stack">Technology Stack</h2>
+
+<h3 id="backend-pythonfastapi">Backend (Python/FastAPI)</h3>
+
+<pre><code>Framework:    FastAPI 0.104.1
+Database:     PostgreSQL 14+
+ORM:          SQLAlchemy 2.0
+Auth:         python-jose (JWT)
+Validation:   Pydantic 2.0
+Server:       Uvicorn (ASGI)
+Testing:      pytest
+</code></pre>
+
+<h3 id="frontend-reacttypescript">Frontend (React/TypeScript)</h3>
+
+<pre><code>Framework:    React 18.2
+Language:     TypeScript 5.2
+Build Tool:   Vite 5.0
+UI Library:   Ant Design 5.x
+State:        Zustand 4.4
+HTTP Client:  Axios 1.6
+Testing:      Vitest + React Testing Library
+</code></pre>
+
+<h3 id="development-tools">Development Tools</h3>
+
+<pre><code>Version Control:  Git
+Package Manager:  npm (frontend), pip (backend)
+Database Tool:    pgAdmin or DBeaver
+API Testing:      Postman or Thunder Client
+IDE:             VS Code (recommended)
+</code></pre>
+
+<hr />
+
+<h2 id="repository-setup-branching">Repository Setup &amp; Branching</h2>
+
+<h3 id="1-clone-the-repository">1. Clone the Repository</h3>
+
+<p>First, the repository owner needs to add you as a collaborator:
+1. Go to GitHub repository settings
+2. Navigate to "Manage access"
+3. Click "Add people" and add intern's GitHub username</p>
+
+<p>Once added, intern can clone:</p>
+
+<div class="codehilite">
+<pre><span></span><code><span class="c1"># Clone the repository</span>
+git<span class="w"> </span>clone<span class="w"> </span>https://github.com/<span class="o">[</span>owner-username<span class="o">]</span>/<span class="o">[</span>repo-name<span class="o">]</span>.git
+<span class="nb">cd</span><span class="w"> </span>lims-system
+
+<span class="c1"># Verify you&#39;re on main branch</span>
+git<span class="w"> </span>branch
+</code></pre>
+</div>
+
+<h3 id="2-create-your-development-branch">2. Create Your Development Branch</h3>
+
+<p><strong>IMPORTANT</strong>: Always create a feature branch from <code>main</code>. Never commit directly to <code>main</code>.</p>
+
+<div class="codehilite">
+<pre><span></span><code><span class="c1"># Ensure you have the latest main branch</span>
+git<span class="w"> </span>checkout<span class="w"> </span>main
+git<span class="w"> </span>pull<span class="w"> </span>origin<span class="w"> </span>main
+
+<span class="c1"># Create your own development branch</span>
+git<span class="w"> </span>checkout<span class="w"> </span>-b<span class="w"> </span>intern/<span class="o">[</span>your-name<span class="o">]</span>/development
+
+<span class="c1"># Example:</span>
+git<span class="w"> </span>checkout<span class="w"> </span>-b<span class="w"> </span>intern/john-doe/development
+</code></pre>
+</div>
+
+<h3 id="3-branch-naming-convention">3. Branch Naming Convention</h3>
+
+<p>For feature development:</p>
+
+<div class="codehilite">
+<pre><span></span><code><span class="c1"># Pattern: intern/[your-name]/[feature-name]</span>
+git<span class="w"> </span>checkout<span class="w"> </span>-b<span class="w"> </span>intern/john-doe/user-dashboard
+git<span class="w"> </span>checkout<span class="w"> </span>-b<span class="w"> </span>intern/john-doe/sample-import-fix
+git<span class="w"> </span>checkout<span class="w"> </span>-b<span class="w"> </span>intern/john-doe/add-report-generation
+</code></pre>
+</div>
+
+<h3 id="4-protecting-your-work">4. Protecting Your Work</h3>
+
+<div class="codehilite">
+<pre><span></span><code><span class="c1"># Always pull latest changes before starting work</span>
+git<span class="w"> </span>checkout<span class="w"> </span>main
+git<span class="w"> </span>pull<span class="w"> </span>origin<span class="w"> </span>main
+git<span class="w"> </span>checkout<span class="w"> </span>intern/<span class="o">[</span>your-name<span class="o">]</span>/development
+git<span class="w"> </span>merge<span class="w"> </span>main
+
+<span class="c1"># Commit frequently</span>
+git<span class="w"> </span>add<span class="w"> </span>.
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;feat: add sample export functionality&quot;</span>
+
+<span class="c1"># Push to your branch</span>
+git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>intern/<span class="o">[</span>your-name<span class="o">]</span>/development
+</code></pre>
+</div>
+
+<h3 id="5-creating-pull-requests">5. Creating Pull Requests</h3>
+
+<p>When ready to merge your feature:
+1. Push all changes to your branch
+2. Go to GitHub and click "New Pull Request"
+3. Set base branch to <code>main</code> and compare to your branch
+4. Add description of changes
+5. Request review from supervisor</p>
+
+<hr />
+
+<h2 id="development-environment-setup">Development Environment Setup</h2>
+
+<h3 id="prerequisites">Prerequisites</h3>
+
+<ul>
+<li>Python 3.11+</li>
+<li>Node.js 18+</li>
+<li>PostgreSQL 14+</li>
+<li>Git</li>
+</ul>
+
+<h3 id="backend-setup">Backend Setup</h3>
+
+<div class="codehilite">
+<pre><span></span><code><span class="c1"># Navigate to backend directory</span>
+<span class="nb">cd</span><span class="w"> </span>lims-system/backend
+
+<span class="c1"># Create virtual environment</span>
+python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>venv
+
+<span class="c1"># Activate virtual environment</span>
+<span class="c1"># On macOS/Linux:</span>
+<span class="nb">source</span><span class="w"> </span>venv/bin/activate
+<span class="c1"># On Windows:</span>
+venv<span class="se">\S</span>cripts<span class="se">\a</span>ctivate
+
+<span class="c1"># Install dependencies</span>
+pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt
+
+<span class="c1"># Create .env file from example</span>
+cp<span class="w"> </span>.env.example<span class="w"> </span>.env
+</code></pre>
+</div>
+
+<p>Edit <code>.env</code> file:</p>
+
+<pre><code>DATABASE_URL=postgresql://user:password@localhost/lims_db
+SECRET_KEY=your-secret-key-here
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=480
+</code></pre>
+
+<h3 id="database-setup">Database Setup</h3>
+
+<div class="codehilite">
+<pre><span></span><code><span class="c1"># Create database</span>
+createdb<span class="w"> </span>lims_db
+
+<span class="c1"># Run migrations (tables auto-created on first run)</span>
+python<span class="w"> </span>migrate_db.py
+</code></pre>
+</div>
+
+<h3 id="frontend-setup">Frontend Setup</h3>
+
+<div class="codehilite">
+<pre><span></span><code><span class="c1"># Navigate to frontend directory</span>
+<span class="nb">cd</span><span class="w"> </span>lims-system/frontend
+
+<span class="c1"># Install dependencies</span>
+npm<span class="w"> </span>install
+
+<span class="c1"># Start development server</span>
+npm<span class="w"> </span>run<span class="w"> </span>dev
+</code></pre>
+</div>
+
+<h3 id="running-the-full-stack">Running the Full Stack</h3>
+
+<p>Terminal 1 (Backend):</p>
+
+<div class="codehilite">
+<pre><span></span><code><span class="nb">cd</span><span class="w"> </span>lims-system/backend
+<span class="nb">source</span><span class="w"> </span>venv/bin/activate
+uvicorn<span class="w"> </span>app.main:app<span class="w"> </span>--reload<span class="w"> </span>--port<span class="w"> </span><span class="m">8000</span>
+</code></pre>
+</div>
+
+<p>Terminal 2 (Frontend):</p>
+
+<div class="codehilite">
+<pre><span></span><code><span class="nb">cd</span><span class="w"> </span>lims-system/frontend
+npm<span class="w"> </span>run<span class="w"> </span>dev
+</code></pre>
+</div>
+
+<p>Access:
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:8000
+- API Docs: http://localhost:8000/docs</p>
+
+<hr />
+
+<h2 id="project-structure">Project Structure</h2>
+
+<pre><code>lims-system/
+├── backend/
+│   ├── app/
+│   │   ├── api/         # API endpoints
+│   │   ├── models/      # Database models
+│   │   ├── schemas/     # Pydantic schemas
+│   │   ├── crud/        # Database operations
+│   │   └── core/        # Config, security
+│   └── requirements.txt
+├── frontend/
+│   ├── src/
+│   │   ├── components/  # Reusable components
+│   │   ├── pages/       # Page components
+│   │   ├── store/       # State management
+│   │   ├── hooks/       # Custom React hooks
+│   │   └── config/      # Configuration
+│   └── package.json
+└── docs/
+    └── CLAUDE.md        # AI assistant context
+</code></pre>
+
+<hr />
+
+<h2 id="development-workflow">Development Workflow</h2>
+
+<h3 id="1-daily-workflow">1. Daily Workflow</h3>
+
+<div class="codehilite">
+<pre><span></span><code><span class="c1"># Start your day</span>
+git<span class="w"> </span>checkout<span class="w"> </span>main
+git<span class="w"> </span>pull<span class="w"> </span>origin<span class="w"> </span>main
+git<span class="w"> </span>checkout<span class="w"> </span>intern/<span class="o">[</span>your-name<span class="o">]</span>/development
+git<span class="w"> </span>merge<span class="w"> </span>main
+
+<span class="c1"># Work on features</span>
+<span class="c1"># ... make changes ...</span>
+
+<span class="c1"># Commit changes</span>
+git<span class="w"> </span>add<span class="w"> </span>.
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;feat: description of changes&quot;</span>
+git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>intern/<span class="o">[</span>your-name<span class="o">]</span>/development
+</code></pre>
+</div>
+
+<h3 id="2-commit-message-format">2. Commit Message Format</h3>
+
+<p>Follow conventional commits:
+- <code>feat:</code> New feature
+- <code>fix:</code> Bug fix
+- <code>docs:</code> Documentation
+- <code>style:</code> Formatting
+- <code>refactor:</code> Code restructuring
+- <code>test:</code> Adding tests
+- <code>chore:</code> Maintenance</p>
+
+<p>Examples:</p>
+
+<div class="codehilite">
+<pre><span></span><code>git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;feat: add CSV export for sample data&quot;</span>
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;fix: resolve date formatting in sample table&quot;</span>
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;docs: update README with new endpoints&quot;</span>
+</code></pre>
+</div>
+
+<h3 id="3-before-pushing-code">3. Before Pushing Code</h3>
+
+<p>Always run these checks:</p>
+
+<div class="codehilite">
+<pre><span></span><code><span class="c1"># Backend</span>
+<span class="nb">cd</span><span class="w"> </span>backend
+python<span class="w"> </span>-m<span class="w"> </span>pytest
+python<span class="w"> </span>-m<span class="w"> </span>black<span class="w"> </span>app/
+python<span class="w"> </span>-m<span class="w"> </span>flake8<span class="w"> </span>app/
+
+<span class="c1"># Frontend</span>
+<span class="nb">cd</span><span class="w"> </span>frontend
+npm<span class="w"> </span>run<span class="w"> </span>lint
+npm<span class="w"> </span>run<span class="w"> </span>type-check
+npm<span class="w"> </span><span class="nb">test</span>
+</code></pre>
+</div>
+
+<hr />
+
+<h2 id="feature-development-guidelines">Feature Development Guidelines</h2>
+
+<h3 id="1-understanding-the-codebase">1. Understanding the Codebase</h3>
+
+<p>Before adding features:
+1. Read <code>CLAUDE.md</code> for system context
+2. Review existing similar features
+3. Check the API documentation at <code>/docs</code>
+4. Understand the database schema</p>
+
+<h3 id="2-adding-a-new-feature-example">2. Adding a New Feature Example</h3>
+
+<p><strong>Example: Adding a Sample Report Generation Feature</strong></p>
+
+<ol>
+<li><strong>Backend API Endpoint</strong>:</li>
+</ol>
+
+<div class="codehilite">
+<pre><span></span><code><span class="c1"># backend/app/api/api_v1/endpoints/samples.py</span>
+<span class="nd">@router</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;/samples/report/</span><span class="si">{project_id}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span> <span class="nf">generate_sample_report</span><span class="p">(</span>
+    <span class="n">project_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">db</span><span class="p">:</span> <span class="n">Session</span> <span class="o">=</span> <span class="n">Depends</span><span class="p">(</span><span class="n">get_db</span><span class="p">),</span>
+    <span class="n">current_user</span><span class="p">:</span> <span class="n">User</span> <span class="o">=</span> <span class="n">Depends</span><span class="p">(</span><span class="n">get_current_active_user</span><span class="p">)</span>
+<span class="p">):</span>
+    <span class="c1"># Implementation here</span>
+    <span class="k">pass</span>
+</code></pre>
+</div>
+
+<ol start="2">
+<li><strong>Frontend Component</strong>:</li>
+</ol>
+
+<div class="codehilite">
+<pre><span></span><code><span class="c1">// frontend/src/components/samples/ReportGenerator.tsx</span>
+<span class="k">import</span><span class="w"> </span><span class="nx">React</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;react&#39;</span><span class="p">;</span>
+<span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">Button</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;antd&#39;</span><span class="p">;</span>
+<span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">api</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;@/config/api&#39;</span><span class="p">;</span>
+
+<span class="k">export</span><span class="w"> </span><span class="kd">const</span><span class="w"> </span><span class="nx">ReportGenerator</span><span class="o">:</span><span class="w"> </span><span class="kt">React.FC</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">handleGenerateReport</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="kd">const</span><span class="w"> </span><span class="nx">response</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">api</span><span class="p">.</span><span class="nx">get</span><span class="p">(</span><span class="s1">&#39;/samples/report/123&#39;</span><span class="p">);</span>
+<span class="w">        </span><span class="c1">// Handle response</span>
+<span class="w">    </span><span class="p">};</span>
+
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="p">(</span>
+<span class="w">        </span><span class="o">&lt;</span><span class="nx">Button</span><span class="w"> </span><span class="nx">onClick</span><span class="o">=</span><span class="p">{</span><span class="nx">handleGenerateReport</span><span class="p">}</span><span class="o">&gt;</span>
+<span class="w">            </span><span class="nx">Generate</span><span class="w"> </span><span class="nx">Report</span>
+<span class="w">        </span><span class="o">&lt;</span><span class="err">/Button&gt;</span>
+<span class="w">    </span><span class="p">);</span>
+<span class="p">};</span>
+</code></pre>
+</div>
+
+<h3 id="3-common-features-to-practice">3. Common Features to Practice</h3>
+
+<p>Good starter features for interns:
+1. <strong>Add Excel Export</strong> for sample data
+2. <strong>Create Dashboard Widgets</strong> for statistics
+3. <strong>Add Filter Options</strong> to existing tables
+4. <strong>Implement Keyboard Shortcuts</strong> for common actions
+5. <strong>Add Data Validation</strong> for form inputs
+6. <strong>Create Unit Tests</strong> for existing functions</p>
+
+<h3 id="4-database-migrations">4. Database Migrations</h3>
+
+<p>When adding database fields:</p>
+
+<div class="codehilite">
+<pre><span></span><code><span class="c1"># Create a migration script</span>
+<span class="c1"># backend/add_new_field.py</span>
+<span class="kn">from</span> <span class="nn">app.db.base</span> <span class="kn">import</span> <span class="n">engine</span>
+<span class="kn">from</span> <span class="nn">sqlalchemy</span> <span class="kn">import</span> <span class="n">text</span>
+
+<span class="k">def</span> <span class="nf">add_report_generated_field</span><span class="p">():</span>
+    <span class="k">with</span> <span class="n">engine</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+        <span class="n">conn</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">text</span><span class="p">(</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">            ALTER TABLE samples </span>
+<span class="s2">            ADD COLUMN report_generated BOOLEAN DEFAULT FALSE</span>
+<span class="s2">        &quot;&quot;&quot;</span><span class="p">))</span>
+        <span class="n">conn</span><span class="o">.</span><span class="n">commit</span><span class="p">()</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="n">add_report_generated_field</span><span class="p">()</span>
+</code></pre>
+</div>
+
+<hr />
+
+<h2 id="testing-guidelines">Testing Guidelines</h2>
+
+<h3 id="backend-testing">Backend Testing</h3>
+
+<div class="codehilite">
+<pre><span></span><code><span class="c1"># backend/tests/test_samples.py</span>
+<span class="kn">import</span> <span class="nn">pytest</span>
+<span class="kn">from</span> <span class="nn">fastapi.testclient</span> <span class="kn">import</span> <span class="n">TestClient</span>
+<span class="kn">from</span> <span class="nn">app.main</span> <span class="kn">import</span> <span class="n">app</span>
+
+<span class="n">client</span> <span class="o">=</span> <span class="n">TestClient</span><span class="p">(</span><span class="n">app</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">test_create_sample</span><span class="p">():</span>
+    <span class="n">response</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">post</span><span class="p">(</span>
+        <span class="s2">&quot;/api/v1/samples/&quot;</span><span class="p">,</span>
+        <span class="n">json</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;barcode&quot;</span><span class="p">:</span> <span class="s2">&quot;123456&quot;</span><span class="p">,</span> <span class="s2">&quot;project_id&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+    <span class="p">)</span>
+    <span class="k">assert</span> <span class="n">response</span><span class="o">.</span><span class="n">status_code</span> <span class="o">==</span> <span class="mi">200</span>
+</code></pre>
+</div>
+
+<p>Run tests:</p>
+
+<div class="codehilite">
+<pre><span></span><code><span class="nb">cd</span><span class="w"> </span>backend
+python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>tests/
+</code></pre>
+</div>
+
+<h3 id="frontend-testing">Frontend Testing</h3>
+
+<div class="codehilite">
+<pre><span></span><code><span class="c1">// frontend/src/components/__tests__/SampleTable.test.tsx</span>
+<span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">render</span><span class="p">,</span><span class="w"> </span><span class="nx">screen</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;@testing-library/react&#39;</span><span class="p">;</span>
+<span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">SampleTable</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s1">&#39;../SampleTable&#39;</span><span class="p">;</span>
+
+<span class="nx">test</span><span class="p">(</span><span class="s1">&#39;renders sample table&#39;</span><span class="p">,</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nx">render</span><span class="p">(</span><span class="o">&lt;</span><span class="nx">SampleTable</span><span class="w"> </span><span class="o">/&gt;</span><span class="p">);</span>
+<span class="w">    </span><span class="nx">expect</span><span class="p">(</span><span class="nx">screen</span><span class="p">.</span><span class="nx">getByText</span><span class="p">(</span><span class="s1">&#39;Samples&#39;</span><span class="p">)).</span><span class="nx">toBeInTheDocument</span><span class="p">();</span>
+<span class="p">});</span>
+</code></pre>
+</div>
+
+<p>Run tests:</p>
+
+<div class="codehilite">
+<pre><span></span><code><span class="nb">cd</span><span class="w"> </span>frontend
+npm<span class="w"> </span><span class="nb">test</span>
+</code></pre>
+</div>
+
+<hr />
+
+<h2 id="key-resources">Key Resources</h2>
+
+<h3 id="documentation">Documentation</h3>
+
+<ul>
+<li><strong>API Documentation</strong>: http://localhost:8000/docs (when running)</li>
+<li><strong>Project Context</strong>: <code>/lims-system/CLAUDE.md</code></li>
+<li><strong>README Files</strong>: Check README.md in each directory</li>
+</ul>
+
+<h3 id="important-files-to-review">Important Files to Review</h3>
+
+<ol>
+<li><strong>Backend Models</strong>: <code>/backend/app/models/</code></li>
+<li><strong>API Endpoints</strong>: <code>/backend/app/api/api_v1/endpoints/</code></li>
+<li><strong>Frontend Pages</strong>: <code>/frontend/src/pages/</code></li>
+<li><strong>Component Library</strong>: <code>/frontend/src/components/</code></li>
+</ol>
+
+<h3 id="development-tools-2">Development Tools</h3>
+
+<ul>
+<li><strong>VS Code Extensions</strong>:
+<ul>
+<li>Python (Microsoft)</li>
+<li>Pylance</li>
+<li>ESLint</li>
+<li>Prettier</li>
+<li>GitLens</li>
+<li>Thunder Client (API testing)</li>
+</ul></li>
+</ul>
+
+<h3 id="getting-help">Getting Help</h3>
+
+<ol>
+<li>Check existing code for patterns</li>
+<li>Review git history for similar changes</li>
+<li>Use API docs for endpoint testing</li>
+<li>Ask questions early and often</li>
+</ol>
+
+<hr />
+
+<h2 id="quick-reference-commands">Quick Reference Commands</h2>
+
+<div class="codehilite">
+<pre><span></span><code><span class="c1"># Backend</span>
+<span class="nb">cd</span><span class="w"> </span>backend<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>venv/bin/activate
+uvicorn<span class="w"> </span>app.main:app<span class="w"> </span>--reload
+
+<span class="c1"># Frontend</span>
+<span class="nb">cd</span><span class="w"> </span>frontend
+npm<span class="w"> </span>run<span class="w"> </span>dev
+
+<span class="c1"># Git</span>
+git<span class="w"> </span>status
+git<span class="w"> </span>add<span class="w"> </span>.
+git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;feat: your message&quot;</span>
+git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>intern/<span class="o">[</span>your-name<span class="o">]</span>/<span class="o">[</span>branch<span class="o">]</span>
+
+<span class="c1"># Database</span>
+psql<span class="w"> </span>-d<span class="w"> </span>lims_db
+<span class="se">\d</span>t<span class="w">  </span><span class="c1"># list tables</span>
+<span class="se">\q</span><span class="w">   </span><span class="c1"># quit</span>
+
+<span class="c1"># Testing</span>
+<span class="nb">cd</span><span class="w"> </span>backend<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>pytest
+<span class="nb">cd</span><span class="w"> </span>frontend<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>npm<span class="w"> </span><span class="nb">test</span>
+</code></pre>
+</div>
+
+<hr />
+
+<h2 id="safety-guidelines">Safety Guidelines</h2>
+
+<h3 id="do">DO:</h3>
+
+<ul>
+<li>Always work in your own branch</li>
+<li>Commit and push frequently</li>
+<li>Pull from main daily</li>
+<li>Test your code before pushing</li>
+<li>Ask questions when unsure</li>
+<li>Review existing code patterns</li>
+</ul>
+
+<h3 id="dont">DON'T:</h3>
+
+<ul>
+<li>Never force push (<code>git push -f</code>)</li>
+<li>Don't commit directly to main</li>
+<li>Don't delete branches you didn't create</li>
+<li>Don't modify database directly in production</li>
+<li>Don't commit sensitive data (.env files)</li>
+<li>Don't skip testing</li>
+</ul>
+
+<hr />
+
+<p><strong>Welcome to the team! Happy coding!</strong></p>
+
+<p><em>Last Updated: January 2025</em></p>
+
+        
+        <script>
+            // Auto-generate table of contents links
+            document.addEventListener('DOMContentLoaded', function() {
+                const headings = document.querySelectorAll('h1[id], h2[id], h3[id]');
+                headings.forEach(heading => {
+                    heading.style.cursor = 'pointer';
+                    heading.title = 'Click to copy link';
+                    heading.addEventListener('click', function() {
+                        const url = window.location.href.split('#')[0] + '#' + this.id;
+                        navigator.clipboard.writeText(url);
+                    });
+                });
+            });
+        </script>
+    </body>
+    </html>
+    

@@ -26,6 +26,7 @@ import {
   SearchOutlined,
   WarningOutlined,
   FlagOutlined,
+  BgColorsOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { api } from '../../config/api';
@@ -46,30 +47,21 @@ interface Sample {
   status: string;
   created_at: string;
   target_depth: number;
-  pretreatment_type?: string;
-  spike_in_type?: string;
   has_flag?: boolean;
   flag_abbreviation?: string;
   flag_notes?: string;
   has_discrepancy?: boolean;
   discrepancy_notes?: string;
   discrepancy_resolved?: boolean;
+  dna_concentration_ng_ul?: number;
 }
 
-interface ExtractionPlate {
-  id: string;
-  name: string;
-  created_date: string;
-  tech_assigned?: string;
-  status: 'planning' | 'assigned' | 'in_progress' | 'completed';
-}
-
-const ExtractionQueue: React.FC = () => {
+const DNAQuantQueue: React.FC = () => {
   const [samples, setSamples] = useState<Sample[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedSamples, setSelectedSamples] = useState<number[]>([]);
-  const [showAssigned, setShowAssigned] = useState(false);
-  const [isAssignModalVisible, setIsAssignModalVisible] = useState(false);
+  const [showInProgress, setShowInProgress] = useState(false);
+  const [isQuantModalVisible, setIsQuantModalVisible] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [form] = Form.useForm();
 
@@ -84,9 +76,8 @@ const ExtractionQueue: React.FC = () => {
   const fetchSamples = async () => {
     setLoading(true);
     try {
-      // Use the queue endpoint which properly filters by status
-      const queueName = showAssigned ? 'extraction_active' : 'extraction';
-      const response = await api.get(`/samples/queues/${queueName}`);
+      // Fetch samples in dna_quant_queue status
+      const response = await api.get('/samples/queues/dna_quant');
       setSamples(response.data || []);
     } catch (error) {
       message.error('Failed to fetch samples');
@@ -97,7 +88,7 @@ const ExtractionQueue: React.FC = () => {
 
   useEffect(() => {
     fetchSamples();
-  }, [showAssigned]);
+  }, [showInProgress]);
 
   const filteredSamples = samples.filter((sample) => {
     if (!searchText) return true;
@@ -110,26 +101,20 @@ const ExtractionQueue: React.FC = () => {
     );
   });
 
-  const handleAssignToExtraction = async (values: any) => {
+  const handleAssignToQuant = async (values: any) => {
     try {
-      // Generate extraction plate ID
-      const plateId = `EXT-${dayjs().format('YYYYMMDD')}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
-      
-      // Update samples with extraction assignment
+      // Update samples with quant assignment
       await api.post('/samples/bulk-update', {
         sample_ids: selectedSamples,
         update_data: {
-          status: 'IN_EXTRACTION',
-          extraction_plate_id: plateId,
-          extraction_tech_id: values.tech_id,
-          extraction_assigned_date: new Date().toISOString(),
-          extraction_notes: values.notes,
+          status: 'IN_LIBRARY_PREP',
+          queue_notes: `Assigned to ${values.tech_name} for quantification`,
         },
       });
 
-      message.success(`${selectedSamples.length} samples assigned to extraction plate ${plateId}`);
+      message.success(`${selectedSamples.length} samples assigned for quantification`);
       setSelectedSamples([]);
-      setIsAssignModalVisible(false);
+      setIsQuantModalVisible(false);
       form.resetFields();
       fetchSamples();
     } catch (error: any) {
@@ -184,6 +169,18 @@ const ExtractionQueue: React.FC = () => {
       dataIndex: 'sample_type',
       key: 'sample_type',
       width: 120,
+      render: (type: string) => (
+        <Tag color="cyan" icon={<BgColorsOutlined />}>
+          {type?.toUpperCase()}
+        </Tag>
+      ),
+    },
+    {
+      title: 'Conc. (ng/μL)',
+      dataIndex: 'dna_concentration_ng_ul',
+      key: 'dna_concentration_ng_ul',
+      width: 120,
+      render: (conc: number) => conc ? `${conc.toFixed(1)}` : 'Pending',
     },
     {
       title: 'Target Depth',
@@ -191,24 +188,6 @@ const ExtractionQueue: React.FC = () => {
       key: 'target_depth',
       width: 100,
       render: (depth: number) => depth ? `${depth}M` : '-',
-    },
-    {
-      title: 'Pre-treatment',
-      dataIndex: 'pretreatment_type',
-      key: 'pretreatment_type',
-      width: 120,
-      render: (type: string) => type ? (
-        <Tag color="purple">{type}</Tag>
-      ) : '-',
-    },
-    {
-      title: 'Spike-in',
-      dataIndex: 'spike_in_type',
-      key: 'spike_in_type',
-      width: 120,
-      render: (type: string) => type && type !== 'none' ? (
-        <Tag color="green">{type}</Tag>
-      ) : '-',
     },
     {
       title: 'Days in Queue',
@@ -227,9 +206,6 @@ const ExtractionQueue: React.FC = () => {
     onChange: (selectedRowKeys: React.Key[]) => {
       setSelectedSamples(selectedRowKeys as number[]);
     },
-    getCheckboxProps: (record: Sample) => ({
-      disabled: showAssigned, // Disable selection for already assigned samples
-    }),
   };
 
   return (
@@ -238,25 +214,19 @@ const ExtractionQueue: React.FC = () => {
         <Row justify="space-between" align="middle">
           <Col>
             <Title level={2}>
-              <ExperimentOutlined /> Extraction Queue
+              <BgColorsOutlined /> DNA Quantification Queue
             </Title>
           </Col>
           <Col>
             <Space>
-              <Switch
-                checked={showAssigned}
-                onChange={setShowAssigned}
-                checkedChildren="Show In Extraction"
-                unCheckedChildren="Show Queue"
-              />
               <Button icon={<SyncOutlined />} onClick={fetchSamples}>
                 Refresh
               </Button>
-              {selectedSamples.length > 0 && !showAssigned && (
+              {selectedSamples.length > 0 && (
                 <Button
                   type="primary"
                   icon={<TeamOutlined />}
-                  onClick={() => setIsAssignModalVisible(true)}
+                  onClick={() => setIsQuantModalVisible(true)}
                 >
                   Assign to Tech ({selectedSamples.length})
                 </Button>
@@ -270,7 +240,7 @@ const ExtractionQueue: React.FC = () => {
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col span={6}>
           <Card size="small">
-            <Badge status="processing" text={`Samples in Queue: ${samples.filter(s => s.status === 'extraction_queue').length}`} />
+            <Badge status="processing" text={`Samples in Queue: ${samples.length}`} />
           </Card>
         </Col>
         <Col span={6}>
@@ -280,7 +250,7 @@ const ExtractionQueue: React.FC = () => {
         </Col>
         <Col span={6}>
           <Card size="small">
-            <Badge status="success" text={`In Extraction: ${samples.filter(s => s.status === 'IN_EXTRACTION').length}`} />
+            <Badge status="default" text={`DNA Samples: ${samples.filter(s => s.sample_type?.toLowerCase() === 'dna').length}`} />
           </Card>
         </Col>
         <Col span={6}>
@@ -307,7 +277,7 @@ const ExtractionQueue: React.FC = () => {
         dataSource={filteredSamples}
         rowKey="id"
         loading={loading}
-        rowSelection={!showAssigned ? rowSelection : undefined}
+        rowSelection={rowSelection}
         scroll={{ x: 1200 }}
         pagination={{
           pageSize: 50,
@@ -318,22 +288,28 @@ const ExtractionQueue: React.FC = () => {
 
       {/* Assign to Tech Modal */}
       <Modal
-        title="Assign Samples to Extraction"
-        visible={isAssignModalVisible}
+        title="Assign Samples for Quantification"
+        visible={isQuantModalVisible}
         onCancel={() => {
-          setIsAssignModalVisible(false);
+          setIsQuantModalVisible(false);
           form.resetFields();
         }}
         footer={null}
         width={600}
       >
-        <Form form={form} layout="vertical" onFinish={handleAssignToExtraction}>
+        <Form form={form} layout="vertical" onFinish={handleAssignToQuant}>
           <Form.Item
             name="tech_id"
             label="Assign to Lab Technician"
             rules={[{ required: true, message: 'Please select a technician' }]}
           >
-            <Select placeholder="Select technician">
+            <Select 
+              placeholder="Select technician"
+              onChange={(value) => {
+                const tech = labTechs.find(t => t.id === value);
+                form.setFieldsValue({ tech_name: tech?.name });
+              }}
+            >
               {labTechs.map((tech) => (
                 <Option key={tech.id} value={tech.id}>
                   {tech.name} - {tech.role}
@@ -342,17 +318,21 @@ const ExtractionQueue: React.FC = () => {
             </Select>
           </Form.Item>
 
+          <Form.Item name="tech_name" hidden>
+            <Input />
+          </Form.Item>
+
           <Form.Item
-            name="extraction_method"
-            label="Extraction Method"
-            rules={[{ required: true, message: 'Please select extraction method' }]}
+            name="quant_method"
+            label="Quantification Method"
+            rules={[{ required: true, message: 'Please select quantification method' }]}
           >
             <Select placeholder="Select method">
-              <Option value="qiagen_powersoil">Qiagen PowerSoil Pro</Option>
-              <Option value="qiagen_dneasy">Qiagen DNeasy</Option>
-              <Option value="zymo_quick">ZymoBIOMICS Quick-DNA</Option>
-              <Option value="zymo_miniprep">ZymoBIOMICS DNA Miniprep</Option>
-              <Option value="custom">Custom Protocol</Option>
+              <Option value="qubit_dsdna_hs">Qubit dsDNA HS</Option>
+              <Option value="qubit_dsdna_br">Qubit dsDNA BR</Option>
+              <Option value="nanodrop">NanoDrop</Option>
+              <Option value="bioanalyzer">Bioanalyzer</Option>
+              <Option value="tapestation">TapeStation</Option>
             </Select>
           </Form.Item>
 
@@ -365,7 +345,7 @@ const ExtractionQueue: React.FC = () => {
               <Button type="primary" htmlType="submit" icon={<CheckCircleOutlined />}>
                 Assign {selectedSamples.length} Samples
               </Button>
-              <Button onClick={() => setIsAssignModalVisible(false)}>Cancel</Button>
+              <Button onClick={() => setIsQuantModalVisible(false)}>Cancel</Button>
             </Space>
           </Form.Item>
         </Form>
@@ -374,4 +354,4 @@ const ExtractionQueue: React.FC = () => {
   );
 };
 
-export default ExtractionQueue;
+export default DNAQuantQueue;

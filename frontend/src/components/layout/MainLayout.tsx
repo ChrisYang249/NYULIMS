@@ -71,6 +71,10 @@ const MainLayout = () => {
           label: 'In Extraction',
         },
         {
+          key: '/samples/dna-quant-queue',
+          label: 'DNA Quant Queue',
+        },
+        {
           key: '/samples/reprocess',
           label: 'Reprocess Queue',
         },

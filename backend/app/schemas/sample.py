@@ -100,6 +100,19 @@ class SampleUpdate(BaseModel):
     extraction_260_280: Optional[float] = None
     extraction_260_230: Optional[float] = None
     
+    @validator('status', pre=True)
+    def validate_status(cls, v):
+        if isinstance(v, str):
+            # Ensure the status value matches the enum values exactly
+            if v == 'extraction_queue' or v == 'EXTRACTION_QUEUE':
+                return 'extraction_queue'
+            elif v == 'dna_quant_queue' or v == 'DNA_QUANT_QUEUE':
+                return 'dna_quant_queue'
+        return v
+    
+    class Config:
+        use_enum_values = True
+    
 class SampleAccession(BaseModel):
     accessioning_notes: Optional[str] = None
 
@@ -177,6 +190,7 @@ class Sample(SampleBase):
     
     class Config:
         from_attributes = True
+        use_enum_values = True
 
 # Enhanced sample response with lab data
 class SampleWithLabData(Sample):

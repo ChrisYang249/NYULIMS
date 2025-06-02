@@ -48,8 +48,9 @@ createdb lims_db
 
 1. **Enhanced Sample Workflow**: 
    - Registered → Received → Accessioning → Accessioned
-   - Accessioned → Extraction Queue → In Extraction → Extracted
-   - Extracted → DNA Quant Queue → Library Prep → Sequenced → Analyzed → Delivered
+   - PM Review: Accessioned → extraction_queue OR dna_quant_queue (based on sample type)
+   - extraction_queue → In Extraction → Extracted → dna_quant_queue
+   - dna_quant_queue → Library Prep → Sequenced → Analyzed → Delivered
 2. **Barcode System**: Auto-generated 6-digit barcodes with re-processing support (e.g., 123456-R1)
 3. **Extraction/Prep Planning**: 96-well plates with 3 control positions, batch multiple projects
 4. **Audit Trail**: All database changes are tracked with user, timestamp, and before/after values
@@ -60,6 +61,7 @@ createdb lims_db
 - Projects: `/api/v1/projects/*`
 - Samples: `/api/v1/samples/*`
 - Users: `/api/v1/users/*` (admin only)
+- Queues: `/api/v1/samples/queues/{queue_name}` (accessioning, extraction, dna_quant, etc.)
 
 ## CFR Part 11 Compliance
 
@@ -68,23 +70,24 @@ createdb lims_db
 - Complete audit trail for all data changes
 - Electronic signature support with timestamp and reason
 
-## Recent Updates & Current State
+## Recent Updates & Current State (Feb 6, 2025)
+
+### PM Review Workflow
+- **Implemented**: PM reviews accessioned samples and routes to appropriate queues
+- **DNA Sample Types**: dna, dna_plate, cdna, dna_cdna, dna_library, rna_library, library_pool → Go directly to DNA Quant Queue
+- **Other Sample Types**: Go to Extraction Queue
+- **Permissions**: Added `reviewAndRouteSamples` action for PM role
 
 ### Database Schema Changes
-- **Project Status Enum**: Migrated from old values (RECEIVED, ACCESSIONING, etc.) to new simplified values (pending, lab, bis, completed, deleted)
-- **Sample Status Enum**: Uses detailed workflow states (registered, received, accessioning, accessioned, extraction_queue, in_extraction, extracted, dna_quant_queue, in_library_prep, library_prepped, in_sequencing, sequenced, in_analysis, analysis_complete, delivered, failed, cancelled)
+- **Sample Status**: Changed from PostgreSQL enum to VARCHAR(50) to fix SQLAlchemy issues
+- **Status Values**: 
+  - Old workflow: REGISTERED, RECEIVED, ACCESSIONING, ACCESSIONED, IN_EXTRACTION, etc.
+  - New queue statuses: extraction_queue, dna_quant_queue (lowercase)
 
-### User Management System
-- **User Roles**: super_admin, pm, accessioner, lab_tech, lab_manager, director, sales
-- **Current Implementation**: 
-  - Basic user CRUD endpoints exist at `/api/v1/users/` (list and create only)
-  - Frontend "Employees" page exists but incorrectly uses `/employees` endpoints
-  - Role-based access control partially implemented (only super_admin checks)
-- **Missing Features**:
-  - Update/delete user endpoints
-  - Password reset functionality
-  - Role-based UI visibility
-  - Metrics/monitoring dashboard
+### Frontend Updates
+- **Accessioning Page**: Shows "Queue Destination" column when viewing completed samples
+- **Samples Page**: Added extraction_queue and dna_quant_queue to statusOptions
+- **New Page**: DNAQuantQueue.tsx at `/samples/dna-quant-queue`
 
 ### Known Issues
 - Frontend user management page (Employees.tsx) needs to be connected to proper `/users/` endpoints
@@ -120,6 +123,7 @@ createdb lims_db
 ✅ Migrations completed:
 1. `python add_sample_fields.py` - Added new sample fields and storage locations
 2. `python add_sample_logs.py` - Added sample_logs table for activity tracking
+3. Status column converted from enum to VARCHAR (Feb 6, 2025)
 
 Tables created:
 - storage_locations - Track freezer/shelf/box/position
@@ -139,10 +143,12 @@ Tables created:
 - `GET/POST /samples/storage/locations` - Manage storage locations
 - `GET /samples/{id}/logs` - Get all activity logs for a sample
 - `POST /samples/{id}/logs` - Add a comment to a sample
+- `GET /samples/queues/{queue_name}` - Get samples in specific queue
 
 ### Frontend Routes
 - `/samples` - Sample list with bulk operations
 - `/samples/:id` - Sample details page with edit/status update
+- `/samples/dna-quant-queue` - DNA Quantification Queue
 
 ## Storage Management System (Completed)
 
@@ -160,59 +166,13 @@ Tables created:
 - Component: `frontend/src/pages/Storage.tsx`
 
 ## Current Git Branch
-- Working on: `feature/discrepancy-management`
-- Status: All changes committed and pushed to GitHub
-- Latest commit: Add multiple sample discrepancy reporting and improve sample sorting
-
-## Recent Updates (Latest Sessions)
-
-### Sample Management System (Completed)
-1. ✅ Created comprehensive sample details page with tabs for basic info, lab data, and activity
-2. ✅ Added sample status update functionality with notes
-3. ✅ Made barcodes clickable links to details page
-4. ✅ Fixed CSV template to show actual CMBP project IDs
-5. ✅ Created Excel template with multiple reference sheets
-6. ✅ Added sample edit functionality
-7. ✅ Installed xlsx and file-saver packages for Excel generation
-8. ✅ Implemented comprehensive logging system for samples
-9. ✅ Added comment functionality to sample details
-10. ✅ Created activity timeline showing all changes and comments
-11. ✅ Added automatic logging for create, update, status change, and accession operations
-12. ✅ Created sample_logs table with proper indexes
-
-### Latest Enhancements (January 2025)
-1. ✅ Added service type tracking for samples (inherits from project)
-2. ✅ Implemented bulk operations (delete, status update) with dedicated endpoints
-3. ✅ Added URL-based filter persistence across navigation
-4. ✅ Enabled Cmd/Ctrl/Shift+Click to open samples/projects in new tabs
-5. ✅ Made client field searchable in project creation
-6. ✅ Fixed pagination to support configurable page sizes (20/50/100/200)
-7. ✅ Added service type validation during bulk import
-8. ✅ Created bulk actions dropdown for selected samples
-9. ✅ Fixed "Show deleted samples" toggle functionality
-10. ✅ Updated documentation (PROJECT_DESCRIPTION.md and README.md)
-
-### Accessioning & Extraction Workflow (January 30, 2025)
-1. ✅ Added ACCESSIONING status between RECEIVED and ACCESSIONED
-2. ✅ Created comprehensive accessioning page with pre-treatment and spike-in options
-3. ✅ Implemented flag system with standardized abbreviations
-4. ✅ Added discrepancy management with electronic approval workflow
-5. ✅ Created extraction queue management system
-6. ✅ Built lab manager interface for assigning extraction work to technicians
-7. ✅ Added extraction_queue and dna_quant_queue statuses
-8. ✅ Implemented automatic plate ID generation for extraction batches
-9. ✅ Added extraction-related fields to database (method, QC data, well positions)
-10. ✅ Made table styling consistent across all pages (compact view)
-11. ✅ Implemented smart sample sorting by due date and project
-12. ✅ Added bulk discrepancy reporting for multiple samples
-13. ✅ Enhanced discrepancy modal to show selected samples (up to 5)
-14. ✅ Restricted file attachments to single sample discrepancies only
+- Working on: main/master
+- All PM review workflow changes have been implemented
 
 ## Next Steps
-1. Build Extraction planning and tracking system (96-well plate management)
-2. Build Library Prep planning and tracking system
-3. Build Sequencing run management system
-4. Implement CSV import backend endpoint for bulk samples
-5. Add visual freezer/box maps
-6. Complete user management CRUD operations
-7. Add audit trail viewing for samples
+1. Build Library Prep planning and tracking system
+2. Build Sequencing run management system
+3. Implement CSV import backend endpoint for bulk samples
+4. Add visual freezer/box maps
+5. Complete user management CRUD operations
+6. Add audit trail viewing for samples

@@ -17,6 +17,8 @@ import { api } from '../config/api';
 import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
 import { Link } from 'react-router-dom';
+import { useAuthStore } from '../store/authStore';
+import { canPerformAction } from '../config/rolePermissions';
 
 const { Text, Title } = Typography;
 const { TextArea } = Input;
@@ -55,6 +57,7 @@ interface Project {
 }
 
 const Accessioning = () => {
+  const { user } = useAuthStore();
   const [samples, setSamples] = useState<Sample[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedSamples, setSelectedSamples] = useState<number[]>([]);
@@ -247,21 +250,67 @@ const Accessioning = () => {
     }
   };
 
-  const handleMoveToExtractionQueue = async () => {
-    try {
-      // Use bulk update endpoint to move samples to extraction queue
-      await api.post('/samples/bulk-update', {
-        sample_ids: selectedSamples,
-        update_data: {
-          status: 'extraction_queue'
-        }
-      });
+  // Sample types that should go directly to DNA Quant Queue (no extraction needed)
+  const DNA_SAMPLE_TYPES = [
+    'dna', 'dna_plate', 'cdna', 'dna_cdna', 
+    'dna_library', 'rna_library', 'library_pool'
+  ];
 
-      message.success(`${selectedSamples.length} samples moved to extraction queue`);
+  const handleMoveToQueues = async () => {
+    try {
+      // Get the selected sample details
+      const selectedSampleData = filteredSamples.filter(s => selectedSamples.includes(s.id));
+      
+      // Group samples by their destination queue
+      const extractionSamples: number[] = [];
+      const quantSamples: number[] = [];
+      
+      for (const sample of selectedSampleData) {
+        if (DNA_SAMPLE_TYPES.includes(sample.sample_type.toLowerCase())) {
+          quantSamples.push(sample.id);
+        } else {
+          extractionSamples.push(sample.id);
+        }
+      }
+
+      // Update samples in batches based on their destination
+      const updates = [];
+      
+      if (extractionSamples.length > 0) {
+        updates.push(
+          api.post('/samples/bulk-update', {
+            sample_ids: extractionSamples,
+            update_data: {
+              status: 'extraction_queue',
+              queue_notes: 'PM review completed - sent to extraction queue'
+            }
+          })
+        );
+      }
+      
+      if (quantSamples.length > 0) {
+        updates.push(
+          api.post('/samples/bulk-update', {
+            sample_ids: quantSamples,
+            update_data: {
+              status: 'dna_quant_queue',
+              queue_notes: 'PM review completed - sent directly to DNA quant queue (no extraction needed)'
+            }
+          })
+        );
+      }
+
+      await Promise.all(updates);
+      
+      message.success(
+        `Successfully reviewed ${selectedSamples.length} samples. ` +
+        `${extractionSamples.length} sent to extraction, ${quantSamples.length} sent to DNA quant.`
+      );
+      
       setSelectedSamples([]);
       fetchSamples();
     } catch (error: any) {
-      message.error(error.response?.data?.detail || 'Failed to move samples to extraction queue');
+      message.error(error.response?.data?.detail || 'Failed to move samples to queues');
     }
   };
 
@@ -423,9 +472,12 @@ const Accessioning = () => {
       key: 'sample_type',
       width: 100,
       sorter: (a, b) => a.sample_type.localeCompare(b.sample_type),
-      render: (type: string) => (
-        <Tag>{type.toUpperCase()}</Tag>
-      ),
+      render: (type: string) => {
+        const isDNA = DNA_SAMPLE_TYPES.includes(type.toLowerCase());
+        return (
+          <Tag color={isDNA ? 'blue' : 'default'}>{type.toUpperCase()}</Tag>
+        );
+      },
     },
     {
       title: 'Received',
@@ -469,6 +521,20 @@ const Accessioning = () => {
         );
       },
     },
+    // Show destination queue column only when viewing completed samples
+    ...(showCompleted ? [{
+      title: 'Queue Destination',
+      key: 'queue_destination',
+      width: 140,
+      render: (_: any, record: Sample) => {
+        const isDNA = DNA_SAMPLE_TYPES.includes(record.sample_type.toLowerCase());
+        return (
+          <Tag color={isDNA ? 'blue' : 'green'}>
+            {isDNA ? 'DNA Quant Queue' : 'Extraction Queue'}
+          </Tag>
+        );
+      },
+    }] : []),
     {
       title: 'Actions',
       key: 'actions',
@@ -520,22 +586,23 @@ const Accessioning = () => {
               </Button>
               {selectedSamples.length > 0 && (
                 <Space>
-                  <Button
-                    type="primary"
-                    icon={<CheckCircleOutlined />}
-                    onClick={() => {
-                      if (showCompleted) {
-                        // Handle moving to extraction queue
-                        handleMoveToExtractionQueue();
-                      } else {
-                        setIsAccessionModalVisible(true);
-                      }
-                    }}
-                  >
-                    {showCompleted 
-                      ? `Move to Extraction Queue (${selectedSamples.length})`
-                      : `Accession Selected (${selectedSamples.length})`}
-                  </Button>
+                  {showCompleted && canPerformAction(user?.role, 'reviewAndRouteSamples') ? (
+                    <Button
+                      type="primary"
+                      icon={<CheckCircleOutlined />}
+                      onClick={() => handleMoveToQueues()}
+                    >
+                      Review & Route to Queues ({selectedSamples.length})
+                    </Button>
+                  ) : !showCompleted ? (
+                    <Button
+                      type="primary"
+                      icon={<CheckCircleOutlined />}
+                      onClick={() => setIsAccessionModalVisible(true)}
+                    >
+                      Accession Selected ({selectedSamples.length})
+                    </Button>
+                  ) : null}
                   {!showCompleted && (
                     <Button
                       icon={<WarningOutlined />}
