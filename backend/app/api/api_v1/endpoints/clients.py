@@ -1,6 +1,7 @@
 from typing import Any, List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.api import deps
 from app.models import User, Client
@@ -67,4 +68,47 @@ def read_client(
             status_code=404,
             detail="Client not found",
         )
+    return client
+
+
+@router.put("/{client_id}", response_model=ClientSchema)
+def update_client(
+    *,
+    db: Session = Depends(deps.get_db),
+    client_id: int,
+    client_in: ClientUpdate,
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Update a client.
+    """
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(
+            status_code=404,
+            detail="Client not found",
+        )
+    
+    # Check if new email already exists (if email is being changed)
+    if client_in.email and client_in.email != client.email:
+        existing_client = db.query(Client).filter(
+            Client.email == client_in.email,
+            Client.id != client_id
+        ).first()
+        if existing_client:
+            raise HTTPException(
+                status_code=400,
+                detail="Client with this email already exists",
+            )
+    
+    # Update client fields
+    update_data = client_in.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(client, field, value)
+    
+    client.updated_by_id = current_user.id
+    client.updated_at = func.now()
+    db.add(client)
+    db.commit()
+    db.refresh(client)
     return client

@@ -71,15 +71,8 @@ const ExtractionQueue: React.FC = () => {
   const [showAssigned, setShowAssigned] = useState(false);
   const [isAssignModalVisible, setIsAssignModalVisible] = useState(false);
   const [searchText, setSearchText] = useState('');
+  const [labTechs, setLabTechs] = useState<any[]>([]);
   const [form] = Form.useForm();
-
-  // Mock data for lab techs
-  const labTechs = [
-    { id: 1, name: 'John Smith', role: 'Lab Technician' },
-    { id: 2, name: 'Jane Doe', role: 'Lab Technician' },
-    { id: 3, name: 'Mike Johnson', role: 'Senior Lab Tech' },
-    { id: 4, name: 'Sarah Williams', role: 'Lab Technician' },
-  ];
 
   const fetchSamples = async () => {
     setLoading(true);
@@ -95,8 +88,22 @@ const ExtractionQueue: React.FC = () => {
     }
   };
 
+  const fetchLabTechs = async () => {
+    try {
+      const response = await api.get('/users');
+      // Filter users who are lab techs or lab managers
+      const techs = response.data.filter((user: any) => 
+        ['lab_tech', 'lab_manager'].includes(user.role)
+      );
+      setLabTechs(techs);
+    } catch (error) {
+      message.error('Failed to fetch lab technicians');
+    }
+  };
+
   useEffect(() => {
     fetchSamples();
+    fetchLabTechs();
   }, [showAssigned]);
 
   const filteredSamples = samples.filter((sample) => {
@@ -336,7 +343,7 @@ const ExtractionQueue: React.FC = () => {
             <Select placeholder="Select technician">
               {labTechs.map((tech) => (
                 <Option key={tech.id} value={tech.id}>
-                  {tech.name} - {tech.role}
+                  {tech.full_name} - {tech.role.replace('_', ' ').toUpperCase()}
                 </Option>
               ))}
             </Select>
