@@ -132,16 +132,29 @@ def create_project(
         project_id = project_in.project_id
     else:
         # Generate project ID with CMBP prefix
-        last_project = db.query(Project).filter(
+        # Get the highest numbered project ID (ignoring suffixes like -16S)
+        projects = db.query(Project).filter(
             Project.project_id.like("CMBP%")
-        ).order_by(Project.id.desc()).first()
+        ).all()
         
-        if last_project and last_project.project_id:
-            last_number = int(last_project.project_id[4:])  # Remove "CMBP" prefix
-            new_number = last_number + 1
-        else:
-            new_number = 1
+        max_number = 0
+        for project in projects:
+            if project.project_id and project.project_id.startswith("CMBP"):
+                # Extract the numeric part (handle cases like CMBP00008-16S)
+                numeric_part = project.project_id[4:]  # Remove "CMBP" prefix
+                # Find the first non-digit character
+                for i, char in enumerate(numeric_part):
+                    if not char.isdigit():
+                        numeric_part = numeric_part[:i]
+                        break
+                
+                try:
+                    number = int(numeric_part) if numeric_part else 0
+                    max_number = max(max_number, number)
+                except ValueError:
+                    continue
         
+        new_number = max_number + 1
         project_id = f"CMBP{new_number:05d}"
     
     # Calculate due date
