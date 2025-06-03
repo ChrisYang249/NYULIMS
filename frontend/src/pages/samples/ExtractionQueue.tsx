@@ -100,7 +100,9 @@ const ExtractionQueue: React.FC = () => {
     if (!showPlates) {
       setLoading(true);
       try {
-        const response = await api.get(`/samples/queues/extraction`);
+        const response = await api.get(`/samples/queues/extraction`, {
+          params: { limit: 50000 }  // Request up to 50000 samples to handle annual volume of 40000+
+        });
         setSamples(response.data || []);
       } catch (error) {
         message.error('Failed to fetch samples');
@@ -579,6 +581,7 @@ const ExtractionQueue: React.FC = () => {
             pageSize: 20,
             showSizeChanger: true,
             showTotal: (total) => `Total ${total} plates`,
+            position: ['topRight'],
           }}
         />
       ) : (
@@ -593,6 +596,7 @@ const ExtractionQueue: React.FC = () => {
             pageSize: 50,
             showSizeChanger: true,
             showTotal: (total) => `Total ${total} samples`,
+            position: ['topRight'],
           }}
         />
       )}

@@ -77,7 +77,9 @@ const DNAQuantQueue: React.FC = () => {
     setLoading(true);
     try {
       // Fetch samples in dna_quant_queue status
-      const response = await api.get('/samples/queues/dna_quant');
+      const response = await api.get('/samples/queues/dna_quant', {
+        params: { limit: 50000 }  // Request up to 50000 samples to handle annual volume of 40000+
+      });
       setSamples(response.data || []);
     } catch (error) {
       message.error('Failed to fetch samples');
@@ -283,6 +285,7 @@ const DNAQuantQueue: React.FC = () => {
           pageSize: 50,
           showSizeChanger: true,
           showTotal: (total) => `Total ${total} samples`,
+          position: ['topRight'],
         }}
       />
 
