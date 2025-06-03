@@ -15,6 +15,7 @@ import Logs from './pages/Logs';
 import SampleTypes from './pages/SampleTypes';
 import DeletionLogs from './pages/DeletionLogs';
 import DiscrepancyManagement from './pages/DiscrepancyManagement';
+import ClientProjectConfig from './pages/ClientProjectConfig';
 // Queue pages
 import Accessioning from './pages/Accessioning';
 import ExtractionQueue from './pages/samples/ExtractionQueue';
@@ -69,6 +70,7 @@ function App() {
               <Route path="discrepancy-management" element={<DiscrepancyManagement />} />
               <Route path="storage" element={<Storage />} />
               <Route path="sample-types" element={<SampleTypes />} />
+              <Route path="client-project-config" element={<ClientProjectConfig />} />
               <Route path="logs" element={<Logs />} />
               <Route path="deletion-logs" element={<DeletionLogs />} />
             </Route>

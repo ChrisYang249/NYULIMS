@@ -14,6 +14,7 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   WarningOutlined,
+  SettingOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../../store/authStore';
 import { canAccessRoute } from '../../config/rolePermissions';
@@ -89,6 +90,11 @@ const MainLayout = () => {
       key: '/sample-types',
       icon: <TagsOutlined />,
       label: 'Sample Types',
+    },
+    {
+      key: '/client-project-config',
+      icon: <SettingOutlined />,
+      label: 'Project ID Config',
     },
     {
       key: '/employees',
