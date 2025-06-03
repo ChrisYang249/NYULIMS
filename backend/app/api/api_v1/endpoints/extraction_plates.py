@@ -278,7 +278,8 @@ def get_plate_layout(
         PlateWellAssignment.well_column
     ).all()
     
-    return assignments
+    # Convert to response model using from_orm
+    return [WellAssignmentSchema.from_orm(assignment) for assignment in assignments]
 
 @router.put("/{plate_id}/start", response_model=ExtractionPlateSchema)
 def start_extraction(

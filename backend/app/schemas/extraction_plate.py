@@ -73,6 +73,23 @@ class PlateWellAssignment(BaseModel):
     
     class Config:
         from_attributes = True
+        
+    @classmethod
+    def from_orm(cls, obj):
+        # Handle the sample relationship
+        data = obj.__dict__.copy()
+        if hasattr(obj, 'sample') and obj.sample:
+            data['sample'] = {
+                'id': obj.sample.id,
+                'barcode': obj.sample.barcode,
+                'client_sample_id': obj.sample.client_sample_id,
+                'project': {
+                    'project_id': obj.sample.project.project_id
+                } if obj.sample.project else None
+            }
+        else:
+            data['sample'] = None
+        return cls(**data)
 
 class PlateAssignment(BaseModel):
     """For assigning samples to a plate"""
