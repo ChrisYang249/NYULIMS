@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, message, Tag } from 'antd';
-import { PlusOutlined, EditOutlined, EyeOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Modal, Form, Input, message, Tag, Checkbox, Divider, Badge } from 'antd';
+import { PlusOutlined, EditOutlined, EyeOutlined, SettingOutlined } from '@ant-design/icons';
 import { api } from '../config/api';
 
 interface Client {
@@ -10,6 +10,8 @@ interface Client {
   email: string;
   phone?: string;
   address?: string;
+  abbreviation?: string;
+  use_custom_naming: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -51,6 +53,21 @@ const Clients = () => {
       dataIndex: 'institution',
       key: 'institution',
       render: (text: string) => text || <Tag color="default">N/A</Tag>,
+    },
+    {
+      title: 'Project ID Type',
+      key: 'naming',
+      render: (_: any, record: Client) => {
+        if (record.use_custom_naming) {
+          return (
+            <Space>
+              <Badge status="processing" text="Custom" />
+              {record.abbreviation && <Tag color="blue">{record.abbreviation}</Tag>}
+            </Space>
+          );
+        }
+        return <Badge status="default" text="Standard CMBP" />;
+      },
     },
     {
       title: 'Email',
@@ -198,6 +215,48 @@ const Clients = () => {
             <Input.TextArea rows={3} />
           </Form.Item>
 
+          <Divider orientation="left">Project ID Settings</Divider>
+
+          <Form.Item
+            name="use_custom_naming"
+            valuePropName="checked"
+            initialValue={false}
+          >
+            <Checkbox>
+              Use custom project ID naming (for kit projects)
+            </Checkbox>
+          </Form.Item>
+
+          <Form.Item
+            noStyle
+            shouldUpdate={(prevValues, currentValues) => 
+              prevValues.use_custom_naming !== currentValues.use_custom_naming
+            }
+          >
+            {({ getFieldValue }) => 
+              getFieldValue('use_custom_naming') && (
+                <Form.Item
+                  name="abbreviation"
+                  label="Client Abbreviation"
+                  help="2-4 character code for project IDs (e.g., NB, UCLA)"
+                  rules={[
+                    { required: true, message: 'Please enter an abbreviation' },
+                    { max: 10, message: 'Abbreviation must be 10 characters or less' },
+                    { pattern: /^[A-Z0-9]+$/, message: 'Only uppercase letters and numbers' }
+                  ]}
+                >
+                  <Input 
+                    placeholder="e.g., NB, UCLA" 
+                    style={{ textTransform: 'uppercase' }}
+                    onChange={(e) => {
+                      form.setFieldsValue({ abbreviation: e.target.value.toUpperCase() });
+                    }}
+                  />
+                </Form.Item>
+              )
+            }
+          </Form.Item>
+
           <Form.Item>
             <Space>
               <Button type="primary" htmlType="submit">
@@ -229,6 +288,11 @@ const Clients = () => {
             <p><strong>Email:</strong> {selectedClient.email}</p>
             <p><strong>Phone:</strong> {selectedClient.phone || 'N/A'}</p>
             <p><strong>Address:</strong> {selectedClient.address || 'N/A'}</p>
+            <Divider orientation="left">Project ID Settings</Divider>
+            <p><strong>Project ID Type:</strong> {selectedClient.use_custom_naming ? 'Custom Naming' : 'Standard CMBP'}</p>
+            {selectedClient.use_custom_naming && (
+              <p><strong>Abbreviation:</strong> {selectedClient.abbreviation || 'Not set'}</p>
+            )}
             <p><strong>Created:</strong> {new Date(selectedClient.created_at).toLocaleDateString()}</p>
             <p><strong>Updated:</strong> {new Date(selectedClient.updated_at).toLocaleDateString()}</p>
           </div>
@@ -285,6 +349,47 @@ const Clients = () => {
             label="Address"
           >
             <Input.TextArea rows={3} />
+          </Form.Item>
+
+          <Divider orientation="left">Project ID Settings</Divider>
+
+          <Form.Item
+            name="use_custom_naming"
+            valuePropName="checked"
+          >
+            <Checkbox>
+              Use custom project ID naming (for kit projects)
+            </Checkbox>
+          </Form.Item>
+
+          <Form.Item
+            noStyle
+            shouldUpdate={(prevValues, currentValues) => 
+              prevValues.use_custom_naming !== currentValues.use_custom_naming
+            }
+          >
+            {({ getFieldValue }) => 
+              getFieldValue('use_custom_naming') && (
+                <Form.Item
+                  name="abbreviation"
+                  label="Client Abbreviation"
+                  help="2-4 character code for project IDs (e.g., NB, UCLA)"
+                  rules={[
+                    { required: true, message: 'Please enter an abbreviation' },
+                    { max: 10, message: 'Abbreviation must be 10 characters or less' },
+                    { pattern: /^[A-Z0-9]+$/, message: 'Only uppercase letters and numbers' }
+                  ]}
+                >
+                  <Input 
+                    placeholder="e.g., NB, UCLA" 
+                    style={{ textTransform: 'uppercase' }}
+                    onChange={(e) => {
+                      editForm.setFieldsValue({ abbreviation: e.target.value.toUpperCase() });
+                    }}
+                  />
+                </Form.Item>
+              )
+            }
           </Form.Item>
 
           <Form.Item>

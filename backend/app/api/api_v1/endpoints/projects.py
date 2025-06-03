@@ -9,7 +9,7 @@ import uuid
 from pathlib import Path
 
 from app.api import deps
-from app.models import User, Project, Client, ProjectLog, Employee, ProjectAttachment
+from app.models import User, Project, Client, ProjectLog, Employee, ProjectAttachment, ClientProjectConfig
 from app.models.project import ProjectStatus
 from app.schemas.project import Project as ProjectSchema, ProjectCreate, ProjectUpdate, ProjectLog as ProjectLogSchema
 from app.schemas.attachment import ProjectAttachment as AttachmentSchema
@@ -102,6 +102,9 @@ def read_projects(
     if not include_deleted:
         query = query.filter(Project.status != ProjectStatus.DELETED)
     
+    # Sort by created_at descending (newest first)
+    query = query.order_by(Project.created_at.desc())
+    
     projects = query.offset(skip).limit(limit).all()
     return projects
 
@@ -177,8 +180,29 @@ def create_project(
     db.commit()
     db.refresh(project)
     
+    # If the project ID came from a client with custom naming, update their batch number
+    client = db.query(Client).filter(Client.id == project.client_id).first()
+    if client and client.use_custom_naming and project_in.project_id:
+        # Check if this project ID follows the client's naming pattern
+        config = db.query(ClientProjectConfig).filter(
+            ClientProjectConfig.client_id == client.id
+        ).first()
+        
+        if config and project_id.startswith(config.prefix):
+            # Extract batch number from project_id
+            prefix_len = len(config.prefix)
+            batch_part = project_id[prefix_len:prefix_len+4]
+            try:
+                used_batch = int(batch_part)
+                # Update last_batch_number if this one is higher
+                if used_batch > config.last_batch_number:
+                    config.last_batch_number = used_batch
+                    db.commit()
+            except ValueError:
+                pass
+    
     # Create detailed initial log entry
-    client_name = db.query(Client).filter(Client.id == project.client_id).first().name
+    client_name = client.name if client else "Unknown"
     log_details = [
         f"Project ID: {project_id}",
         f"Type: {project.project_type}",

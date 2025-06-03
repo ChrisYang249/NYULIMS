@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.api import deps
-from app.models import User, Client
+from app.models import User, Client, ClientProjectConfig
 from app.schemas.client import Client as ClientSchema, ClientCreate, ClientUpdate
 
 router = APIRouter()
@@ -49,6 +49,19 @@ def create_client(
     db.add(client)
     db.commit()
     db.refresh(client)
+    
+    # If client uses custom naming and has an abbreviation, create a project config
+    if client.use_custom_naming and client.abbreviation:
+        project_config = ClientProjectConfig(
+            client_id=client.id,
+            naming_scheme=f"{client.abbreviation}{{batch#}}_{{#}}ST_{{#}}VG",
+            prefix=client.abbreviation,
+            last_batch_number=0,
+            include_sample_types=True
+        )
+        db.add(project_config)
+        db.commit()
+    
     return client
 
 
@@ -101,6 +114,9 @@ def update_client(
                 detail="Client with this email already exists",
             )
     
+    # Check if client is being changed to use custom naming
+    was_using_custom = client.use_custom_naming
+    
     # Update client fields
     update_data = client_in.dict(exclude_unset=True)
     for field, value in update_data.items():
@@ -111,4 +127,23 @@ def update_client(
     db.add(client)
     db.commit()
     db.refresh(client)
+    
+    # If client is now using custom naming and has an abbreviation, create a project config
+    if client.use_custom_naming and client.abbreviation and not was_using_custom:
+        # Check if config already exists
+        existing_config = db.query(ClientProjectConfig).filter(
+            ClientProjectConfig.client_id == client.id
+        ).first()
+        
+        if not existing_config:
+            project_config = ClientProjectConfig(
+                client_id=client.id,
+                naming_scheme=f"{client.abbreviation}{{batch#}}_{{#}}ST_{{#}}VG",
+                prefix=client.abbreviation,
+                last_batch_number=0,
+                include_sample_types=True
+            )
+            db.add(project_config)
+            db.commit()
+    
     return client
