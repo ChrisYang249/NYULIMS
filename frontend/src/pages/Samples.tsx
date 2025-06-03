@@ -1515,29 +1515,43 @@ const Samples = () => {
           <h1>Samples <small style={{fontSize: '12px', color: '#888'}}>(v2 - Interactive Editor)</small></h1>
           <Space>
           {selectedSamples.length > 0 && (
-            <Dropdown
-              menu={{
-                items: [
-                  canPerform('updateSampleStatus') && {
-                    key: 'status',
-                    icon: <CheckCircleOutlined />,
-                    label: 'Update Status',
-                    onClick: () => setIsBulkStatusModalVisible(true),
-                  },
-                  canPerform('deleteSamples') && {
-                    key: 'delete',
-                    icon: <DeleteOutlined />,
-                    label: 'Delete Selected',
-                    danger: true,
-                    onClick: () => setDeletingSampleId(-1),
-                  },
-                ].filter(Boolean)
-              }}
-            >
-              <Button>
-                Bulk Actions ({selectedSamples.length}) <DownloadOutlined />
-              </Button>
-            </Dropdown>
+            <>
+              {canPerform('updateSampleStatus') && (
+                <Button
+                  type="primary"
+                  icon={<CheckCircleOutlined />}
+                  onClick={() => {
+                    // Quick action to send to accessioning
+                    handleBulkStatusUpdate({ status: 'ACCESSIONING', notes: 'Sent to accessioning queue' });
+                  }}
+                >
+                  Send to Accessioning ({selectedSamples.length})
+                </Button>
+              )}
+              <Dropdown
+                menu={{
+                  items: [
+                    canPerform('updateSampleStatus') && {
+                      key: 'status',
+                      icon: <CheckCircleOutlined />,
+                      label: 'Update Status',
+                      onClick: () => setIsBulkStatusModalVisible(true),
+                    },
+                    canPerform('deleteSamples') && {
+                      key: 'delete',
+                      icon: <DeleteOutlined />,
+                      label: 'Delete Selected',
+                      danger: true,
+                      onClick: () => setDeletingSampleId(-1),
+                    },
+                  ].filter(Boolean)
+                }}
+              >
+                <Button>
+                  Bulk Actions ({selectedSamples.length}) <DownloadOutlined />
+                </Button>
+              </Dropdown>
+            </>
           )}
           <Button
             icon={<ReloadOutlined />}
