@@ -53,16 +53,35 @@ def get_extraction_plates(
     skip: int = 0,
     limit: int = 100,
     status: Optional[PlateStatus] = None,
+    status_in: Optional[str] = Query(None, description="Comma-separated list of statuses"),
+    sort_by: Optional[str] = Query("created_at", description="Sort field"),
+    sort_order: Optional[str] = Query("desc", description="Sort order: asc or desc"),
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
     """Get extraction plates"""
     query = db.query(ExtractionPlate).options(
         joinedload(ExtractionPlate.assigned_tech),
+        joinedload(ExtractionPlate.created_by),
         joinedload(ExtractionPlate.samples)
     )
     
     if status:
         query = query.filter(ExtractionPlate.status == status)
+    elif status_in:
+        statuses = [s.strip() for s in status_in.split(',')]
+        query = query.filter(ExtractionPlate.status.in_(statuses))
+    
+    # Apply sorting
+    if sort_by == "created_at":
+        if sort_order == "asc":
+            query = query.order_by(ExtractionPlate.created_at.asc())
+        else:
+            query = query.order_by(ExtractionPlate.created_at.desc())
+    elif sort_by == "plate_id":
+        if sort_order == "asc":
+            query = query.order_by(ExtractionPlate.plate_id.asc())
+        else:
+            query = query.order_by(ExtractionPlate.plate_id.desc())
     
     plates = query.offset(skip).limit(limit).all()
     
@@ -78,6 +97,7 @@ def get_extraction_plate(
     """Get single extraction plate"""
     plate = db.query(ExtractionPlate).options(
         joinedload(ExtractionPlate.assigned_tech),
+        joinedload(ExtractionPlate.created_by),
         joinedload(ExtractionPlate.samples)
     ).filter(ExtractionPlate.id == plate_id).first()
     
@@ -110,7 +130,8 @@ def create_extraction_plate(
         notes=plate_in.notes,
         assigned_tech_id=plate_in.assigned_tech_id,
         assigned_date=datetime.utcnow() if plate_in.assigned_tech_id else None,
-        status=PlateStatus.PLANNING
+        status=PlateStatus.DRAFT,
+        created_by_id=current_user.id  # Track who created the plate
     )
     
     db.add(plate)
@@ -142,10 +163,10 @@ def auto_assign_samples_to_plate(
     if not plate:
         raise HTTPException(status_code=404, detail="Extraction plate not found")
     
-    if plate.status != PlateStatus.PLANNING:
+    if plate.status != PlateStatus.DRAFT:
         raise HTTPException(
             status_code=400,
-            detail="Can only assign samples to plates in planning status"
+            detail="Can only assign samples to plates in draft status"
         )
     
     # Get available samples from extraction queue
@@ -213,7 +234,7 @@ def auto_assign_samples_to_plate(
         })
     
     # Update plate status
-    plate.status = PlateStatus.READY
+    plate.status = PlateStatus.FINALIZED
     
     # Add control well assignments - place after last sample
     num_samples = len(assigned_samples)
@@ -314,10 +335,10 @@ def start_extraction(
     if not plate:
         raise HTTPException(status_code=404, detail="Extraction plate not found")
     
-    if plate.status != PlateStatus.READY:
+    if plate.status != PlateStatus.FINALIZED:
         raise HTTPException(
             status_code=400,
-            detail="Can only start extraction for plates in ready status"
+            detail="Can only start extraction for plates in finalized status"
         )
     
     # Update plate status
@@ -411,10 +432,10 @@ def assign_samples_manual(
     if not plate:
         raise HTTPException(status_code=404, detail="Extraction plate not found")
     
-    if plate.status != PlateStatus.PLANNING:
+    if plate.status != PlateStatus.DRAFT:
         raise HTTPException(
             status_code=400,
-            detail="Can only assign samples to plates in planning status"
+            detail="Can only assign samples to plates in draft status"
         )
     
     assignments = request.get("assignments", [])
@@ -533,7 +554,7 @@ def assign_samples_manual(
                 plate.lp_neg_ctrl_well = well_position
     
     # Update plate status
-    plate.status = PlateStatus.READY
+    plate.status = PlateStatus.FINALIZED
     
     db.commit()
     

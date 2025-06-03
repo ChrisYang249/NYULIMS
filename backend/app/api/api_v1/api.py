@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.api_v1.endpoints import auth, users, projects, samples, dashboard, clients, employees, sample_types, deletion_logs, extraction_plates, client_project_config
+from app.api.api_v1.endpoints import auth, users, projects, samples, dashboard, clients, employees, sample_types, deletion_logs, extraction_plates, plate_editor, client_project_config
 
 api_router = APIRouter()
 
@@ -14,4 +14,5 @@ api_router.include_router(deletion_logs.router, prefix="/deletion-logs", tags=["
 api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
 api_router.include_router(employees.router, prefix="/employees", tags=["employees"])
 api_router.include_router(extraction_plates.router, prefix="/extraction-plates", tags=["extraction plates"])
+api_router.include_router(plate_editor.router, prefix="/plate-editor", tags=["plate editor"])
 api_router.include_router(client_project_config.router, prefix="/client-project-config", tags=["client project config"])
