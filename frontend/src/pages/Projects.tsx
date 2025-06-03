@@ -845,7 +845,8 @@ const Projects = () => {
 
           {/* Project ID Generation Mode - Only show for custom naming clients */}
           {(() => {
-            const selectedClient = clients.find(c => c.id === form.getFieldValue('client_id'));
+            const clientId = form?.getFieldValue ? form.getFieldValue('client_id') : null;
+            const selectedClient = clients.find(c => c.id === clientId);
             const usesCustomNaming = selectedClient?.use_custom_naming && clientProjectConfig;
             
             if (usesCustomNaming) {
@@ -855,10 +856,11 @@ const Projects = () => {
                     value={projectIdMode} 
                     onChange={(e) => {
                       setProjectIdMode(e.target.value);
-                      if (e.target.value === 'auto' && form.getFieldValue('client_id')) {
-                        generateProjectId(form.getFieldValue('client_id'));
+                      const clientId = form?.getFieldValue ? form.getFieldValue('client_id') : null;
+                      if (e.target.value === 'auto' && clientId) {
+                        generateProjectId(clientId);
                       } else {
-                        form.setFieldsValue({ project_id: '' });
+                        form?.setFieldsValue({ project_id: '' });
                         setGeneratedProjectId('');
                       }
                     }}
@@ -897,8 +899,9 @@ const Projects = () => {
                       min={0} 
                       style={{ width: '100%' }}
                       onChange={() => {
-                        if (form.getFieldValue('client_id')) {
-                          generateProjectId(form.getFieldValue('client_id'));
+                        const clientId = form?.getFieldValue ? form.getFieldValue('client_id') : null;
+                        if (clientId) {
+                          generateProjectId(clientId);
                         }
                       }}
                     />
@@ -914,8 +917,9 @@ const Projects = () => {
                       min={0} 
                       style={{ width: '100%' }}
                       onChange={() => {
-                        if (form.getFieldValue('client_id')) {
-                          generateProjectId(form.getFieldValue('client_id'));
+                        const clientId = form?.getFieldValue ? form.getFieldValue('client_id') : null;
+                        if (clientId) {
+                          generateProjectId(clientId);
                         }
                       }}
                     />
@@ -931,8 +935,9 @@ const Projects = () => {
                       min={0} 
                       style={{ width: '100%' }}
                       onChange={() => {
-                        if (form.getFieldValue('client_id')) {
-                          generateProjectId(form.getFieldValue('client_id'));
+                        const clientId = form?.getFieldValue ? form.getFieldValue('client_id') : null;
+                        if (clientId) {
+                          generateProjectId(clientId);
                         }
                       }}
                     />
@@ -957,22 +962,24 @@ const Projects = () => {
           <Form.Item
             name="project_id"
             label={(() => {
-              const selectedClient = clients.find(c => c.id === form.getFieldValue('client_id'));
+              const clientId = form?.getFieldValue ? form.getFieldValue('client_id') : null;
+              const selectedClient = clients.find(c => c.id === clientId);
               if (!selectedClient) return "Project ID (select client first)";
               if (selectedClient.use_custom_naming && projectIdMode === 'manual') return "Custom Project ID";
               if (selectedClient.use_custom_naming && projectIdMode === 'auto') return "Project ID (Custom Naming)";
               return "Project ID (Standard CMBP)";
-            })()}
+            })()} 
             help={(() => {
-              const selectedClient = clients.find(c => c.id === form.getFieldValue('client_id'));
+              const clientId = form?.getFieldValue ? form.getFieldValue('client_id') : null;
+              const selectedClient = clients.find(c => c.id === clientId);
               if (!selectedClient) return "Select a client to see ID format";
               if (selectedClient.use_custom_naming && projectIdMode === 'manual') return "Enter your custom project ID";
               if (selectedClient.use_custom_naming && projectIdMode === 'auto') return "Auto-generated based on client configuration";
               return "Auto-generated CMBP ID (leave blank) or enter custom ID";
-            })()}
+            })()} 
             rules={[
               {
-                required: projectIdMode === 'manual' && clients.find(c => c.id === form.getFieldValue('client_id'))?.use_custom_naming,
+                required: projectIdMode === 'manual' && clients.find(c => c.id === (form?.getFieldValue ? form.getFieldValue('client_id') : null))?.use_custom_naming,
                 message: 'Please enter a project ID',
               },
               {
@@ -983,14 +990,16 @@ const Projects = () => {
           >
             <Input 
               placeholder={(() => {
-                const selectedClient = clients.find(c => c.id === form.getFieldValue('client_id'));
+                const clientId = form?.getFieldValue ? form.getFieldValue('client_id') : null;
+                const selectedClient = clients.find(c => c.id === clientId);
                 if (!selectedClient) return "Select a client first";
                 if (selectedClient.use_custom_naming && projectIdMode === 'manual') return "e.g., CUSTOM-2025-001";
                 if (selectedClient.use_custom_naming && projectIdMode === 'auto') return "Auto-generated custom ID";
                 return `e.g., ${nextProjectId || 'CMBP00001'}`;
-              })()}
+              })()} 
               disabled={(() => {
-                const selectedClient = clients.find(c => c.id === form.getFieldValue('client_id'));
+                const clientId = form?.getFieldValue ? form.getFieldValue('client_id') : null;
+                const selectedClient = clients.find(c => c.id === clientId);
                 return selectedClient?.use_custom_naming && projectIdMode === 'auto';
               })()}
               onChange={(e) => {
