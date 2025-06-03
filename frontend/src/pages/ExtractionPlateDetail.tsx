@@ -92,9 +92,13 @@ const ExtractionPlateDetail: React.FC = () => {
       
       setPlate(plateResponse.data);
       setWellAssignments(layoutResponse.data);
-    } catch (error) {
-      message.error('Failed to fetch plate details');
-      navigate('/samples/extraction-queue');
+    } catch (error: any) {
+      console.error('Failed to fetch plate details:', error);
+      message.error(`Failed to fetch plate details: ${error.response?.data?.detail || error.message}`);
+      // Give time to see the error before redirecting
+      setTimeout(() => {
+        navigate('/samples/extraction-queue');
+      }, 3000);
     } finally {
       setLoading(false);
     }

@@ -25,7 +25,7 @@ router = APIRouter()
 
 def generate_plate_id() -> str:
     """Generate unique plate ID"""
-    date_str = datetime.now().strftime("%Y%m%d")
+    date_str = datetime.now().strftime("%y%m%d")  # 2-digit year
     random_str = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
     return f"EXT-{date_str}-{random_str}"
 
