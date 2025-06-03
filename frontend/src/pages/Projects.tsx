@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Select, InputNumber, message, DatePicker, Popconfirm, Tag, Checkbox, Row, Col } from 'antd';
-import { PlusOutlined, DeleteOutlined, FilterOutlined, SearchOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Modal, Form, Input, Select, InputNumber, message, DatePicker, Popconfirm, Tag, Checkbox, Row, Col, Alert, Radio, Divider } from 'antd';
+import { PlusOutlined, DeleteOutlined, FilterOutlined, SearchOutlined, RobotOutlined, EditOutlined } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../config/api';
 import { useAuthStore } from '../store/authStore';
@@ -34,8 +34,18 @@ const Projects = () => {
   const [clientModalVisible, setClientModalVisible] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [selectedProject, setSelectedProject] = useState<any>(null);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [bulkDeleteModalVisible, setBulkDeleteModalVisible] = useState(false);
   const [nextProjectId, setNextProjectId] = useState<string>('');
   const [dueDate, setDueDate] = useState<dayjs.Dayjs | null>(null);
+  const [projectIdMode, setProjectIdMode] = useState<'auto' | 'manual'>('auto');
+  const [clientProjectConfig, setClientProjectConfig] = useState<any>(null);
+  const [generatedProjectId, setGeneratedProjectId] = useState<string>('');
+  const [sampleCounts, setSampleCounts] = useState({
+    stool: 0,
+    vaginal: 0,
+    other: 0
+  });
   const [showDeleted, setShowDeleted] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
@@ -44,6 +54,7 @@ const Projects = () => {
   const [form] = Form.useForm();
   const [clientForm] = Form.useForm();
   const [deleteForm] = Form.useForm();
+  const [bulkDeleteForm] = Form.useForm();
   const { user } = useAuthStore();
   
   const allStatuses = ['pending', 'pm_review', 'lab', 'bis', 'hold', 'cancelled', 'completed', 'deleted'];
@@ -152,6 +163,13 @@ const Projects = () => {
                dueDate.isBefore(dateRange[1].endOf('day'));
       });
     }
+    
+    // Sort by created_at descending (newest first) by default
+    filtered.sort((a: any, b: any) => {
+      const dateA = new Date(a.created_at).getTime();
+      const dateB = new Date(b.created_at).getTime();
+      return dateB - dateA;
+    });
     
     setFilteredProjects(filtered);
   }, [projects, searchText, dateRange]);
@@ -296,44 +314,15 @@ const Projects = () => {
         return record.expected_sample_count;
       },
     },
+    {
+      title: 'Created',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      sorter: (a: any, b: any) => dayjs(a.created_at).unix() - dayjs(b.created_at).unix(),
+      render: (date: string) => dayjs(date).format('YYYY-MM-DD'),
+      defaultSortOrder: 'descend',
+    },
   ];
-
-  // Only show Action column if user can delete projects
-  if (canDeleteProject) {
-    columns.push({
-      title: 'Action',
-      key: 'action',
-      width: 100,
-      render: (_, record) => (
-        <>
-          {record.status !== 'deleted' && record.status !== 'cancelled' && (
-            user?.role === 'super_admin' ? (
-              <Popconfirm
-                title="Are you sure you want to delete this project?"
-                onConfirm={() => handleDelete(record.id)}
-                okText="Yes"
-                cancelText="No"
-              >
-                <Button type="link" danger icon={<DeleteOutlined />}>Delete</Button>
-              </Popconfirm>
-            ) : (
-              <Button 
-                type="link" 
-                danger 
-                icon={<DeleteOutlined />}
-                onClick={() => {
-                  setSelectedProject(record);
-                  setDeleteModalVisible(true);
-                }}
-              >
-                Delete
-              </Button>
-            )
-          )}
-        </>
-      ),
-    });
-  }
 
   const handleSubmit = async (values: any) => {
     try {
@@ -386,12 +375,65 @@ const Projects = () => {
     }
   };
   
-  const handleFormValuesChange = (changedValues: any, allValues: any) => {
+  const handleFormValuesChange = async (changedValues: any, allValues: any) => {
     if (changedValues.start_date || changedValues.tat) {
       if (allValues.start_date && allValues.tat) {
         const calculated = calculateDueDate(allValues.start_date, allValues.tat);
         setDueDate(calculated);
       }
+    }
+    
+    // If client changed, check if they use custom naming
+    if (changedValues.client_id) {
+      const selectedClient = clients.find(c => c.id === changedValues.client_id);
+      if (selectedClient && selectedClient.use_custom_naming) {
+        try {
+          const response = await api.get(`/client-project-config/${changedValues.client_id}`);
+          setClientProjectConfig(response.data);
+          // If in auto mode, generate project ID
+          if (projectIdMode === 'auto') {
+            generateProjectId(changedValues.client_id);
+          }
+        } catch (error) {
+          // No config for this client
+          setClientProjectConfig(null);
+          setGeneratedProjectId('');
+        }
+      } else {
+        // Client doesn't use custom naming - use standard CMBP
+        setClientProjectConfig(null);
+        setGeneratedProjectId('');
+        setProjectIdMode('auto');
+        // Fetch next CMBP ID
+        fetchNextProjectId();
+      }
+    }
+    
+    // If sample counts changed and in auto mode, regenerate project ID
+    if ((changedValues.stool_count !== undefined || 
+         changedValues.vaginal_count !== undefined || 
+         changedValues.other_count !== undefined) && 
+        projectIdMode === 'auto' && allValues.client_id && clientProjectConfig) {
+      generateProjectId(allValues.client_id);
+    }
+  };
+  
+  const generateProjectId = async (clientId: number) => {
+    try {
+      const formValues = form.getFieldsValue();
+      const response = await api.post('/client-project-config/generate-project-id', {
+        client_id: clientId,
+        stool_count: formValues.stool_count || 0,
+        vaginal_count: formValues.vaginal_count || 0,
+        other_count: formValues.other_count || 0
+      });
+      setGeneratedProjectId(response.data.project_id);
+      if (projectIdMode === 'auto') {
+        form.setFieldsValue({ project_id: response.data.project_id });
+      }
+    } catch (error: any) {
+      console.error('Failed to generate project ID:', error);
+      // Don't show error message if config doesn't exist
     }
   };
 
@@ -414,6 +456,10 @@ const Projects = () => {
     form.resetFields();
     form.setFieldsValue({ start_date: dayjs() });
     fetchNextProjectId();
+    setProjectIdMode('auto');
+    setClientProjectConfig(null);
+    setGeneratedProjectId('');
+    setSampleCounts({ stool: 0, vaginal: 0, other: 0 });
     setModalVisible(true);
   };
 
@@ -433,6 +479,41 @@ const Projects = () => {
       } else {
         message.error('Failed to delete project');
       }
+    }
+  };
+
+  const handleBulkDelete = async (values: any) => {
+    try {
+      const selectedProjects = filteredProjects.filter((p: any) => 
+        selectedRowKeys.includes(p.id)
+      );
+      
+      let successCount = 0;
+      let failCount = 0;
+      
+      for (const project of selectedProjects) {
+        try {
+          const params = values.reason ? { reason: values.reason } : {};
+          await api.delete(`/projects/${project.id}`, { params });
+          successCount++;
+        } catch (error) {
+          failCount++;
+        }
+      }
+      
+      if (successCount > 0) {
+        message.success(`${successCount} project(s) deleted successfully`);
+      }
+      if (failCount > 0) {
+        message.error(`Failed to delete ${failCount} project(s)`);
+      }
+      
+      setBulkDeleteModalVisible(false);
+      bulkDeleteForm.resetFields();
+      setSelectedRowKeys([]);
+      fetchProjects();
+    } catch (error) {
+      message.error('Failed to delete projects');
     }
   };
 
@@ -456,6 +537,30 @@ const Projects = () => {
             </Checkbox>
           </Col>
           <Col span={12} style={{ textAlign: 'right' }}>
+            {selectedRowKeys.length > 0 && canDeleteProject && (
+              <>
+                <span style={{ marginRight: 8 }}>
+                  {selectedRowKeys.length} selected
+                </span>
+                <Button
+                  danger
+                  onClick={() => {
+                    if (user?.role === 'super_admin') {
+                      Modal.confirm({
+                        title: 'Delete Projects',
+                        content: `Are you sure you want to delete ${selectedRowKeys.length} project(s)?`,
+                        onOk: () => handleBulkDelete({}),
+                      });
+                    } else {
+                      setBulkDeleteModalVisible(true);
+                    }
+                  }}
+                  style={{ marginRight: 8 }}
+                >
+                  Delete Selected
+                </Button>
+              </>
+            )}
             {canCreateProject && (
               <Button
                 type="primary"
@@ -514,6 +619,13 @@ const Projects = () => {
         loading={loading}
         rowKey="id"
         size="small"
+        rowSelection={{
+          selectedRowKeys,
+          onChange: setSelectedRowKeys,
+          getCheckboxProps: (record: any) => ({
+            disabled: record.status === 'deleted' || record.status === 'cancelled',
+          }),
+        }}
         onChange={(pagination, filters, sorter) => {
           setStatusFilter(filters.status as string[] || []);
         }}
@@ -521,6 +633,8 @@ const Projects = () => {
           showSizeChanger: true,
           showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} projects`,
           position: ['topRight'],
+          defaultPageSize: 20,
+          pageSizeOptions: ['10', '20', '50', '100'],
         }}
       />
 
@@ -536,57 +650,11 @@ const Projects = () => {
           onFinish={handleSubmit}
           onValuesChange={handleFormValuesChange}
         >
-          <Form.Item
-            name="project_id"
-            label="Project ID (optional - leave blank for auto-generated)"
-            help="Leave blank to auto-generate or enter custom ID"
-            rules={[
-              {
-                pattern: /^[A-Za-z0-9-_]+$/,
-                message: 'Project ID can only contain letters, numbers, hyphens, and underscores',
-              },
-            ]}
-          >
-            <Input 
-              placeholder="e.g., CMBP00001" 
-              onChange={(e) => {
-                // Convert to uppercase
-                const uppercaseValue = e.target.value.toUpperCase();
-                form.setFieldsValue({ project_id: uppercaseValue });
-                
-                // Clear any previous errors when user types
-                form.setFields([
-                  {
-                    name: 'project_id',
-                    errors: [],
-                  },
-                ]);
-              }}
-            />
-          </Form.Item>
-
-          <Form.Item
-            name="project_type"
-            label="Project Type"
-            rules={[{ required: true }]}
-          >
-            <Select placeholder="Select project type">
-              <Select.Option value="WGS">WGS</Select.Option>
-              <Select.Option value="V1V3_16S">16S-V1V3</Select.Option>
-              <Select.Option value="V3V4_16S">16S-V3V4</Select.Option>
-              <Select.Option value="ONT_WGS">ONT-WGS</Select.Option>
-              <Select.Option value="ONT_V1V8">ONT-V1V8</Select.Option>
-              <Select.Option value="ANALYSIS_ONLY">Analysis Only</Select.Option>
-              <Select.Option value="INTERNAL">Internal</Select.Option>
-              <Select.Option value="CLINICAL">CLINICAL</Select.Option>
-              <Select.Option value="OTHER">Other</Select.Option>
-            </Select>
-          </Form.Item>
-
+          {/* Client Selection - FIRST */}
           <Form.Item
             name="client_id"
             label="Client"
-            rules={[{ required: true }]}
+            rules={[{ required: true, message: 'Please select a client' }]}
           >
             <Select 
               placeholder="Select client"
@@ -618,8 +686,195 @@ const Projects = () => {
               {clients.map(client => (
                 <Select.Option key={client.id} value={client.id}>
                   {client.name} {client.institution && `(${client.institution})`}
+                  {client.use_custom_naming && client.abbreviation && (
+                    <Tag color="blue" style={{ marginLeft: 8 }}>{client.abbreviation}</Tag>
+                  )}
                 </Select.Option>
               ))}
+            </Select>
+          </Form.Item>
+
+          {/* Project ID Generation Mode - Only show for custom naming clients */}
+          {(() => {
+            const selectedClient = clients.find(c => c.id === form.getFieldValue('client_id'));
+            const usesCustomNaming = selectedClient?.use_custom_naming && clientProjectConfig;
+            
+            if (usesCustomNaming) {
+              return (
+                <Form.Item label="Project ID Generation">
+                  <Radio.Group 
+                    value={projectIdMode} 
+                    onChange={(e) => {
+                      setProjectIdMode(e.target.value);
+                      if (e.target.value === 'auto' && form.getFieldValue('client_id')) {
+                        generateProjectId(form.getFieldValue('client_id'));
+                      } else {
+                        form.setFieldsValue({ project_id: '' });
+                        setGeneratedProjectId('');
+                      }
+                    }}
+                  >
+                    <Radio value="auto">
+                      <Space>
+                        <RobotOutlined />
+                        Auto-generate using client naming scheme
+                      </Space>
+                    </Radio>
+                    <Radio value="manual">
+                      <Space>
+                        <EditOutlined />
+                        Enter custom project ID
+                      </Space>
+                    </Radio>
+                  </Radio.Group>
+                </Form.Item>
+              );
+            }
+            return null;
+          })()}
+          
+          {/* Show sample count fields if auto-generating */}
+          {projectIdMode === 'auto' && clientProjectConfig && clientProjectConfig.include_sample_types && (
+            <>
+              <Divider orientation="left">Sample Type Counts (for Project ID)</Divider>
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item
+                    name="stool_count"
+                    label="Stool Samples"
+                    initialValue={0}
+                  >
+                    <InputNumber 
+                      min={0} 
+                      style={{ width: '100%' }}
+                      onChange={() => {
+                        if (form.getFieldValue('client_id')) {
+                          generateProjectId(form.getFieldValue('client_id'));
+                        }
+                      }}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="vaginal_count"
+                    label="Vaginal Samples"
+                    initialValue={0}
+                  >
+                    <InputNumber 
+                      min={0} 
+                      style={{ width: '100%' }}
+                      onChange={() => {
+                        if (form.getFieldValue('client_id')) {
+                          generateProjectId(form.getFieldValue('client_id'));
+                        }
+                      }}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name="other_count"
+                    label="Other Samples"
+                    initialValue={0}
+                  >
+                    <InputNumber 
+                      min={0} 
+                      style={{ width: '100%' }}
+                      onChange={() => {
+                        if (form.getFieldValue('client_id')) {
+                          generateProjectId(form.getFieldValue('client_id'));
+                        }
+                      }}
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+            </>
+          )}
+          
+          {/* Show generated ID preview */}
+          {projectIdMode === 'auto' && generatedProjectId && (
+            <Alert
+              message="Generated Project ID"
+              description={<strong>{generatedProjectId}</strong>}
+              type="info"
+              showIcon
+              icon={<RobotOutlined />}
+              style={{ marginBottom: 16 }}
+            />
+          )}
+
+          <Form.Item
+            name="project_id"
+            label={(() => {
+              const selectedClient = clients.find(c => c.id === form.getFieldValue('client_id'));
+              if (!selectedClient) return "Project ID (select client first)";
+              if (selectedClient.use_custom_naming && projectIdMode === 'manual') return "Custom Project ID";
+              if (selectedClient.use_custom_naming && projectIdMode === 'auto') return "Project ID (Custom Naming)";
+              return "Project ID (Standard CMBP)";
+            })()}
+            help={(() => {
+              const selectedClient = clients.find(c => c.id === form.getFieldValue('client_id'));
+              if (!selectedClient) return "Select a client to see ID format";
+              if (selectedClient.use_custom_naming && projectIdMode === 'manual') return "Enter your custom project ID";
+              if (selectedClient.use_custom_naming && projectIdMode === 'auto') return "Auto-generated based on client configuration";
+              return "Auto-generated CMBP ID (leave blank) or enter custom ID";
+            })()}
+            rules={[
+              {
+                required: projectIdMode === 'manual' && clients.find(c => c.id === form.getFieldValue('client_id'))?.use_custom_naming,
+                message: 'Please enter a project ID',
+              },
+              {
+                pattern: /^[A-Za-z0-9-_]+$/,
+                message: 'Project ID can only contain letters, numbers, hyphens, and underscores',
+              },
+            ]}
+          >
+            <Input 
+              placeholder={(() => {
+                const selectedClient = clients.find(c => c.id === form.getFieldValue('client_id'));
+                if (!selectedClient) return "Select a client first";
+                if (selectedClient.use_custom_naming && projectIdMode === 'manual') return "e.g., CUSTOM-2025-001";
+                if (selectedClient.use_custom_naming && projectIdMode === 'auto') return "Auto-generated custom ID";
+                return `e.g., ${nextProjectId || 'CMBP00001'}`;
+              })()}
+              disabled={(() => {
+                const selectedClient = clients.find(c => c.id === form.getFieldValue('client_id'));
+                return selectedClient?.use_custom_naming && projectIdMode === 'auto';
+              })()}
+              onChange={(e) => {
+                // Convert to uppercase
+                const uppercaseValue = e.target.value.toUpperCase();
+                form.setFieldsValue({ project_id: uppercaseValue });
+                
+                // Clear any previous errors when user types
+                form.setFields([
+                  {
+                    name: 'project_id',
+                    errors: [],
+                  },
+                ]);
+              }}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="project_type"
+            label="Project Type"
+            rules={[{ required: true }]}
+          >
+            <Select placeholder="Select project type">
+              <Select.Option value="WGS">WGS</Select.Option>
+              <Select.Option value="V1V3_16S">16S-V1V3</Select.Option>
+              <Select.Option value="V3V4_16S">16S-V3V4</Select.Option>
+              <Select.Option value="ONT_WGS">ONT-WGS</Select.Option>
+              <Select.Option value="ONT_V1V8">ONT-V1V8</Select.Option>
+              <Select.Option value="ANALYSIS_ONLY">Analysis Only</Select.Option>
+              <Select.Option value="INTERNAL">Internal</Select.Option>
+              <Select.Option value="CLINICAL">CLINICAL</Select.Option>
+              <Select.Option value="OTHER">Other</Select.Option>
             </Select>
           </Form.Item>
 
@@ -756,6 +1011,48 @@ const Projects = () => {
             <Input.TextArea rows={3} />
           </Form.Item>
 
+          <Divider orientation="left">Project ID Settings</Divider>
+
+          <Form.Item
+            name="use_custom_naming"
+            valuePropName="checked"
+            initialValue={false}
+          >
+            <Checkbox>
+              Use custom project ID naming (for kit projects)
+            </Checkbox>
+          </Form.Item>
+
+          <Form.Item
+            noStyle
+            shouldUpdate={(prevValues, currentValues) => 
+              prevValues.use_custom_naming !== currentValues.use_custom_naming
+            }
+          >
+            {({ getFieldValue }) => 
+              getFieldValue('use_custom_naming') && (
+                <Form.Item
+                  name="abbreviation"
+                  label="Client Abbreviation"
+                  help="2-4 character code for project IDs (e.g., NB, UCLA)"
+                  rules={[
+                    { required: true, message: 'Please enter an abbreviation' },
+                    { max: 10, message: 'Abbreviation must be 10 characters or less' },
+                    { pattern: /^[A-Z0-9]+$/, message: 'Only uppercase letters and numbers' }
+                  ]}
+                >
+                  <Input 
+                    placeholder="e.g., NB, UCLA" 
+                    style={{ textTransform: 'uppercase' }}
+                    onChange={(e) => {
+                      clientForm.setFieldsValue({ abbreviation: e.target.value.toUpperCase() });
+                    }}
+                  />
+                </Form.Item>
+              )
+            }
+          </Form.Item>
+
           <Form.Item>
             <Space>
               <Button type="primary" htmlType="submit">
@@ -807,6 +1104,52 @@ const Projects = () => {
               <Button onClick={() => {
                 setDeleteModalVisible(false);
                 deleteForm.resetFields();
+              }}>
+                Cancel
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title="Delete Multiple Projects"
+        open={bulkDeleteModalVisible}
+        onCancel={() => {
+          setBulkDeleteModalVisible(false);
+          bulkDeleteForm.resetFields();
+        }}
+        footer={null}
+      >
+        <Form
+          form={bulkDeleteForm}
+          layout="vertical"
+          onFinish={handleBulkDelete}
+        >
+          <p>
+            You are about to delete <strong>{selectedRowKeys.length}</strong> project(s).
+            As a Project Manager, you must provide a reason for deletion.
+          </p>
+          
+          <Form.Item
+            name="reason"
+            label="Reason for Deletion"
+            rules={[{ required: true, message: 'Please provide a reason for deletion' }]}
+          >
+            <Input.TextArea 
+              rows={4} 
+              placeholder="Please explain why these projects are being deleted..."
+            />
+          </Form.Item>
+
+          <Form.Item>
+            <Space>
+              <Button type="primary" danger htmlType="submit">
+                Delete Projects
+              </Button>
+              <Button onClick={() => {
+                setBulkDeleteModalVisible(false);
+                bulkDeleteForm.resetFields();
               }}>
                 Cancel
               </Button>
