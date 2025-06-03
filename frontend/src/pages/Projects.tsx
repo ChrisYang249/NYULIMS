@@ -1095,6 +1095,17 @@ const Projects = () => {
             </Select>
           </Form.Item>
 
+          <Form.Item
+            name="crm_link"
+            label="CRM Link (Optional)"
+            tooltip="Link to this project in your CRM system"
+          >
+            <Input 
+              placeholder="https://your-crm.com/project/12345"
+              type="url"
+            />
+          </Form.Item>
+
           <Divider orientation="left">Project Attachments</Divider>
           
           <Row gutter={16}>
