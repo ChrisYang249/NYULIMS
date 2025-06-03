@@ -35,6 +35,7 @@ class ProjectBase(BaseModel):
     project_value: Optional[float] = None
     notes: Optional[str] = None
     sales_rep_id: Optional[int] = None
+    crm_link: Optional[str] = None
 
 class ProjectCreate(ProjectBase):
     project_id: Optional[str] = None  # Allow user to provide project ID
@@ -50,6 +51,7 @@ class ProjectUpdate(BaseModel):
     project_value: Optional[float] = None
     notes: Optional[str] = None
     sales_rep_id: Optional[int] = None
+    crm_link: Optional[str] = None
 
 class Project(ProjectBase):
     id: int
