@@ -97,6 +97,7 @@ class SampleUpdate(BaseModel):
     extraction_qc_pass: Optional[bool] = None
     extraction_concentration: Optional[float] = None
     extraction_volume: Optional[float] = None
+    elution_volume: Optional[float] = None
     extraction_260_280: Optional[float] = None
     extraction_260_230: Optional[float] = None
     
@@ -185,6 +186,7 @@ class Sample(SampleBase):
     extraction_qc_pass: Optional[bool] = None
     extraction_concentration: Optional[float] = None
     extraction_volume: Optional[float] = None
+    elution_volume: Optional[float] = None
     extraction_260_280: Optional[float] = None
     extraction_260_230: Optional[float] = None
     

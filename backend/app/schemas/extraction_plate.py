@@ -83,8 +83,20 @@ class PlateWellAssignment(BaseModel):
                 'id': obj.sample.id,
                 'barcode': obj.sample.barcode,
                 'client_sample_id': obj.sample.client_sample_id,
+                'sample_type': obj.sample.sample_type_ref.name if obj.sample.sample_type_ref else None,
+                'extraction_volume': obj.sample.extraction_volume,
+                'pretreatment_type': obj.sample.pretreatment_type,
+                'spike_in_type': obj.sample.spike_in_type,
+                'elution_volume': obj.sample.elution_volume,
+                'storage_unit': obj.sample.storage_unit,
+                'storage_shelf': obj.sample.storage_shelf,
+                'storage_box': obj.sample.storage_box,
+                'storage_position': obj.sample.storage_position,
                 'project': {
-                    'project_id': obj.sample.project.project_id
+                    'project_id': obj.sample.project.project_id,
+                    'client': {
+                        'institution': obj.sample.project.client.institution
+                    } if obj.sample.project.client else None
                 } if obj.sample.project else None
             }
         else:
