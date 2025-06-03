@@ -66,8 +66,20 @@ interface WellAssignment {
     id: number;
     barcode: string;
     client_sample_id?: string;
+    sample_type?: string;
+    extraction_volume?: number;
+    pretreatment_type?: string;
+    spike_in_type?: string;
+    elution_volume?: number;
+    storage_unit?: string;
+    storage_shelf?: string;
+    storage_box?: string;
+    storage_position?: string;
     project?: {
       project_id: string;
+      client?: {
+        institution: string;
+      };
     };
   };
 }
@@ -335,18 +347,35 @@ const ExtractionPlateDetail: React.FC = () => {
           </Card>
           <Card title="Control Wells" style={{ marginTop: 16 }}>
             <Space direction="vertical" style={{ width: '100%' }}>
-              <div>
-                <Badge status="warning" text="E12: Extraction Positive" />
-              </div>
-              <div>
-                <Badge status="processing" text="F12: Extraction Negative" />
-              </div>
-              <div>
-                <Badge status="default" text="G12: Library Prep Positive" />
-              </div>
-              <div>
-                <Badge status="default" text="H12: Library Prep Negative" />
-              </div>
+              {wellAssignments
+                .filter(w => w.is_control)
+                .sort((a, b) => {
+                  // Sort controls in proper order
+                  const order = ['ext_pos', 'ext_neg', 'lp_pos', 'lp_neg'];
+                  return order.indexOf(a.control_type || '') - order.indexOf(b.control_type || '');
+                })
+                .map(control => {
+                  const labels: { [key: string]: string } = {
+                    'ext_pos': 'Extraction Positive',
+                    'ext_neg': 'Extraction Negative',
+                    'lp_pos': 'Library Prep Positive',
+                    'lp_neg': 'Library Prep Negative'
+                  };
+                  const statuses: { [key: string]: any } = {
+                    'ext_pos': 'warning',
+                    'ext_neg': 'processing',
+                    'lp_pos': 'default',
+                    'lp_neg': 'default'
+                  };
+                  return (
+                    <div key={control.id}>
+                      <Badge 
+                        status={statuses[control.control_type || ''] || 'default'} 
+                        text={`${control.well_position}: ${labels[control.control_type || ''] || control.control_type}`} 
+                      />
+                    </div>
+                  );
+                })}
             </Space>
           </Card>
         </Col>
@@ -370,12 +399,14 @@ const ExtractionPlateDetail: React.FC = () => {
           dataSource={wellAssignments.filter(w => !w.is_control)}
           rowKey="id"
           size="small"
+          scroll={{ x: 1200 }}
           columns={[
             {
               title: 'Well',
               dataIndex: 'well_position',
               key: 'well_position',
-              width: 80,
+              width: 60,
+              fixed: 'left',
               sorter: (a, b) => {
                 const rowA = a.well_row.charCodeAt(0);
                 const rowB = b.well_row.charCodeAt(0);
@@ -384,8 +415,16 @@ const ExtractionPlateDetail: React.FC = () => {
               },
             },
             {
+              title: 'CID',
+              key: 'client_sample_id',
+              width: 120,
+              ellipsis: true,
+              render: (_, record) => record.sample?.client_sample_id || '-',
+            },
+            {
               title: 'Barcode',
               key: 'barcode',
+              width: 90,
               render: (_, record) => record.sample ? (
                 <a href={`/samples/${record.sample.id}`} target="_blank" rel="noopener noreferrer">
                   {record.sample.barcode}
@@ -393,13 +432,93 @@ const ExtractionPlateDetail: React.FC = () => {
               ) : '-',
             },
             {
-              title: 'Client Sample ID',
-              key: 'client_sample_id',
-              render: (_, record) => record.sample?.client_sample_id || '-',
+              title: 'Client',
+              key: 'client',
+              width: 120,
+              ellipsis: true,
+              render: (_, record) => record.sample?.project?.client?.institution || '-',
+            },
+            {
+              title: 'Sample Type',
+              key: 'sample_type',
+              width: 100,
+              render: (_, record) => {
+                const type = record.sample?.sample_type;
+                if (!type) return '-';
+                const typeColors: { [key: string]: string } = {
+                  'blood': 'red',
+                  'plasma': 'volcano',
+                  'serum': 'orange',
+                  'stool': 'gold',
+                  'saliva': 'lime',
+                  'urine': 'yellow',
+                  'tissue': 'green',
+                  'dna': 'cyan',
+                  'rna': 'blue',
+                  'other': 'default'
+                };
+                return <Tag color={typeColors[type.toLowerCase()] || 'default'}>{type}</Tag>;
+              },
+            },
+            {
+              title: 'Input (µL)',
+              key: 'extraction_volume',
+              width: 80,
+              render: (_, record) => record.sample?.extraction_volume || 250,
+            },
+            {
+              title: 'Pre-Proc',
+              key: 'pretreatment_type',
+              width: 120,
+              render: (_, record) => {
+                const type = record.sample?.pretreatment_type;
+                return type && type !== 'none' ? type.replace(/_/g, ' ') : '-';
+              },
+            },
+            {
+              title: 'Spike',
+              key: 'spike_in_type',
+              width: 120,
+              render: (_, record) => {
+                const type = record.sample?.spike_in_type;
+                if (!type || type === 'none') return '-';
+                // Map spike-in values to shortened display names
+                const spikeInMap: { [key: string]: string } = {
+                  'zymo_d6300': 'Zymo D6300',
+                  'zymo_d6305': 'Zymo DNA D6305',
+                  'zymo_d6306': 'Zymo HMW D6306',
+                  'zymo_d6310': 'Zymo Control I D6310',
+                  'zymo_d6311': 'Zymo Control II D6311',
+                  'custom_spike': 'Custom'
+                };
+                return spikeInMap[type] || type;
+              },
+            },
+            {
+              title: 'Elute Vol (µL)',
+              key: 'elution_volume',
+              width: 100,
+              render: (_, record) => record.sample?.elution_volume || 100,
+            },
+            {
+              title: 'Storage',
+              key: 'storage',
+              width: 150,
+              render: (_, record) => {
+                const s = record.sample;
+                if (!s || (!s.storage_unit && !s.storage_shelf && !s.storage_box)) return '-';
+                const parts = [];
+                if (s.storage_unit) parts.push(s.storage_unit);
+                if (s.storage_shelf) parts.push(s.storage_shelf);
+                if (s.storage_box) parts.push(s.storage_box);
+                if (s.storage_position) parts.push(s.storage_position);
+                return parts.join(' / ');
+              },
             },
             {
               title: 'Project',
               key: 'project',
+              width: 100,
               render: (_, record) => record.sample?.project?.project_id ? (
                 <Tag color="blue">{record.sample.project.project_id}</Tag>
               ) : '-',
