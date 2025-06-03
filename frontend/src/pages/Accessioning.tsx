@@ -4,7 +4,7 @@ import {
   Divider, Row, Col, Card, Select, Alert, Typography,
   Popover, Badge, Switch, DatePicker, Checkbox, Tooltip, Upload
 } from 'antd';
-import type { ColumnsType } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
 import type { UploadFile } from 'antd/es/upload';
 import { 
   CheckCircleOutlined, WarningOutlined, FlagOutlined,

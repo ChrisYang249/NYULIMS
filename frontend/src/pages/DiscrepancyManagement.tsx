@@ -4,7 +4,7 @@ import {
   Statistic, Alert, Select, DatePicker, Tabs, Timeline, Typography,
   Badge, Descriptions, message, Divider
 } from 'antd';
-import type { ColumnsType } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
 import { 
   WarningOutlined, CheckCircleOutlined, CloseCircleOutlined,
   ClockCircleOutlined, UserOutlined, FileTextOutlined,
