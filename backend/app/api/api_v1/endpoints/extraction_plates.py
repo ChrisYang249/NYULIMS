@@ -30,16 +30,19 @@ def generate_plate_id() -> str:
     return f"EXT-{date_str}-{random_str}"
 
 def get_well_position(index: int) -> tuple[str, int]:
-    """Convert index (0-95) to well position (A1-H12)"""
-    # Skip control wells: G11, G12, H11, H12
-    control_wells = ["G11", "G12", "H11", "H12"]
+    """Convert index (0-95) to well position (A1-H12) - fills vertically by column"""
+    # Skip control wells: E12, F12, G12, H12 (last column for controls)
+    control_wells = ["E12", "F12", "G12", "H12"]
     
-    row = index // 12
-    col = index % 12 + 1
+    # Fill vertically: A1-H1, then A2-H2, etc.
+    col = index // 8 + 1  # Column number (1-12)
+    row = index % 8      # Row index (0-7)
     well = f"{chr(65 + row)}{col}"
     
     # If this is a control well, skip to next available
     if well in control_wells:
+        # If we hit control wells, we've filled 11 columns + 4 rows of column 12
+        # So we need to jump to the next appropriate position
         return get_well_position(index + 1)
     
     return well, col
@@ -214,8 +217,10 @@ def auto_assign_samples_to_plate(
     
     # Add control well assignments
     control_wells = [
-        ("H11", "ext_pos", f"POS-{plate.plate_id}"),
-        ("H12", "ext_neg", f"NEG-{plate.plate_id}")
+        ("E12", "ext_pos", f"POS-{plate.plate_id}"),
+        ("F12", "ext_neg", f"NEG-{plate.plate_id}"),
+        ("G12", "lp_pos", f"LP-POS-{plate.plate_id}"),
+        ("H12", "lp_neg", f"LP-NEG-{plate.plate_id}")
     ]
     
     for well, ctrl_type, ctrl_id in control_wells:
@@ -251,10 +256,10 @@ def auto_assign_samples_to_plate(
         assigned_samples=assigned_samples,
         project_summary=project_counts,
         control_wells={
-            "extraction_positive": "H11",
-            "extraction_negative": "H12",
-            "library_prep_positive": "G11 (reserved)",
-            "library_prep_negative": "G12 (reserved)"
+            "extraction_positive": "E12",
+            "extraction_negative": "F12",
+            "library_prep_positive": "G12",
+            "library_prep_negative": "H12"
         }
     )
 
@@ -369,3 +374,149 @@ def complete_extraction(
     db.refresh(plate)
     
     return ExtractionPlateSchema.from_orm(plate)
+@router.post("/{plate_id}/assign-samples-manual", response_model=PlateAutoAssignResponse)
+def assign_samples_manual(
+    *,
+    db: Session = Depends(deps.get_db),
+    plate_id: int,
+    request: dict,
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """Manually assign samples to extraction plate with custom processing options"""
+    # Check if user is lab manager
+    if current_user.role not in ['super_admin', 'lab_manager', 'director']:
+        raise HTTPException(
+            status_code=403,
+            detail="Only lab managers can assign samples to plates"
+        )
+    
+    plate = db.query(ExtractionPlate).filter(ExtractionPlate.id == plate_id).first()
+    if not plate:
+        raise HTTPException(status_code=404, detail="Extraction plate not found")
+    
+    if plate.status != PlateStatus.PLANNING:
+        raise HTTPException(
+            status_code=400,
+            detail="Can only assign samples to plates in planning status"
+        )
+    
+    assignments = request.get("assignments", [])
+    include_controls = request.get("include_controls", True)
+    add_water_balance = request.get("add_water_balance", False)
+    
+    # Assign samples to wells
+    assigned_samples = []
+    well_assignments = []
+    
+    for assignment in assignments:
+        sample_id = assignment["sample_id"]
+        sample = db.query(Sample).filter(Sample.id == sample_id).first()
+        
+        if not sample:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Sample {sample_id} not found"
+            )
+        
+        # Get well position from assignment
+        if "well_position" in assignment:
+            well_position = assignment["well_position"]
+        else:
+            # Calculate based on index
+            index = len(assigned_samples)
+            well_position, _ = get_well_position(index)
+        
+        # Update sample
+        sample.extraction_plate_ref_id = plate.id
+        sample.extraction_plate_id = plate.plate_id
+        sample.extraction_well_position = well_position
+        sample.extraction_tech_id = plate.assigned_tech_id
+        sample.extraction_assigned_date = datetime.utcnow()
+        sample.extraction_method = plate.extraction_method
+        
+        # Update pre-processing options from assignment
+        if "pretreatment_type" in assignment:
+            sample.pretreatment_type = assignment["pretreatment_type"]
+        if "spike_in_type" in assignment:
+            sample.spike_in_type = assignment["spike_in_type"]
+        if "sample_input_ul" in assignment:
+            sample.extraction_volume = assignment["sample_input_ul"]
+        if "elution_volume_ul" in assignment:
+            sample.elution_volume = assignment["elution_volume_ul"]
+        if "lysis_method" in assignment:
+            sample.lysis_method = assignment["lysis_method"]
+        
+        # Create well assignment
+        well_assignment = PlateWellAssignment(
+            plate_id=plate.id,
+            sample_id=sample.id,
+            well_position=well_position,
+            well_row=well_position[0],
+            well_column=int(well_position[1:])
+        )
+        db.add(well_assignment)
+        well_assignments.append(well_assignment)
+        
+        assigned_samples.append({
+            "sample_id": sample.id,
+            "barcode": sample.barcode,
+            "well_position": well_position,
+            "project_id": sample.project.project_id if sample.project else None
+        })
+    
+    # Add control well assignments
+    if include_controls:
+        control_wells = [
+            ("E12", "ext_pos", f"POS-{plate.plate_id}"),
+            ("F12", "ext_neg", f"NEG-{plate.plate_id}"),
+            ("G12", "lp_pos", f"LP-POS-{plate.plate_id}"),
+            ("H12", "lp_neg", f"LP-NEG-{plate.plate_id}")
+        ]
+        
+        for well, ctrl_type, ctrl_id in control_wells:
+            well_assignment = PlateWellAssignment(
+                plate_id=plate.id,
+                sample_id=None,  # No sample for controls
+                well_position=well,
+                well_row=well[0],
+                well_column=int(well[1:]),
+                is_control=True,
+                control_type=ctrl_type
+            )
+            db.add(well_assignment)
+            
+            # Update plate control IDs
+            if ctrl_type == "ext_pos":
+                plate.ext_pos_ctrl_id = ctrl_id
+            elif ctrl_type == "ext_neg":
+                plate.ext_neg_ctrl_id = ctrl_id
+            elif ctrl_type == "lp_pos":
+                plate.lp_pos_ctrl_id = ctrl_id
+            elif ctrl_type == "lp_neg":
+                plate.lp_neg_ctrl_id = ctrl_id
+    
+    # Update plate status
+    plate.status = PlateStatus.READY
+    
+    db.commit()
+    
+    # Get project summary
+    project_counts = {}
+    for assignment in assigned_samples:
+        sample = db.query(Sample).filter(Sample.id == assignment["sample_id"]).first()
+        if sample and sample.project:
+            project_id = sample.project.project_id
+            project_counts[project_id] = project_counts.get(project_id, 0) + 1
+    
+    return PlateAutoAssignResponse(
+        plate_id=plate.plate_id,
+        total_samples=len(assigned_samples),
+        assigned_samples=assigned_samples,
+        project_summary=project_counts,
+        control_wells={
+            "extraction_positive": "E12",
+            "extraction_negative": "F12",
+            "library_prep_positive": "G12",
+            "library_prep_negative": "H12"
+        }
+    )

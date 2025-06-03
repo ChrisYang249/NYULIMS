@@ -44,13 +44,28 @@ from app.schemas.sample import (
 
 router = APIRouter()
 
-def generate_barcode(db: Session, length: int = 6) -> str:
-    """Generate unique barcode"""
+def generate_barcode(db: Session) -> str:
+    """Generate unique sequential 7-digit barcode"""
+    # Find the highest existing barcode number
+    # Exclude barcodes with reprocessing suffixes (e.g., 1234567-R1)
+    latest_sample = db.query(Sample).filter(
+        ~Sample.barcode.contains('-')  # Exclude reprocessed samples
+    ).order_by(Sample.barcode.desc()).first()
+    
+    if latest_sample and latest_sample.barcode.isdigit():
+        # Get the next sequential number
+        next_number = int(latest_sample.barcode) + 1
+    else:
+        # Start from 1000000 (7 digits)
+        next_number = 1000000
+    
+    # Ensure it's 7 digits and not already taken
     while True:
-        barcode = ''.join([str(random.randint(0, 9)) for _ in range(length)])
+        barcode = str(next_number).zfill(7)
         existing = db.query(Sample).filter(Sample.barcode == barcode).first()
         if not existing:
             return barcode
+        next_number += 1
 
 def create_sample_log(
     db: Session,
@@ -151,6 +166,18 @@ def read_samples(
             "service_type": sample.project.project_type.value if sample.project and sample.project.project_type else None,
             "has_discrepancy": sample.has_discrepancy,
             "discrepancy_resolved": sample.discrepancy_resolved,
+            # Include extraction plate reference
+            "extraction_plate_ref_id": sample.extraction_plate_ref_id,
+            "extraction_tech_id": sample.extraction_tech_id,
+            "extraction_well_position": sample.extraction_well_position,
+            "extraction_completed_date": sample.extraction_completed_date,
+            "extraction_method": sample.extraction_method,
+            "extraction_notes": sample.extraction_notes,
+            "extraction_concentration": sample.extraction_concentration,
+            "extraction_volume": sample.extraction_volume,
+            "extraction_260_280": sample.extraction_260_280,
+            "extraction_260_230": sample.extraction_260_230,
+            "extraction_qc_pass": sample.extraction_qc_pass,
         }
         
         # Add extraction data
@@ -223,6 +250,25 @@ def read_sample(
         "service_type": sample.project.project_type.value if sample.project and sample.project.project_type else None,
         "has_discrepancy": sample.has_discrepancy,
         "discrepancy_resolved": sample.discrepancy_resolved,
+        # Include extraction plate reference
+        "extraction_plate_ref_id": sample.extraction_plate_ref_id,
+        "extraction_tech_id": sample.extraction_tech_id,
+        "extraction_well_position": sample.extraction_well_position,
+        "extraction_completed_date": sample.extraction_completed_date,
+        "extraction_method": sample.extraction_method,
+        "extraction_notes": sample.extraction_notes,
+        "extraction_concentration": sample.extraction_concentration,
+        "extraction_volume": sample.extraction_volume,
+        "extraction_260_280": sample.extraction_260_280,
+        "extraction_260_230": sample.extraction_260_230,
+        "extraction_qc_pass": sample.extraction_qc_pass,
+        "pretreatment_type": sample.pretreatment_type,
+        "pretreatment_date": sample.pretreatment_date,
+        "spike_in_type": sample.spike_in_type,
+        "has_flag": sample.has_flag,
+        "flag_abbreviation": sample.flag_abbreviation,
+        "flag_notes": sample.flag_notes,
+        "accessioning_notes": sample.accessioning_notes,
     }
     
     # Add lab data (same logic as list endpoint)
@@ -1122,6 +1168,7 @@ def get_queue_samples(
     query = db.query(Sample).options(
         joinedload(Sample.project).joinedload(Project.client),
         joinedload(Sample.storage_location),
+        joinedload(Sample.sample_type_ref),
         joinedload(Sample.extraction_results),
         joinedload(Sample.library_prep_results),
         joinedload(Sample.sequencing_run_samples).joinedload(SequencingRunSample.sequencing_run)
@@ -1152,7 +1199,7 @@ def get_queue_samples(
             "barcode": sample.barcode,
             "client_sample_id": sample.client_sample_id,
             "project_id": sample.project_id,
-            "sample_type": sample.sample_type,
+            "sample_type": sample.sample_type_ref.name if sample.sample_type_ref else sample.sample_type,
             "status": sample.status,
             "target_depth": sample.target_depth,
             "well_location": sample.well_location,
@@ -1175,6 +1222,13 @@ def get_queue_samples(
             "client_institution": sample.project.client.institution if sample.project and sample.project.client else None,
             "has_discrepancy": sample.has_discrepancy,
             "discrepancy_resolved": sample.discrepancy_resolved,
+            # Include extraction plate reference
+            "extraction_plate_ref_id": sample.extraction_plate_ref_id,
+            "extraction_tech_id": sample.extraction_tech_id,
+            "extraction_well_position": sample.extraction_well_position,
+            "extraction_completed_date": sample.extraction_completed_date,
+            "pretreatment_type": sample.pretreatment_type,
+            "spike_in_type": sample.spike_in_type,
         }
         
         # Add lab data (same as before)

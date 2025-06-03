@@ -336,16 +336,16 @@ const ExtractionPlateDetail: React.FC = () => {
           <Card title="Control Wells" style={{ marginTop: 16 }}>
             <Space direction="vertical" style={{ width: '100%' }}>
               <div>
-                <Badge status="warning" text="H11: Extraction Positive" />
+                <Badge status="warning" text="E12: Extraction Positive" />
               </div>
               <div>
-                <Badge status="processing" text="H12: Extraction Negative" />
+                <Badge status="processing" text="F12: Extraction Negative" />
               </div>
               <div>
-                <Badge status="default" text="G11: Library Prep Positive (Reserved)" />
+                <Badge status="default" text="G12: Library Prep Positive" />
               </div>
               <div>
-                <Badge status="default" text="G12: Library Prep Negative (Reserved)" />
+                <Badge status="default" text="H12: Library Prep Negative" />
               </div>
             </Space>
           </Card>

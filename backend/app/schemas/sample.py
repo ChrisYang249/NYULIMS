@@ -210,6 +210,8 @@ class SampleWithLabData(Sample):
     service_type: Optional[str] = None
     has_discrepancy: Optional[bool] = False
     discrepancy_resolved: Optional[bool] = False
+    # Add extraction plate reference ID for frontend to fetch details
+    extraction_plate_ref_id: Optional[int] = None
     
     class Config:
         from_attributes = True

@@ -41,11 +41,11 @@ class ExtractionPlate(Base, TimestampMixin):
     # Notes
     notes = Column(Text)
     
-    # Control positions (standard: H11, H12 for extraction; later G11, G12 for library prep)
-    ext_pos_ctrl_well = Column(String, default="H11")  # Extraction positive control
-    ext_neg_ctrl_well = Column(String, default="H12")  # Extraction negative control
-    lp_pos_ctrl_well = Column(String, default="G11")   # Library prep positive control (added later)
-    lp_neg_ctrl_well = Column(String, default="G12")   # Library prep negative control (added later)
+    # Control positions (standard: E12, F12 for extraction; G12, H12 for library prep)
+    ext_pos_ctrl_well = Column(String, default="E12")  # Extraction positive control
+    ext_neg_ctrl_well = Column(String, default="F12")  # Extraction negative control
+    lp_pos_ctrl_well = Column(String, default="G12")   # Library prep positive control
+    lp_neg_ctrl_well = Column(String, default="H12")   # Library prep negative control
     
     # Control tracking
     ext_pos_ctrl_id = Column(String)  # Control sample ID/barcode

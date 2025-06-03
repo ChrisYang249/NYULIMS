@@ -67,11 +67,47 @@ interface Sample {
   sequencing_run_id?: string;
   sequencing_instrument?: string;
   achieved_depth?: number;
-  pretreatment_type?: string;
-  pretreatment_date?: string;
   accessioning_notes?: string;
   created_at: string;
   updated_at: string;
+  // Extraction plate fields
+  extraction_plate_id?: string;
+  extraction_plate_ref_id?: number;
+  extraction_tech_id?: number;
+  extraction_well_position?: string;
+  extraction_assigned_date?: string;
+  extraction_started_date?: string;
+  extraction_completed_date?: string;
+  extraction_method?: string;
+  extraction_notes?: string;
+  extraction_qc_pass?: boolean;
+  extraction_concentration?: number;
+  extraction_volume?: number;
+  extraction_260_280?: number;
+  extraction_260_230?: number;
+}
+
+interface ExtractionPlate {
+  id: number;
+  plate_id: string;
+  plate_name?: string;
+  status: string;
+  assigned_tech?: {
+    id: number;
+    full_name: string;
+  };
+  extraction_method?: string;
+  lysis_method?: string;
+  extraction_lot?: string;
+  started_date?: string;
+  completed_date?: string;
+  notes?: string;
+}
+
+interface User {
+  id: number;
+  full_name: string;
+  username: string;
 }
 
 interface SampleLog {
@@ -100,6 +136,8 @@ const SampleDetails = () => {
   const [isStatusModalVisible, setIsStatusModalVisible] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [extractionPlate, setExtractionPlate] = useState<ExtractionPlate | null>(null);
+  const [extractionTech, setExtractionTech] = useState<User | null>(null);
   const [form] = Form.useForm();
   const [statusForm] = Form.useForm();
   const [commentForm] = Form.useForm();
@@ -156,11 +194,39 @@ const SampleDetails = () => {
         storage_box: response.data.storage_box,
         storage_position: response.data.storage_position,
       });
+      
+      // If sample has extraction plate, fetch additional details
+      if (response.data.extraction_plate_ref_id) {
+        fetchExtractionPlateDetails(response.data.extraction_plate_ref_id);
+      }
+      if (response.data.extraction_tech_id) {
+        fetchExtractionTech(response.data.extraction_tech_id);
+      }
     } catch (error) {
       message.error('Failed to fetch sample details');
       navigate('/samples');
     }
     setLoading(false);
+  };
+  
+  const fetchExtractionPlateDetails = async (plateId: number) => {
+    try {
+      const response = await api.get(`/extraction-plates/${plateId}`);
+      setExtractionPlate(response.data);
+    } catch (error) {
+      console.error('Failed to fetch extraction plate details');
+    }
+  };
+  
+  const fetchExtractionTech = async (techId: number) => {
+    try {
+      // Try to fetch user details - this endpoint might not exist yet
+      const response = await api.get(`/users/${techId}`);
+      setExtractionTech(response.data);
+    } catch (error) {
+      console.error('Failed to fetch extraction technician details');
+      // Fallback - the extraction plate might have the technician info
+    }
   };
 
   const fetchLogs = async () => {
@@ -396,16 +462,136 @@ const SampleDetails = () => {
     <Row gutter={[16, 16]}>
       <Col span={24}>
         <Card title="Extraction Data">
-          {sample.extraction_kit ? (
+          {sample.extraction_plate_ref_id || sample.extraction_kit ? (
             <Descriptions bordered column={2}>
-              <Descriptions.Item label="Kit">{sample.extraction_kit}</Descriptions.Item>
-              <Descriptions.Item label="Lot">{sample.extraction_lot || '-'}</Descriptions.Item>
-              <Descriptions.Item label="DNA Concentration">
-                {sample.dna_concentration_ng_ul ? `${sample.dna_concentration_ng_ul.toFixed(2)} ng/µL` : '-'}
+              {/* Extraction Plate Information */}
+              {extractionPlate && (
+                <>
+                  <Descriptions.Item label="Extraction Plate" span={2}>
+                    <Space>
+                      <a onClick={() => navigate(`/extraction-plates/${extractionPlate.id}`)}>
+                        <strong>{extractionPlate.plate_id}</strong>
+                      </a>
+                      {extractionPlate.plate_name && <Text type="secondary">({extractionPlate.plate_name})</Text>}
+                    </Space>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Plate Status">
+                    <Tag color={
+                      extractionPlate.status === 'completed' ? 'success' :
+                      extractionPlate.status === 'in_progress' ? 'processing' :
+                      extractionPlate.status === 'failed' ? 'error' : 'default'
+                    }>
+                      {extractionPlate.status.replace('_', ' ').toUpperCase()}
+                    </Tag>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Well Position">
+                    <Tag color="blue">{sample.extraction_well_position || '-'}</Tag>
+                  </Descriptions.Item>
+                </>
+              )}
+              
+              {/* Extraction Method */}
+              <Descriptions.Item label="Extraction Method">
+                {sample.extraction_method || extractionPlate?.extraction_method || '-'}
               </Descriptions.Item>
-              <Descriptions.Item label="Status">
-                <Badge status="success" text="Completed" />
+              <Descriptions.Item label="Lysis Method">
+                {extractionPlate?.lysis_method || '-'}
               </Descriptions.Item>
+              
+              {/* Performing Technician */}
+              <Descriptions.Item label="Performing Technician" span={2}>
+                {extractionTech ? (
+                  <Space>
+                    <UserOutlined />
+                    {extractionTech.full_name}
+                  </Space>
+                ) : (
+                  extractionPlate?.assigned_tech ? (
+                    <Space>
+                      <UserOutlined />
+                      {extractionPlate.assigned_tech.full_name}
+                    </Space>
+                  ) : '-'
+                )}
+              </Descriptions.Item>
+              
+              {/* Dates */}
+              {sample.extraction_assigned_date && (
+                <Descriptions.Item label="Assigned Date">
+                  {dayjs(sample.extraction_assigned_date).format('YYYY-MM-DD HH:mm')}
+                </Descriptions.Item>
+              )}
+              {sample.extraction_completed_date && (
+                <Descriptions.Item label="Completed Date">
+                  {dayjs(sample.extraction_completed_date).format('YYYY-MM-DD HH:mm')}
+                </Descriptions.Item>
+              )}
+              
+              {/* Kit Information */}
+              <Descriptions.Item label="Extraction Kit">
+                {sample.extraction_kit || '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="Kit Lot">
+                {sample.extraction_lot || extractionPlate?.extraction_lot || '-'}
+              </Descriptions.Item>
+              
+              {/* DNA Quantification */}
+              <Descriptions.Item label="DNA Concentration" span={2}>
+                {sample.extraction_concentration || sample.dna_concentration_ng_ul ? (
+                  <Space>
+                    <strong>
+                      {(sample.extraction_concentration || sample.dna_concentration_ng_ul).toFixed(2)} ng/µL
+                    </strong>
+                    {sample.extraction_volume && (
+                      <Text type="secondary">
+                        (Volume: {sample.extraction_volume} µL)
+                      </Text>
+                    )}
+                  </Space>
+                ) : '-'}
+              </Descriptions.Item>
+              
+              {/* QC Results */}
+              {(sample.extraction_260_280 || sample.extraction_260_230) && (
+                <>
+                  <Descriptions.Item label="260/280 Ratio">
+                    {sample.extraction_260_280 ? (
+                      <Badge 
+                        status={sample.extraction_260_280 >= 1.8 && sample.extraction_260_280 <= 2.0 ? 'success' : 'warning'} 
+                        text={sample.extraction_260_280.toFixed(2)}
+                      />
+                    ) : '-'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="260/230 Ratio">
+                    {sample.extraction_260_230 ? (
+                      <Badge 
+                        status={sample.extraction_260_230 >= 2.0 && sample.extraction_260_230 <= 2.2 ? 'success' : 'warning'} 
+                        text={sample.extraction_260_230.toFixed(2)}
+                      />
+                    ) : '-'}
+                  </Descriptions.Item>
+                </>
+              )}
+              
+              {/* QC Pass/Fail */}
+              <Descriptions.Item label="QC Status">
+                {sample.extraction_qc_pass !== undefined ? (
+                  sample.extraction_qc_pass ? (
+                    <Badge status="success" text="Passed" />
+                  ) : (
+                    <Badge status="error" text="Failed" />
+                  )
+                ) : (
+                  <Badge status="processing" text="Pending" />
+                )}
+              </Descriptions.Item>
+              
+              {/* Notes */}
+              {sample.extraction_notes && (
+                <Descriptions.Item label="Notes" span={2}>
+                  {sample.extraction_notes}
+                </Descriptions.Item>
+              )}
             </Descriptions>
           ) : (
             <Empty description="No extraction data available" />

@@ -307,8 +307,26 @@ const ExtractionQueue: React.FC = () => {
     }
   };
 
-  // Get unique sample types from samples
-  const uniqueSampleTypes = [...new Set(samples.map(s => s.sample_type))];
+  // Get unique values for filters from unassigned samples only
+  const unassignedSamples = samples.filter(s => !s.extraction_plate_id);
+  
+  const uniqueSampleTypes = [...new Set(
+    unassignedSamples
+      .map(s => s.sample_type)
+      .filter(Boolean)
+  )].sort();
+  
+  const uniqueProjects = [...new Set(
+    unassignedSamples
+      .map(s => s.project_code)
+      .filter(Boolean)
+  )].sort();
+  
+  const uniqueInstitutions = [...new Set(
+    unassignedSamples
+      .map(s => s.client_institution)
+      .filter(Boolean)
+  )].sort();
 
   // Get project count and samples per project (only unassigned samples)
   const projectStats = samples.reduce((acc: any, sample) => {
@@ -327,7 +345,7 @@ const ExtractionQueue: React.FC = () => {
       title: 'Barcode',
       dataIndex: 'barcode',
       key: 'barcode',
-      width: 120,
+      width: 100,
       fixed: 'left',
       render: (barcode: string, record: Sample) => (
         <Space>
@@ -348,41 +366,68 @@ const ExtractionQueue: React.FC = () => {
       ),
     },
     {
-      title: 'Client Sample ID',
-      dataIndex: 'client_sample_id',
-      key: 'client_sample_id',
-      width: 150,
-    },
-    {
       title: 'Project',
       dataIndex: 'project_code',
       key: 'project_code',
-      width: 120,
-      render: (code: string, record: Sample) => (
-        <Tooltip title={record.client_institution}>
-          <Tag color="blue">{code}</Tag>
-        </Tooltip>
-      ),
+      width: 100,
+      filters: uniqueProjects.map(project => ({ text: project, value: project })),
+      onFilter: (value: any, record: Sample) => record.project_code === value,
       sorter: (a: Sample, b: Sample) => a.project_code.localeCompare(b.project_code),
+      render: (code: string) => <Tag color="blue">{code}</Tag>,
+    },
+    {
+      title: 'Institution',
+      dataIndex: 'client_institution',
+      key: 'client_institution',
+      width: 150,
+      ellipsis: true,
+      filters: uniqueInstitutions.map(inst => ({ text: inst, value: inst })),
+      onFilter: (value: any, record: Sample) => record.client_institution === value,
+      sorter: (a: Sample, b: Sample) => {
+        const aInst = a.client_institution || '';
+        const bInst = b.client_institution || '';
+        return aInst.localeCompare(bInst);
+      },
     },
     {
       title: 'Sample Type',
       dataIndex: 'sample_type',
       key: 'sample_type',
       width: 120,
-    },
-    {
-      title: 'Target Depth',
-      dataIndex: 'target_depth',
-      key: 'target_depth',
-      width: 100,
-      render: (depth: number) => depth ? `${depth}M` : '-',
+      filters: uniqueSampleTypes.map(type => ({ text: type, value: type })),
+      onFilter: (value: any, record: Sample) => record.sample_type === value,
+      sorter: (a: Sample, b: Sample) => {
+        const aType = a.sample_type || '';
+        const bType = b.sample_type || '';
+        return aType.localeCompare(bType);
+      },
+      render: (type: string) => {
+        const typeColors: { [key: string]: string } = {
+          'blood': 'red',
+          'plasma': 'volcano',
+          'serum': 'orange',
+          'stool': 'gold',
+          'saliva': 'lime',
+          'urine': 'yellow',
+          'tissue': 'green',
+          'dna': 'cyan',
+          'rna': 'blue',
+          'dna_plate': 'geekblue',
+          'cdna': 'purple',
+          'dna_cdna': 'magenta',
+          'dna_library': 'purple',
+          'rna_library': 'purple',
+          'library_pool': 'purple',
+          'other': 'default'
+        };
+        return <Tag color={typeColors[type?.toLowerCase()] || 'default'}>{type}</Tag>;
+      },
     },
     {
       title: 'Due Date',
       dataIndex: 'due_date',
       key: 'due_date',
-      width: 120,
+      width: 100,
       render: (date: string) => date ? dayjs(date).format('MM/DD/YYYY') : '-',
       sorter: (a: Sample, b: Sample) => {
         if (!a.due_date) return 1;
@@ -391,18 +436,49 @@ const ExtractionQueue: React.FC = () => {
       },
     },
     {
-      title: 'Days in Queue',
-      key: 'days_in_queue',
-      width: 120,
+      title: 'Days till Due',
+      key: 'days_till_due',
+      width: 100,
       render: (_: any, record: Sample) => {
-        const days = dayjs().diff(dayjs(record.created_at), 'day');
-        const color = days > 3 ? 'red' : days > 1 ? 'orange' : 'green';
-        return <Tag color={color}>{days} days</Tag>;
+        if (!record.due_date) return '-';
+        const daysUntilDue = dayjs(record.due_date).diff(dayjs(), 'day');
+        let color = 'green';
+        if (daysUntilDue < 0) {
+          color = 'red';
+          return <Tag color={color}>{Math.abs(daysUntilDue)} days overdue</Tag>;
+        } else if (daysUntilDue <= 3) {
+          color = 'orange';
+        }
+        return <Tag color={color}>{daysUntilDue} days</Tag>;
       },
       sorter: (a: Sample, b: Sample) => {
-        const daysA = dayjs().diff(dayjs(a.created_at), 'day');
-        const daysB = dayjs().diff(dayjs(b.created_at), 'day');
+        if (!a.due_date) return 1;
+        if (!b.due_date) return -1;
+        const daysA = dayjs(a.due_date).diff(dayjs(), 'day');
+        const daysB = dayjs(b.due_date).diff(dayjs(), 'day');
         return daysA - daysB;
+      },
+    },
+    {
+      title: 'Pre-processing',
+      dataIndex: 'pretreatment_type',
+      key: 'pretreatment_type',
+      width: 120,
+      render: (type: string) => {
+        if (!type || type === 'none') return '-';
+        const option = pretreatmentOptions.find(opt => opt.value === type);
+        return option ? option.label : type;
+      },
+    },
+    {
+      title: 'Spike-in',
+      dataIndex: 'spike_in_type',
+      key: 'spike_in_type',
+      width: 120,
+      render: (type: string) => {
+        if (!type || type === 'none') return '-';
+        const option = spikeInOptions.find(opt => opt.value === type);
+        return option ? option.label : type;
       },
     },
   ];
@@ -722,7 +798,7 @@ const ExtractionQueue: React.FC = () => {
           rowKey="id"
           loading={loading}
           rowSelection={rowSelection}
-          scroll={{ x: 1200 }}
+          scroll={{ x: 1000 }}
           pagination={{
             defaultPageSize: 150,
             showSizeChanger: true,
@@ -810,28 +886,6 @@ const ExtractionQueue: React.FC = () => {
               <Option value="zymo_miniprep">ZymoBIOMICS DNA Miniprep</Option>
               <Option value="custom">Custom Protocol</Option>
             </Select>
-          </Form.Item>
-
-          <Form.Item
-            name="lysis_method"
-            label="Lysis Method"
-            rules={[{ required: true, message: 'Please select lysis method' }]}
-          >
-            <Select placeholder="Select lysis method" allowClear>
-              <Option value="NA">NA</Option>
-              <Option value="powerbead_powerlyzer">PowerBead Pro Tubes - PowerLyzer - 1500 x 150sec - 30sec Rest - 1500 x 150sec</Option>
-              <Option value="vortex_5min">Vortex 5 min @ max speed</Option>
-              <Option value="powerbead_tissuelyzer_p3">PowerBead Pro Tubes - TissueLyzer P3: 25Hz, 10 min</Option>
-              <Option value="powerbead_tissuelyzer_p4">PowerBead Pro Tubes - TissueLyzer P4: 3Hz, 15 min</Option>
-              <Option value="other">Other (specify in notes)</Option>
-            </Select>
-          </Form.Item>
-
-          <Form.Item
-            name="extraction_lot"
-            label="Kit Lot Number"
-          >
-            <Input placeholder="e.g., LOT123456" />
           </Form.Item>
 
           <Form.Item
@@ -999,14 +1053,19 @@ const ExtractionQueue: React.FC = () => {
         style={{ top: 20 }}
       >
         <Alert
-          message="Extraction Plate Configuration"
+          message="Manual Sample Assignment"
           description={
-            <ul style={{ marginBottom: 0, paddingLeft: 20 }}>
-              <li>Select samples from available queue (max 92 samples)</li>
-              <li>Configure individual sample input volume, elution volume, pre-processing, spike-in, and lysis methods</li>
-              <li>Samples will be arranged column-wise (A1→B1→C1...H1, then A2→B2...)</li>
-              <li>Control wells: E12 (Ext Pos), F12 (Ext Neg), G12 (LP Pos), H12 (LP Neg)</li>
-            </ul>
+            <div>
+              <p style={{ marginBottom: 8 }}><strong>Step 1:</strong> Select samples from the left table (max 92)</p>
+              <p style={{ marginBottom: 8 }}><strong>Step 2:</strong> Configure processing options for each sample or use bulk settings</p>
+              <p style={{ marginBottom: 8 }}><strong>Step 3:</strong> Review and assign samples to plate</p>
+              <ul style={{ marginBottom: 0, paddingLeft: 20, marginTop: 8 }}>
+                <li>Samples fill vertically by column (A1→H1, then A2→H2)</li>
+                <li>Control wells are automatically placed at E12-H12</li>
+                <li>Lysis method can be customized per sample</li>
+                <li>Kit lot number will be entered after extraction</li>
+              </ul>
+            </div>
           }
           type="info"
           showIcon
@@ -1015,7 +1074,15 @@ const ExtractionQueue: React.FC = () => {
         
         <Row gutter={16} style={{ marginBottom: 16 }}>
           <Col span={12}>
-            <Card title="Available Samples" size="small">
+            <Card 
+              title={
+                <Space>
+                  <span>Available Samples</span>
+                  <Tag color="blue">{filteredSamples.length} samples</Tag>
+                </Space>
+              }
+              size="small"
+            >
               <div style={{ marginBottom: 8 }}>
                 <Space>
                   <Input
@@ -1023,9 +1090,12 @@ const ExtractionQueue: React.FC = () => {
                     prefix={<SearchOutlined />}
                     value={searchText}
                     onChange={(e) => setSearchText(e.target.value)}
-                    style={{ width: 300 }}
+                    style={{ width: 250 }}
                   />
-                  <Text>Selected: {selectedSamples.length}/92</Text>
+                  <Text strong>Selected: {selectedSamples.length}/92</Text>
+                  {selectedSamples.length === 92 && (
+                    <Tag color="orange">Plate Full</Tag>
+                  )}
                 </Space>
               </div>
               <Table
@@ -1065,20 +1135,41 @@ const ExtractionQueue: React.FC = () => {
                   getCheckboxProps: (record) => ({
                     disabled: selectedSamples.length >= 92 && !selectedSamples.includes(record.id),
                   }),
+                  onSelectAll: (selected, selectedRows, changeRows) => {
+                    if (selected) {
+                      // Select all visible samples up to 92
+                      const availableSamples = filteredSamples.slice(0, 92);
+                      const sampleIds = availableSamples.map(s => s.id);
+                      setSelectedSamples(sampleIds);
+                      
+                      const newAssignments = sampleIds.map(sampleId => {
+                        const existing = plateAssignments.find(a => a.sample_id === sampleId);
+                        return existing || {
+                          sample_id: sampleId,
+                          sample_input_ul: 250,
+                          elution_volume_ul: 100,
+                          pretreatment_type: 'none',
+                          spike_in_type: 'none',
+                          lysis_method: 'NA'
+                        };
+                      });
+                      setPlateAssignments(newAssignments);
+                      
+                      if (filteredSamples.length > 92) {
+                        message.info('Selected first 92 samples (maximum per plate)');
+                      }
+                    } else {
+                      setSelectedSamples([]);
+                      setPlateAssignments([]);
+                    }
+                  },
                 }}
                 columns={[
                   {
                     title: 'Barcode',
                     dataIndex: 'barcode',
                     key: 'barcode',
-                    width: 100,
-                  },
-                  {
-                    title: 'Client ID',
-                    dataIndex: 'client_sample_id',
-                    key: 'client_sample_id',
-                    width: 120,
-                    ellipsis: true,
+                    width: 90,
                   },
                   {
                     title: 'Project',
@@ -1087,10 +1178,38 @@ const ExtractionQueue: React.FC = () => {
                     width: 80,
                   },
                   {
-                    title: 'Type',
+                    title: 'Sample Type',
                     dataIndex: 'sample_type',
                     key: 'sample_type',
-                    width: 80,
+                    width: 100,
+                    render: (type: string) => {
+                      const typeColors: { [key: string]: string } = {
+                        'blood': 'red',
+                        'plasma': 'volcano',
+                        'serum': 'orange',
+                        'stool': 'gold',
+                        'saliva': 'lime',
+                        'urine': 'yellow',
+                        'tissue': 'green',
+                        'dna': 'cyan',
+                        'rna': 'blue',
+                        'dna_plate': 'geekblue',
+                        'cdna': 'purple',
+                        'dna_cdna': 'magenta',
+                        'dna_library': 'purple',
+                        'rna_library': 'purple',
+                        'library_pool': 'purple',
+                        'other': 'default'
+                      };
+                      return <Tag color={typeColors[type?.toLowerCase()] || 'default'}>{type}</Tag>;
+                    },
+                  },
+                  {
+                    title: 'Due Date',
+                    dataIndex: 'due_date',
+                    key: 'due_date',
+                    width: 90,
+                    render: (date: string) => date ? dayjs(date).format('MM/DD') : '-',
                   },
                 ]}
               />
@@ -1099,13 +1218,23 @@ const ExtractionQueue: React.FC = () => {
           
           <Col span={12}>
             <Card 
-              title={`Plate Configuration (${plateAssignments.length} samples)`} 
+              title={
+                <Space>
+                  <span>Plate Configuration</span>
+                  <Tag color="green">{plateAssignments.length} samples</Tag>
+                  <Tag color="purple">4 controls</Tag>
+                </Space>
+              }
               size="small"
               extra={
-                <Text type="secondary">
-                  Controls: {plateAssignments.length >= 88 ? 'E12-H12' : `After sample #${plateAssignments.length}`}
-                  {(plateAssignments.length + 4) % 2 !== 0 && ' + Water balance'}
-                </Text>
+                <Space>
+                  <Text type="secondary">
+                    Wells used: {plateAssignments.length + 4}/96
+                  </Text>
+                  {(plateAssignments.length + 4) % 2 !== 0 && (
+                    <Tag color="blue" icon={<WarningOutlined />}>+1 water for balance</Tag>
+                  )}
+                </Space>
               }
             >
               <div style={{ marginBottom: 16 }}>
@@ -1113,45 +1242,80 @@ const ExtractionQueue: React.FC = () => {
                   <Button 
                     size="small"
                     onClick={() => {
-                      // Apply bulk settings
+                      let formValues = {
+                        sample_input_ul: 250,
+                        elution_volume_ul: 100,
+                        pretreatment_type: 'none',
+                        spike_in_type: 'none',
+                        lysis_method: 'NA'
+                      };
+                      
                       Modal.confirm({
                         title: selectedPlateRows.length > 0 
                           ? `Apply Bulk Settings to ${selectedPlateRows.length} Selected Samples`
                           : 'Apply Bulk Settings to All Samples',
                         content: (
-                          <Form layout="vertical" id="bulkSettingsForm">
-                            <Form.Item name="sample_input_ul" label="Sample Input (µL)" initialValue={250}>
-                              <InputNumber min={1} max={500} style={{ width: '100%' }} />
-                            </Form.Item>
-                            <Form.Item name="elution_volume_ul" label="Elution Volume (µL)" initialValue={100}>
-                              <InputNumber min={25} max={200} style={{ width: '100%' }} />
-                            </Form.Item>
-                            <Form.Item name="pretreatment_type" label="Pre-treatment" initialValue="none">
-                              <Select options={pretreatmentOptions} />
-                            </Form.Item>
-                            <Form.Item name="spike_in_type" label="Spike-in" initialValue="none">
-                              <Select options={spikeInOptions} />
-                            </Form.Item>
-                            <Form.Item name="lysis_method" label="Lysis Method" initialValue="NA">
-                              <Select options={lysisMethodOptions} />
-                            </Form.Item>
-                          </Form>
+                          <div>
+                            <div style={{ marginBottom: 16 }}>
+                              <label style={{ display: 'block', marginBottom: 4 }}>Sample Input (µL)</label>
+                              <InputNumber 
+                                defaultValue={250} 
+                                min={1} 
+                                max={500} 
+                                style={{ width: '100%' }}
+                                onChange={(value) => { formValues.sample_input_ul = value || 250; }}
+                              />
+                            </div>
+                            <div style={{ marginBottom: 16 }}>
+                              <label style={{ display: 'block', marginBottom: 4 }}>Elution Volume (µL)</label>
+                              <InputNumber 
+                                defaultValue={100} 
+                                min={25} 
+                                max={200} 
+                                style={{ width: '100%' }}
+                                onChange={(value) => { formValues.elution_volume_ul = value || 100; }}
+                              />
+                            </div>
+                            <div style={{ marginBottom: 16 }}>
+                              <label style={{ display: 'block', marginBottom: 4 }}>Pre-treatment</label>
+                              <Select 
+                                defaultValue="none" 
+                                options={pretreatmentOptions} 
+                                style={{ width: '100%' }}
+                                onChange={(value) => { formValues.pretreatment_type = value; }}
+                              />
+                            </div>
+                            <div style={{ marginBottom: 16 }}>
+                              <label style={{ display: 'block', marginBottom: 4 }}>Spike-in</label>
+                              <Select 
+                                defaultValue="none" 
+                                options={spikeInOptions} 
+                                style={{ width: '100%' }}
+                                onChange={(value) => { formValues.spike_in_type = value; }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ display: 'block', marginBottom: 4 }}>Lysis Method</label>
+                              <Select 
+                                defaultValue="NA" 
+                                options={lysisMethodOptions} 
+                                style={{ width: '100%' }}
+                                onChange={(value) => { formValues.lysis_method = value; }}
+                              />
+                            </div>
+                          </div>
                         ),
                         onOk: () => {
-                          const form = document.getElementById('bulkSettingsForm') as HTMLFormElement;
-                          const formData = new FormData(form);
-                          const values = Object.fromEntries(formData.entries());
-                          
                           setPlateAssignments(prev => prev.map(assignment => {
                             // Apply only to selected rows, or all if none selected
                             if (selectedPlateRows.length === 0 || selectedPlateRows.includes(assignment.sample_id)) {
                               return {
                                 ...assignment,
-                                sample_input_ul: Number(values.sample_input_ul) || assignment.sample_input_ul,
-                                elution_volume_ul: Number(values.elution_volume_ul) || assignment.elution_volume_ul,
-                                pretreatment_type: values.pretreatment_type as string || assignment.pretreatment_type,
-                                spike_in_type: values.spike_in_type as string || assignment.spike_in_type,
-                                lysis_method: values.lysis_method as string || assignment.lysis_method,
+                                sample_input_ul: formValues.sample_input_ul,
+                                elution_volume_ul: formValues.elution_volume_ul,
+                                pretreatment_type: formValues.pretreatment_type,
+                                spike_in_type: formValues.spike_in_type,
+                                lysis_method: formValues.lysis_method,
                               };
                             }
                             return assignment;
@@ -1226,8 +1390,35 @@ const ExtractionQueue: React.FC = () => {
                     title: 'Barcode',
                     dataIndex: 'barcode',
                     key: 'barcode',
-                    width: 100,
+                    width: 90,
                     fixed: 'left',
+                  },
+                  {
+                    title: 'Type',
+                    dataIndex: 'sample_type',
+                    key: 'sample_type',
+                    width: 100,
+                    render: (type: string) => {
+                      const typeColors: { [key: string]: string } = {
+                        'blood': 'red',
+                        'plasma': 'volcano',
+                        'serum': 'orange',
+                        'stool': 'gold',
+                        'saliva': 'lime',
+                        'urine': 'yellow',
+                        'tissue': 'green',
+                        'dna': 'cyan',
+                        'rna': 'blue',
+                        'dna_plate': 'geekblue',
+                        'cdna': 'purple',
+                        'dna_cdna': 'magenta',
+                        'dna_library': 'purple',
+                        'rna_library': 'purple',
+                        'library_pool': 'purple',
+                        'other': 'default'
+                      };
+                      return <Tag color={typeColors[type?.toLowerCase()] || 'default'}>{type}</Tag>;
+                    },
                   },
                   {
                     title: 'Input (µL)',
@@ -1322,7 +1513,11 @@ const ExtractionQueue: React.FC = () => {
                     },
                   },
                   {
-                    title: 'Lysis',
+                    title: (
+                      <Tooltip title="Default: NA - Can be customized per sample">
+                        Lysis Method
+                      </Tooltip>
+                    ),
                     key: 'lysis_method',
                     width: 140,
                     render: (_, record) => {
@@ -1391,7 +1586,7 @@ const ExtractionQueue: React.FC = () => {
                   let controlStartPosition;
                   if (sampleCount >= 88) {
                     // Plate is full or nearly full, use E12-H12
-                    controlStartPosition = 91; // E12 (column 12 starts at position 88, E=4th row)
+                    controlStartPosition = 92; // E12 (column 12 starts at position 88, E=5th row, index 92)
                   } else {
                     // Place controls after last sample
                     controlStartPosition = sampleCount;
@@ -1457,7 +1652,17 @@ const ExtractionQueue: React.FC = () => {
                     onOk: async () => {
                       // Submit the plate assignments with controls
                       const response = await api.post(`/extraction-plates/${currentPlate?.id}/assign-samples-manual`, {
-                        assignments: allAssignments.filter(a => a.sample_id > 0), // Only send actual samples
+                        assignments: plateAssignments.map((assignment, index) => {
+                          // Calculate well position correctly for manual assignments
+                          const wellCol = Math.floor(index / 8) + 1;
+                          const wellRow = String.fromCharCode(65 + (index % 8));
+                          const wellPosition = `${wellRow}${wellCol}`;
+                          
+                          return {
+                            ...assignment,
+                            well_position: wellPosition
+                          };
+                        }),
                         include_controls: true,
                         add_water_balance: needsWaterBalance
                       });
