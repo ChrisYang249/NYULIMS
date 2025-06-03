@@ -5,7 +5,6 @@ import {
   Tabs, Alert, Popover, Typography, Dropdown, Popconfirm,
   DatePicker, Switch, Checkbox, Tooltip, Badge
 } from 'antd';
-const { Text } = Typography;
 import type { UploadProps, ColumnsType } from 'antd';
 import { 
   PlusOutlined, BarcodeOutlined, UploadOutlined,
