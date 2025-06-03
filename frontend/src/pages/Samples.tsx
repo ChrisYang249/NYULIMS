@@ -2332,21 +2332,14 @@ const Samples = () => {
         }
         open={isEditorModalVisible}
         onCancel={() => {
-          Modal.confirm({
-            title: 'Discard changes?',
-            content: 'Are you sure you want to close? All changes will be lost.',
-            onOk: () => {
-              setIsEditorModalVisible(false);
-              setEditorData([]);
-              setEditorErrors({});
-              setSelectedEditorRows([]);
-            }
-          });
-        }}
-        width="90%"
-        style={{ top: 20 }}
-        footer={[
-          <Button key="cancel" onClick={() => {
+          // If no data has been entered, close immediately
+          if (editorData.length === 0) {
+            setIsEditorModalVisible(false);
+            setEditorData([]);
+            setEditorErrors({});
+            setSelectedEditorRows([]);
+          } else {
+            // If data exists, show confirmation
             Modal.confirm({
               title: 'Discard changes?',
               content: 'Are you sure you want to close? All changes will be lost.',
@@ -2357,6 +2350,31 @@ const Samples = () => {
                 setSelectedEditorRows([]);
               }
             });
+          }
+        }}
+        width="90%"
+        style={{ top: 20 }}
+        footer={[
+          <Button key="cancel" onClick={() => {
+            // If no data has been entered, close immediately
+            if (editorData.length === 0) {
+              setIsEditorModalVisible(false);
+              setEditorData([]);
+              setEditorErrors({});
+              setSelectedEditorRows([]);
+            } else {
+              // If data exists, show confirmation
+              Modal.confirm({
+                title: 'Discard changes?',
+                content: 'Are you sure you want to close? All changes will be lost.',
+                onOk: () => {
+                  setIsEditorModalVisible(false);
+                  setEditorData([]);
+                  setEditorErrors({});
+                  setSelectedEditorRows([]);
+                }
+              });
+            }
           }}>
             Cancel
           </Button>,
