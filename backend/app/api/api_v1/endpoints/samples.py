@@ -175,6 +175,7 @@ def read_samples(
             "extraction_notes": sample.extraction_notes,
             "extraction_concentration": sample.extraction_concentration,
             "extraction_volume": sample.extraction_volume,
+            "elution_volume": sample.elution_volume,
             "extraction_260_280": sample.extraction_260_280,
             "extraction_260_230": sample.extraction_260_230,
             "extraction_qc_pass": sample.extraction_qc_pass,
@@ -1229,6 +1230,7 @@ def get_queue_samples(
             "extraction_completed_date": sample.extraction_completed_date,
             "pretreatment_type": sample.pretreatment_type,
             "spike_in_type": sample.spike_in_type,
+            "extraction_volume": sample.extraction_volume,
         }
         
         # Add lab data (same as before)
@@ -1293,14 +1295,22 @@ def delete_sample(
 
 @router.post("/bulk-update")
 def update_samples_bulk(
-    sample_ids: List[int],
-    update_data: SampleUpdate,
+    *,
     db: Session = Depends(deps.get_db),
+    request: dict = Body(...),
     current_user: User = Depends(deps.get_current_user),
 ) -> Any:
     """Update multiple samples at once"""
     from app.api.permissions import check_permission
     check_permission(current_user, "updateSampleStatus")
+    
+    # Extract sample_ids and update data from request
+    sample_ids = request.get("sample_ids", [])
+    if not sample_ids:
+        raise HTTPException(status_code=400, detail="No sample IDs provided")
+    
+    # Remove sample_ids from request to get update data
+    update_dict = {k: v for k, v in request.items() if k != "sample_ids"}
     
     samples = db.query(Sample).filter(Sample.id.in_(sample_ids)).all()
     
@@ -1309,9 +1319,6 @@ def update_samples_bulk(
             status_code=404, 
             detail=f"Some samples not found. Found {len(samples)} of {len(sample_ids)}"
         )
-    
-    # Convert update_data to dict, ensuring enum values are converted to strings
-    update_dict = update_data.dict(exclude_unset=True)
     
     # Ensure status is a string value if it's an enum
     if 'status' in update_dict and hasattr(update_dict['status'], 'value'):
