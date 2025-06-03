@@ -373,7 +373,11 @@ const ExtractionQueue: React.FC = () => {
       filters: uniqueProjects.map(project => ({ text: project, value: project })),
       onFilter: (value: any, record: Sample) => record.project_code === value,
       sorter: (a: Sample, b: Sample) => a.project_code.localeCompare(b.project_code),
-      render: (code: string) => <Tag color="blue">{code}</Tag>,
+      render: (code: string, record: Sample) => (
+        <a href={`/projects/${record.project_id}`} target="_blank" rel="noopener noreferrer">
+          <Tag color="blue" style={{ cursor: 'pointer' }}>{code}</Tag>
+        </a>
+      ),
     },
     {
       title: 'Institution',
@@ -424,6 +428,28 @@ const ExtractionQueue: React.FC = () => {
       },
     },
     {
+      title: 'Pre-processing',
+      dataIndex: 'pretreatment_type',
+      key: 'pretreatment_type',
+      width: 120,
+      render: (type: string) => {
+        if (!type || type === 'none') return '-';
+        const option = pretreatmentOptions.find(opt => opt.value === type);
+        return option ? option.label : type;
+      },
+    },
+    {
+      title: 'Spike-in',
+      dataIndex: 'spike_in_type',
+      key: 'spike_in_type',
+      width: 120,
+      render: (type: string) => {
+        if (!type || type === 'none') return '-';
+        const option = spikeInOptions.find(opt => opt.value === type);
+        return option ? option.label : type;
+      },
+    },
+    {
       title: 'Due Date',
       dataIndex: 'due_date',
       key: 'due_date',
@@ -457,28 +483,6 @@ const ExtractionQueue: React.FC = () => {
         const daysA = dayjs(a.due_date).diff(dayjs(), 'day');
         const daysB = dayjs(b.due_date).diff(dayjs(), 'day');
         return daysA - daysB;
-      },
-    },
-    {
-      title: 'Pre-processing',
-      dataIndex: 'pretreatment_type',
-      key: 'pretreatment_type',
-      width: 120,
-      render: (type: string) => {
-        if (!type || type === 'none') return '-';
-        const option = pretreatmentOptions.find(opt => opt.value === type);
-        return option ? option.label : type;
-      },
-    },
-    {
-      title: 'Spike-in',
-      dataIndex: 'spike_in_type',
-      key: 'spike_in_type',
-      width: 120,
-      render: (type: string) => {
-        if (!type || type === 'none') return '-';
-        const option = spikeInOptions.find(opt => opt.value === type);
-        return option ? option.label : type;
       },
     },
   ];
@@ -799,6 +803,7 @@ const ExtractionQueue: React.FC = () => {
           loading={loading}
           rowSelection={rowSelection}
           scroll={{ x: 1000 }}
+          size="small"
           pagination={{
             defaultPageSize: 150,
             showSizeChanger: true,
@@ -813,6 +818,7 @@ const ExtractionQueue: React.FC = () => {
           dataSource={plates}
           rowKey="id"
           loading={loading}
+          size="small"
           pagination={{
             pageSize: 20,
             showSizeChanger: true,
