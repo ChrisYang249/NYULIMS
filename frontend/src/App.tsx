@@ -23,6 +23,7 @@ import Extraction from './pages/samples/Extraction';
 import ReprocessQueue from './pages/samples/ReprocessQueue';
 import DNAQuantQueue from './pages/samples/DNAQuantQueue';
 import ExtractionPlateDetail from './pages/ExtractionPlateDetail';
+import ExtractionPlateDetailNew from './pages/ExtractionPlateDetailNew';
 import MainLayout from './components/layout/MainLayout';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
@@ -66,7 +67,7 @@ function App() {
               <Route path="samples/extraction" element={<Extraction />} />
               <Route path="samples/dna-quant-queue" element={<DNAQuantQueue />} />
               <Route path="samples/reprocess" element={<ReprocessQueue />} />
-              <Route path="extraction-plates/:plateId" element={<ExtractionPlateDetail />} />
+              <Route path="extraction-plates/:plateId" element={<ExtractionPlateDetailNew />} />
               <Route path="discrepancy-management" element={<DiscrepancyManagement />} />
               <Route path="storage" element={<Storage />} />
               <Route path="sample-types" element={<SampleTypes />} />

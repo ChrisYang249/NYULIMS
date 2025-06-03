@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Table,
   Button,
@@ -40,7 +40,7 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import { api } from '../../config/api';
 import dayjs from 'dayjs';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { usePermissions } from '../../hooks/usePermissions';
 
@@ -127,18 +127,30 @@ interface ExtractionPlate {
   sample_wells: number;
   sample_count?: number;
   assigned_tech?: any;
+  created_by?: any;
   created_at: string;
 }
 
 const ExtractionQueue: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuthStore();
   const { hasPermission } = usePermissions();
   const [samples, setSamples] = useState<Sample[]>([]);
   const [plates, setPlates] = useState<ExtractionPlate[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedSamples, setSelectedSamples] = useState<number[]>([]);
-  const [activeTab, setActiveTab] = useState<'available' | 'active' | 'history'>('available');
+  
+  // Initialize activeTab from localStorage or URL state
+  const getInitialTab = () => {
+    const savedTab = localStorage.getItem('extractionQueueActiveTab');
+    if (savedTab && ['available', 'active', 'history'].includes(savedTab)) {
+      return savedTab as 'available' | 'active' | 'history';
+    }
+    return 'available';
+  };
+  
+  const [activeTab, setActiveTab] = useState<'available' | 'active' | 'history'>(getInitialTab());
   const [isCreatePlateModalVisible, setIsCreatePlateModalVisible] = useState(false);
   const [isAutoAssignModalVisible, setIsAutoAssignModalVisible] = useState(false);
   const [isManualAssignModalVisible, setIsManualAssignModalVisible] = useState(false);
@@ -175,13 +187,16 @@ const ExtractionQueue: React.FC = () => {
     if (activeTab !== 'available') {
       setLoading(true);
       try {
-        let params = {};
+        let params: any = {
+          sort_by: 'created_at',
+          sort_order: 'desc'  // Default to most recent first
+        };
         if (activeTab === 'active') {
           // Get plates that are not completed or failed
-          params = { status_in: 'planning,ready,in_progress' };
+          params.status_in = 'draft,finalized,in_progress';
         } else if (activeTab === 'history') {
           // Get completed and failed plates
-          params = { status_in: 'completed,failed' };
+          params.status_in = 'completed,failed';
         }
         
         const response = await api.get('/extraction-plates', { params });
@@ -525,8 +540,8 @@ const ExtractionQueue: React.FC = () => {
       key: 'status',
       render: (status: string) => {
         const statusColors: any = {
-          planning: 'default',
-          ready: 'processing',
+          draft: 'default',
+          finalized: 'processing',
           in_progress: 'warning',
           completed: 'success',
           failed: 'error',
@@ -563,10 +578,23 @@ const ExtractionQueue: React.FC = () => {
       render: (method: string) => method || '-',
     },
     {
+      title: 'Created By',
+      key: 'created_by',
+      render: (_, record: ExtractionPlate) => record.created_by ? (
+        <Space>
+          <TeamOutlined />
+          {record.created_by.full_name}
+        </Space>
+      ) : '-',
+    },
+    {
       title: 'Created',
       dataIndex: 'created_at',
       key: 'created_at',
       render: (date: string) => dayjs(date).format('MM/DD/YYYY HH:mm'),
+      defaultSortOrder: 'descend' as const,
+      sorter: (a: ExtractionPlate, b: ExtractionPlate) => 
+        dayjs(a.created_at).unix() - dayjs(b.created_at).unix(),
     },
     {
       title: 'Actions',
@@ -644,7 +672,12 @@ const ExtractionQueue: React.FC = () => {
 
       <Tabs
         activeKey={activeTab}
-        onChange={(key) => setActiveTab(key as 'available' | 'active' | 'history')}
+        onChange={(key) => {
+          const newTab = key as 'available' | 'active' | 'history';
+          setActiveTab(newTab);
+          // Save to localStorage so it persists when navigating back
+          localStorage.setItem('extractionQueueActiveTab', newTab);
+        }}
         items={[
           {
             key: 'available',
@@ -660,7 +693,7 @@ const ExtractionQueue: React.FC = () => {
             label: (
               <span>
                 <SyncOutlined /> Active Plates
-                <Badge count={plates.filter(p => ['planning', 'ready', 'in_progress'].includes(p.status)).length} style={{ marginLeft: 8 }} />
+                <Badge count={plates.filter(p => ['draft', 'finalized', 'in_progress'].includes(p.status)).length} style={{ marginLeft: 8 }} />
               </span>
             ),
           },
@@ -681,8 +714,8 @@ const ExtractionQueue: React.FC = () => {
           <Col span={6}>
             <Card size="small">
               <Statistic
-                title="Planning"
-                value={plates.filter(p => p.status === 'planning').length}
+                title="Draft"
+                value={plates.filter(p => p.status === 'draft').length}
                 prefix={<TableOutlined />}
               />
             </Card>
@@ -691,7 +724,7 @@ const ExtractionQueue: React.FC = () => {
             <Card size="small">
               <Statistic
                 title="Ready to Extract"
-                value={plates.filter(p => p.status === 'ready').length}
+                value={plates.filter(p => p.status === 'finalized').length}
                 prefix={<CheckCircleOutlined />}
                 valueStyle={{ color: '#52c41a' }}
               />
