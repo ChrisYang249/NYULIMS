@@ -215,31 +215,53 @@ def auto_assign_samples_to_plate(
     # Update plate status
     plate.status = PlateStatus.READY
     
-    # Add control well assignments
-    control_wells = [
-        ("E12", "ext_pos", f"POS-{plate.plate_id}"),
-        ("F12", "ext_neg", f"NEG-{plate.plate_id}"),
-        ("G12", "lp_pos", f"LP-POS-{plate.plate_id}"),
-        ("H12", "lp_neg", f"LP-NEG-{plate.plate_id}")
+    # Add control well assignments - place after last sample
+    num_samples = len(assigned_samples)
+    control_start_index = num_samples  # Start controls right after last sample
+    
+    control_types = [
+        ("ext_pos", f"POS-{plate.plate_id}"),
+        ("ext_neg", f"NEG-{plate.plate_id}"),
+        ("lp_pos", f"LP-POS-{plate.plate_id}"),
+        ("lp_neg", f"LP-NEG-{plate.plate_id}")
     ]
     
-    for well, ctrl_type, ctrl_id in control_wells:
+    control_well_positions = {}
+    for i, (ctrl_type, ctrl_id) in enumerate(control_types):
+        # Calculate well position for this control
+        control_index = control_start_index + i
+        control_col = control_index // 8 + 1  # Column number (1-12)
+        control_row = control_index % 8      # Row index (0-7)
+        well_position = f"{chr(65 + control_row)}{control_col}"
+        
         well_assignment = PlateWellAssignment(
             plate_id=plate.id,
             sample_id=None,  # No sample for controls
-            well_position=well,
-            well_row=well[0],
-            well_column=int(well[1:]),
+            well_position=well_position,
+            well_row=well_position[0],
+            well_column=int(well_position[1:]),
             is_control=True,
             control_type=ctrl_type
         )
         db.add(well_assignment)
         
-        # Update plate control IDs
+        # Track control positions for response
         if ctrl_type == "ext_pos":
+            control_well_positions["extraction_positive"] = well_position
             plate.ext_pos_ctrl_id = ctrl_id
+            plate.ext_pos_ctrl_well = well_position
         elif ctrl_type == "ext_neg":
+            control_well_positions["extraction_negative"] = well_position
             plate.ext_neg_ctrl_id = ctrl_id
+            plate.ext_neg_ctrl_well = well_position
+        elif ctrl_type == "lp_pos":
+            control_well_positions["library_prep_positive"] = well_position
+            plate.lp_pos_ctrl_id = ctrl_id
+            plate.lp_pos_ctrl_well = well_position
+        elif ctrl_type == "lp_neg":
+            control_well_positions["library_prep_negative"] = well_position
+            plate.lp_neg_ctrl_id = ctrl_id
+            plate.lp_neg_ctrl_well = well_position
     
     db.commit()
     
@@ -255,12 +277,7 @@ def auto_assign_samples_to_plate(
         total_samples=len(assigned_samples),
         assigned_samples=assigned_samples,
         project_summary=project_counts,
-        control_wells={
-            "extraction_positive": "E12",
-            "extraction_negative": "F12",
-            "library_prep_positive": "G12",
-            "library_prep_negative": "H12"
-        }
+        control_wells=control_well_positions
     )
 
 @router.get("/{plate_id}/layout", response_model=List[WellAssignmentSchema])
@@ -464,36 +481,56 @@ def assign_samples_manual(
             "project_id": sample.project.project_id if sample.project else None
         })
     
-    # Add control well assignments
+    # Add control well assignments - place after last sample, not at end of plate
     if include_controls:
-        control_wells = [
-            ("E12", "ext_pos", f"POS-{plate.plate_id}"),
-            ("F12", "ext_neg", f"NEG-{plate.plate_id}"),
-            ("G12", "lp_pos", f"LP-POS-{plate.plate_id}"),
-            ("H12", "lp_neg", f"LP-NEG-{plate.plate_id}")
+        # Calculate where to place controls based on number of samples
+        num_samples = len(assigned_samples)
+        control_start_index = num_samples  # Start controls right after last sample
+        
+        # Define control types
+        control_types = [
+            ("ext_pos", f"POS-{plate.plate_id}"),
+            ("ext_neg", f"NEG-{plate.plate_id}"),
+            ("lp_pos", f"LP-POS-{plate.plate_id}"),
+            ("lp_neg", f"LP-NEG-{plate.plate_id}")
         ]
         
-        for well, ctrl_type, ctrl_id in control_wells:
+        control_well_positions = {}
+        for i, (ctrl_type, ctrl_id) in enumerate(control_types):
+            # Calculate well position for this control
+            control_index = control_start_index + i
+            control_col = control_index // 8 + 1  # Column number (1-12)
+            control_row = control_index % 8      # Row index (0-7)
+            well_position = f"{chr(65 + control_row)}{control_col}"
+            
             well_assignment = PlateWellAssignment(
                 plate_id=plate.id,
                 sample_id=None,  # No sample for controls
-                well_position=well,
-                well_row=well[0],
-                well_column=int(well[1:]),
+                well_position=well_position,
+                well_row=well_position[0],
+                well_column=int(well_position[1:]),
                 is_control=True,
                 control_type=ctrl_type
             )
             db.add(well_assignment)
             
-            # Update plate control IDs
+            # Update plate control IDs and wells
             if ctrl_type == "ext_pos":
+                control_well_positions["extraction_positive"] = well_position
                 plate.ext_pos_ctrl_id = ctrl_id
+                plate.ext_pos_ctrl_well = well_position
             elif ctrl_type == "ext_neg":
+                control_well_positions["extraction_negative"] = well_position
                 plate.ext_neg_ctrl_id = ctrl_id
+                plate.ext_neg_ctrl_well = well_position
             elif ctrl_type == "lp_pos":
+                control_well_positions["library_prep_positive"] = well_position
                 plate.lp_pos_ctrl_id = ctrl_id
+                plate.lp_pos_ctrl_well = well_position
             elif ctrl_type == "lp_neg":
+                control_well_positions["library_prep_negative"] = well_position
                 plate.lp_neg_ctrl_id = ctrl_id
+                plate.lp_neg_ctrl_well = well_position
     
     # Update plate status
     plate.status = PlateStatus.READY
@@ -513,10 +550,5 @@ def assign_samples_manual(
         total_samples=len(assigned_samples),
         assigned_samples=assigned_samples,
         project_summary=project_counts,
-        control_wells={
-            "extraction_positive": "E12",
-            "extraction_negative": "F12",
-            "library_prep_positive": "G12",
-            "library_prep_negative": "H12"
-        }
+        control_wells=control_well_positions if include_controls else {}
     )
