@@ -1131,6 +1131,10 @@ def get_queue_samples(
         statuses = queue_map[queue_name]
         if statuses:
             query = query.filter(Sample.status.in_(statuses))
+            
+            # For extraction queue, exclude samples already assigned to plates
+            if queue_name == "extraction":
+                query = query.filter(Sample.extraction_plate_id.is_(None))
     
     # Order by priority and created date
     query = query.order_by(Sample.queue_priority.desc(), Sample.created_at)
