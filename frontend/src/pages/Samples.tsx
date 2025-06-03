@@ -5,6 +5,7 @@ import {
   Tabs, Alert, Popover, Typography, Dropdown, Popconfirm,
   DatePicker, Switch, Checkbox, Tooltip, Badge
 } from 'antd';
+const { Text } = Typography;
 import type { UploadProps, ColumnsType } from 'antd';
 import { 
   PlusOutlined, BarcodeOutlined, UploadOutlined,
@@ -2399,7 +2400,8 @@ const Samples = () => {
                   <li>Red rows have validation errors - hover over the row number to see details</li>
                   <li>Duplicate samples (same client ID + project + service) are not allowed</li>
                   <li>Use the dropdowns to select valid projects and sample types</li>
-                  <li>Select rows and use bulk actions to delete them</li>
+                  <li>Select multiple rows to bulk update fields like Project ID</li>
+                  <li>Use Ctrl/Cmd+Click or Shift+Click for multi-selection</li>
                 </ul>
               }
               type="info"
@@ -2408,17 +2410,139 @@ const Samples = () => {
             />
             
             {selectedEditorRows.length > 0 && (
-              <div style={{ marginBottom: 16 }}>
-                <Space>
-                  <span>{selectedEditorRows.length} rows selected</span>
-                  <Button 
-                    danger 
-                    size="small"
-                    icon={<DeleteOutlined />}
-                    onClick={() => handleEditorRowDelete(selectedEditorRows)}
-                  >
-                    Delete Selected
-                  </Button>
+              <div style={{ marginBottom: 16, padding: 12, background: '#f0f2f5', borderRadius: 4 }}>
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  <Space>
+                    <Text strong>{selectedEditorRows.length} rows selected</Text>
+                    <Button 
+                      size="small"
+                      onClick={() => {
+                        // Select all visible rows
+                        const allRowIds = editorData.map(row => row._rowId);
+                        setSelectedEditorRows(allRowIds);
+                      }}
+                    >
+                      Select All {editorData.length}
+                    </Button>
+                    <Button 
+                      size="small"
+                      onClick={() => setSelectedEditorRows([])}
+                    >
+                      Clear Selection
+                    </Button>
+                    <Button 
+                      danger 
+                      size="small"
+                      icon={<DeleteOutlined />}
+                      onClick={() => handleEditorRowDelete(selectedEditorRows)}
+                    >
+                      Delete Selected
+                    </Button>
+                  </Space>
+                  
+                  <div style={{ marginTop: 8 }}>
+                    <Text type="secondary">Bulk Update Selected Rows:</Text>
+                    <Row gutter={8} style={{ marginTop: 8 }}>
+                      <Col span={6}>
+                        <Select
+                          placeholder="Set Project ID"
+                          style={{ width: '100%' }}
+                          showSearch
+                          allowClear
+                          onChange={(value) => {
+                            if (value) {
+                              const updatedData = editorData.map(row => 
+                                selectedEditorRows.includes(row._rowId) 
+                                  ? { ...row, project_id: value }
+                                  : row
+                              );
+                              setEditorData(updatedData);
+                              validateEditorData(updatedData);
+                              message.success(`Updated project ID for ${selectedEditorRows.length} rows`);
+                            }
+                          }}
+                        >
+                          {projects.map(p => (
+                            <Select.Option key={p.project_id} value={p.project_id}>
+                              {p.project_id}
+                            </Select.Option>
+                          ))}
+                        </Select>
+                      </Col>
+                      <Col span={6}>
+                        <Select
+                          placeholder="Set Sample Type"
+                          style={{ width: '100%' }}
+                          showSearch
+                          allowClear
+                          onChange={(value) => {
+                            if (value) {
+                              const updatedData = editorData.map(row => 
+                                selectedEditorRows.includes(row._rowId) 
+                                  ? { ...row, sample_type: value }
+                                  : row
+                              );
+                              setEditorData(updatedData);
+                              validateEditorData(updatedData);
+                              message.success(`Updated sample type for ${selectedEditorRows.length} rows`);
+                            }
+                          }}
+                        >
+                          {sampleTypes.map(t => (
+                            <Select.Option key={t.name} value={t.name}>
+                              {t.label}
+                            </Select.Option>
+                          ))}
+                        </Select>
+                      </Col>
+                      <Col span={6}>
+                        <Select
+                          placeholder="Set Service Type"
+                          style={{ width: '100%' }}
+                          allowClear
+                          onChange={(value) => {
+                            const updatedData = editorData.map(row => 
+                              selectedEditorRows.includes(row._rowId) 
+                                ? { ...row, service_type: value || null }
+                                : row
+                            );
+                            setEditorData(updatedData);
+                            validateEditorData(updatedData);
+                            message.success(`Updated service type for ${selectedEditorRows.length} rows`);
+                          }}
+                        >
+                          <Select.Option value="WGS">WGS</Select.Option>
+                          <Select.Option value="V1V3_16S">V1V3_16S</Select.Option>
+                          <Select.Option value="V3V4_16S">V3V4_16S</Select.Option>
+                          <Select.Option value="ONT_WGS">ONT_WGS</Select.Option>
+                          <Select.Option value="ONT_V1V8">ONT_V1V8</Select.Option>
+                          <Select.Option value="ANALYSIS_ONLY">ANALYSIS_ONLY</Select.Option>
+                          <Select.Option value="INTERNAL">INTERNAL</Select.Option>
+                          <Select.Option value="CLINICAL">CLINICAL</Select.Option>
+                          <Select.Option value="OTHER">OTHER</Select.Option>
+                        </Select>
+                      </Col>
+                      <Col span={6}>
+                        <InputNumber
+                          placeholder="Set Target Depth"
+                          style={{ width: '100%' }}
+                          min={0}
+                          onChange={(value) => {
+                            if (value !== null) {
+                              const updatedData = editorData.map(row => 
+                                selectedEditorRows.includes(row._rowId) 
+                                  ? { ...row, target_depth: value }
+                                  : row
+                              );
+                              setEditorData(updatedData);
+                              validateEditorData(updatedData);
+                              message.success(`Updated target depth for ${selectedEditorRows.length} rows`);
+                            }
+                          }}
+                        />
+                      </Col>
+                    </Row>
+                  </div>
                 </Space>
               </div>
             )}
