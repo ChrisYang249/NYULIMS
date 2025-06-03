@@ -218,6 +218,41 @@ const Projects = () => {
       ),
     },
     {
+      title: 'Type',
+      dataIndex: 'project_type',
+      key: 'project_type',
+      sorter: (a: any, b: any) => a.project_type.localeCompare(b.project_type),
+      render: (type: string) => {
+        const typeColors: { [key: string]: string } = {
+          'WGS': 'green',
+          'V1V3_16S': 'blue',
+          'V3V4_16S': 'cyan',
+          'ONT_WGS': 'purple',
+          'ONT_V1V8': 'magenta',
+          'ANALYSIS_ONLY': 'orange',
+          'INTERNAL': 'gold',
+          'CLINICAL': 'red',
+          'OTHER': 'default'
+        };
+        const typeLabels: { [key: string]: string } = {
+          'WGS': 'WGS',
+          'V1V3_16S': '16S-V1V3',
+          'V3V4_16S': '16S-V3V4',
+          'ONT_WGS': 'ONT-WGS',
+          'ONT_V1V8': 'ONT-V1V8',
+          'ANALYSIS_ONLY': 'Analysis',
+          'INTERNAL': 'Internal',
+          'CLINICAL': 'Clinical',
+          'OTHER': 'Other'
+        };
+        return (
+          <Tag color={typeColors[type] || 'default'}>
+            {typeLabels[type] || type}
+          </Tag>
+        );
+      },
+    },
+    {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
