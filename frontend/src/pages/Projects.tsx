@@ -683,7 +683,7 @@ const Projects = () => {
                             Modal.confirm({
                               title: 'Delete Projects',
                               content: `Are you sure you want to delete ${selectedRowKeys.length} project(s)?`,
-                              onOk: () => handleBulkDelete({}),
+                              onOk: () => handleBulkDelete({ reason: 'Bulk deletion by super admin' }),
                             });
                           } else {
                             setBulkDeleteModalVisible(true);
