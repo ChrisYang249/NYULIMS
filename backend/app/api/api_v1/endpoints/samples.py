@@ -110,7 +110,15 @@ def read_samples(
             SampleTypeModel.name == sample_type
         )
     
+    # Count total before limiting
+    total_count = query.count()
+    
     samples = query.offset(skip).limit(limit).all()
+    
+    print(f"\n=== GET SAMPLES ===")
+    print(f"Total samples in query: {total_count}")
+    print(f"Returning with limit: {limit}")
+    print(f"Actually returning: {len(samples)} samples")
     
     # Enhance with lab data
     result = []
@@ -405,7 +413,14 @@ def import_samples_bulk(
     sample_types = {st.name: st for st in db.query(SampleTypeModel).all()}
     
     print(f"Available projects: {len(projects)}")
+    print(f"Project IDs in database: {list(projects.keys())}")
     print(f"Available sample types: {len(sample_types)}")
+    
+    # Check if the specific project exists
+    if "CP06214" in projects:
+        print(f"Project CP06214 found in database")
+    else:
+        print(f"WARNING: Project CP06214 NOT found in database!")
     
     for i, sample_data in enumerate(import_data.samples):
         try:

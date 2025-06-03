@@ -367,14 +367,18 @@ const Samples = () => {
   const fetchSamples = async (includeDeleted?: boolean) => {
     setLoading(true);
     try {
-      const params: any = {};
+      const params: any = {
+        limit: 10000  // Request up to 10000 samples instead of default 100
+      };
       // Use parameter if provided, otherwise use state
       const shouldIncludeDeleted = includeDeleted !== undefined ? includeDeleted : showDeleted;
       if (shouldIncludeDeleted) params.include_deleted = true;
       // Don't send filters to backend since we're doing client-side filtering
       // This allows us to support multi-select
       
+      console.log('Fetching samples with params:', params);
       const response = await api.get('/samples', { params });
+      console.log('Received samples count:', response.data.length);
       setSamples(response.data);
     } catch (error) {
       message.error('Failed to fetch samples');
