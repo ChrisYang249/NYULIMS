@@ -510,6 +510,7 @@ const SampleDetails = () => {
           pagination={{
             showSizeChanger: true,
             showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} comments`,
+            position: ['topRight'],
           }}
           locale={{ emptyText: 'No comments yet' }}
         />
@@ -598,6 +599,7 @@ const SampleDetails = () => {
           pagination={{
             showSizeChanger: true,
             showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} logs`,
+            position: ['topRight'],
           }}
           locale={{ emptyText: 'No activity logs yet' }}
         />

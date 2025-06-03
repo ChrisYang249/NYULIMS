@@ -74,7 +74,7 @@ const Storage = () => {
 
   const fetchLocationSamples = async (locationId: number) => {
     try {
-      const response = await api.get(`/samples?storage_location_id=${locationId}`);
+      const response = await api.get(`/samples?storage_location_id=${locationId}&limit=50000`);
       setSamples(response.data);
     } catch (error) {
       console.error('Failed to fetch samples for location');
@@ -343,6 +343,7 @@ const Storage = () => {
                   pageSize: 20,
                   showSizeChanger: true,
                   showTotal: (total) => `Total ${total} locations`,
+                  position: ['topRight'],
                 }}
               />
             </Card>

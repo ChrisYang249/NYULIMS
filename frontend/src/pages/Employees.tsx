@@ -169,6 +169,7 @@ const Employees = () => {
           defaultPageSize: 10,
           showSizeChanger: true,
           showTotal: (total) => `Total ${total} users`,
+          position: ['topRight'],
         }}
       />
 

@@ -80,7 +80,7 @@ const DiscrepancyManagement = () => {
     try {
       // First get a reasonable number of recent samples
       const samplesResponse = await api.get('/samples', {
-        params: { limit: 200, skip: 0 }
+        params: { limit: 50000, skip: 0 }  // Request up to 50000 samples to handle annual volume of 40000+
       });
       
       console.log('Total samples fetched:', samplesResponse.data.length);
@@ -446,6 +446,7 @@ const DiscrepancyManagement = () => {
             pageSize: 20,
             showSizeChanger: true,
             showTotal: (total) => `Total ${total} discrepancies`,
+            position: ['topRight'],
           }}
         />
       </Card>

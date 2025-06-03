@@ -408,6 +408,7 @@ const ExtractionPlateDetail: React.FC = () => {
           pagination={{
             pageSize: 20,
             showSizeChanger: true,
+            position: ['topRight'],
           }}
         />
       </Card>

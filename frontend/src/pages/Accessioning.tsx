@@ -78,6 +78,9 @@ const Accessioning = () => {
   const [flagFilter, setFlagFilter] = useState<'all' | 'flagged' | 'unflagged'>('all');
   const [discrepancyFilter, setDiscrepancyFilter] = useState<'all' | 'has' | 'none'>('all');
   
+  // Pagination state
+  const [pageSize, setPageSize] = useState(50);
+  
   // For dropdown options
   const [projects, setProjects] = useState<Project[]>([]);
 
@@ -124,7 +127,9 @@ const Accessioning = () => {
     setLoading(true);
     try {
       // Fetch samples in ACCESSIONING status (or ACCESSIONED if showing completed)
-      const params: any = {};
+      const params: any = {
+        limit: 50000  // Request up to 50000 samples to handle annual volume of 40000+
+      };
       if (showCompleted) {
         params.status = 'ACCESSIONED';
       } else {
@@ -260,6 +265,39 @@ const Accessioning = () => {
     try {
       // Get the selected sample details
       const selectedSampleData = filteredSamples.filter(s => selectedSamples.includes(s.id));
+      
+      // Check if any selected samples have unresolved discrepancies
+      const samplesWithUnresolvedDiscrepancies = selectedSampleData.filter(
+        s => s.has_discrepancy && !s.discrepancy_resolved
+      );
+
+      if (samplesWithUnresolvedDiscrepancies.length > 0) {
+        // Show immediate feedback
+        message.error(`Cannot route ${samplesWithUnresolvedDiscrepancies.length} sample(s) with unresolved discrepancies`);
+        
+        // Then show detailed modal
+        setTimeout(() => {
+          Modal.error({
+            title: 'Cannot Route Samples to Queues',
+            content: (
+              <div>
+                <p>The following samples have unresolved discrepancies and cannot be routed:</p>
+                <ul style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                  {samplesWithUnresolvedDiscrepancies.map(s => (
+                    <li key={s.id}>
+                      <strong>{s.barcode}</strong> - {s.client_sample_id || 'No client ID'}
+                    </li>
+                  ))}
+                </ul>
+                <p>Please wait for PM approval of these discrepancies or remove these samples from your selection.</p>
+              </div>
+            ),
+            width: 600,
+            okText: 'OK',
+          });
+        }, 100);
+        return;
+      }
       
       // Group samples by their destination queue
       const extractionSamples: number[] = [];
@@ -561,6 +599,9 @@ const Accessioning = () => {
     onChange: (selectedRowKeys: React.Key[]) => {
       setSelectedSamples(selectedRowKeys as number[]);
     },
+    getCheckboxProps: (record: Sample) => ({
+      disabled: false, // Allow selection but will validate on action
+    }),
   };
 
   return (
@@ -598,7 +639,42 @@ const Accessioning = () => {
                     <Button
                       type="primary"
                       icon={<CheckCircleOutlined />}
-                      onClick={() => setIsAccessionModalVisible(true)}
+                      onClick={() => {
+                        // Check for unresolved discrepancies before showing modal
+                        const selectedSampleData = filteredSamples.filter(s => selectedSamples.includes(s.id));
+                        const samplesWithUnresolvedDiscrepancies = selectedSampleData.filter(
+                          s => s.has_discrepancy && !s.discrepancy_resolved
+                        );
+
+                        if (samplesWithUnresolvedDiscrepancies.length > 0) {
+                          // Show immediate feedback
+                          message.error(`Cannot accession ${samplesWithUnresolvedDiscrepancies.length} sample(s) with unresolved discrepancies`);
+                          
+                          // Then show detailed modal
+                          setTimeout(() => {
+                            Modal.error({
+                              title: 'Cannot Accession Samples',
+                              content: (
+                                <div>
+                                  <p>The following samples have unresolved discrepancies and cannot be accessioned:</p>
+                                  <ul style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                                    {samplesWithUnresolvedDiscrepancies.map(s => (
+                                      <li key={s.id}>
+                                        <strong>{s.barcode}</strong> - {s.client_sample_id || 'No client ID'}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                  <p>Please resolve these discrepancies or remove these samples from your selection.</p>
+                                </div>
+                              ),
+                              width: 600,
+                              okText: 'OK',
+                            });
+                          }, 100);
+                        } else {
+                          setIsAccessionModalVisible(true);
+                        }
+                      }}
                     >
                       Accession Selected ({selectedSamples.length})
                     </Button>
@@ -722,10 +798,21 @@ const Accessioning = () => {
         size="small"
         rowSelection={rowSelection}
         scroll={{ x: 1200 }}
+        rowClassName={(record) => {
+          if (record.has_discrepancy && !record.discrepancy_resolved) {
+            return 'row-with-discrepancy';
+          }
+          return '';
+        }}
         pagination={{
-          pageSize: 50,
+          pageSize: pageSize,
           showSizeChanger: true,
+          pageSizeOptions: ['50', '100', '200', '500', '1000'],
           showTotal: (total) => `Total ${total} samples`,
+          position: ['topRight'],
+          onShowSizeChange: (current, size) => {
+            setPageSize(size);
+          },
         }}
       />
 

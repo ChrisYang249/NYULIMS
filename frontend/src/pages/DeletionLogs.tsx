@@ -147,6 +147,7 @@ const DeletionLogs = () => {
           pageSize: 50,
           showSizeChanger: true,
           showTotal: (total) => `Total ${total} deletions`,
+          position: ['topRight'],
         }}
       />
     </div>

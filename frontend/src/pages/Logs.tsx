@@ -123,6 +123,7 @@ const Logs = () => {
         pagination={{
           defaultPageSize: 20,
           showSizeChanger: true,
+          position: ['topRight'],
         }}
       />
     </div>

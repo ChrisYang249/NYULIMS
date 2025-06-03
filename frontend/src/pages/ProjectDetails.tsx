@@ -832,6 +832,7 @@ const ActivityLogTab = ({ logs }: { logs: ProjectLog[] }) => {
         pagination={{
           showSizeChanger: true,
           showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} logs`,
+          position: ['topRight'],
         }}
         onChange={(pagination, filters) => {
           setLogTypeFilter(filters.log_type as string[] || []);
@@ -916,6 +917,7 @@ const CommentsTab = ({
         pagination={{
           showSizeChanger: true,
           showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} comments`,
+          position: ['topRight'],
         }}
         locale={{ emptyText: 'No comments yet' }}
       />

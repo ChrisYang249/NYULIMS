@@ -110,7 +110,9 @@ const QueueTable: React.FC<QueueTableProps> = ({
   const fetchSamples = async () => {
     setLoading(true);
     try {
-      const response = await api.get(`/samples/queues/${queueName}`);
+      const response = await api.get(`/samples/queues/${queueName}`, {
+        params: { limit: 50000 }  // Request up to 50000 samples to handle annual volume of 40000+
+      });
       setSamples(response.data);
       setFilteredSamples(response.data);
       
@@ -505,6 +507,7 @@ const QueueTable: React.FC<QueueTableProps> = ({
           pageSize: 50,
           showSizeChanger: true,
           showTotal: (total) => `Total ${total} samples`,
+          position: ['topRight'],
         }}
       />
 

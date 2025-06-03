@@ -368,7 +368,7 @@ const Samples = () => {
     setLoading(true);
     try {
       const params: any = {
-        limit: 10000  // Request up to 10000 samples instead of default 100
+        limit: 50000  // Request up to 50000 samples to handle annual volume of 40000+
       };
       // Use parameter if provided, otherwise use state
       const shouldIncludeDeleted = includeDeleted !== undefined ? includeDeleted : showDeleted;
@@ -1764,6 +1764,7 @@ const Samples = () => {
           showSizeChanger: true,
           pageSizeOptions: ['20', '50', '100', '200'],
           showTotal: (total) => `Total ${total} samples`,
+          position: ['topRight'],
           onChange: (page, size) => {
             setCurrentPage(page);
             if (size !== pageSize) {
@@ -2410,7 +2411,8 @@ const Samples = () => {
               pagination={{ 
                 pageSize: 20,
                 showSizeChanger: true,
-                showTotal: (total) => `Total ${total} samples`
+                showTotal: (total) => `Total ${total} samples`,
+                position: ['topRight']
               }}
               scroll={{ x: 'max-content', y: 'calc(100vh - 400px)' }}
               size="small"

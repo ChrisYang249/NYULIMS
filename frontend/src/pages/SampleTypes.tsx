@@ -159,6 +159,7 @@ const SampleTypes = () => {
         pagination={{
           pageSize: 50,
           showSizeChanger: true,
+          position: ['topRight'],
         }}
       />
 
