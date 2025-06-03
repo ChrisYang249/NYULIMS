@@ -177,7 +177,8 @@ class Sample(Base, TimestampMixin):
     extraction_well_position = Column(String)  # A1-H12
     extraction_qc_pass = Column(Boolean)
     extraction_concentration = Column(Float)  # ng/ul
-    extraction_volume = Column(Float)  # ul
+    extraction_volume = Column(Float)  # ul - Sample input volume
+    elution_volume = Column(Float)  # ul - Elution volume
     extraction_260_280 = Column(Float)  # Purity ratio
     extraction_260_230 = Column(Float)  # Purity ratio
     
