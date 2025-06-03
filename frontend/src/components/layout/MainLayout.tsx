@@ -35,19 +35,14 @@ const MainLayout = () => {
       label: 'Dashboard',
     },
     {
-      key: '/projects',
-      icon: <ProjectOutlined />,
-      label: 'Projects',
-    },
-    {
       key: '/clients',
       icon: <TeamOutlined />,
       label: 'Clients',
     },
     {
-      key: '/employees',
-      icon: <UserOutlined />,
-      label: 'Users',
+      key: '/projects',
+      icon: <ProjectOutlined />,
+      label: 'Projects',
     },
     {
       key: 'samples',
@@ -94,6 +89,11 @@ const MainLayout = () => {
       key: '/sample-types',
       icon: <TagsOutlined />,
       label: 'Sample Types',
+    },
+    {
+      key: '/employees',
+      icon: <UserOutlined />,
+      label: 'Users',
     },
     {
       key: '/logs',
