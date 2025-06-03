@@ -45,6 +45,31 @@ const { Title, Text } = Typography;
 const { Option } = Select;
 const { TextArea } = Input;
 
+// Pre-treatment options
+const pretreatmentOptions = [
+  { value: 'none', label: 'None' },
+  { value: 'metapolyzyme', label: 'Metapolyzyme' },
+  { value: 'proteinase_k', label: 'Proteinase K' },
+  { value: 'lysozyme', label: 'Lysozyme' },
+  { value: 'enzymatic_cocktail', label: 'Enzymatic Cocktail' },
+  { value: 'heat_shock', label: 'Heat Shock' },
+  { value: 'freeze_thaw', label: 'Freeze-Thaw' },
+  { value: 'chemical_lysis', label: 'Chemical Lysis' },
+  { value: 'mechanical_disruption', label: 'Mechanical Disruption' },
+  { value: 'other', label: 'Other' }
+];
+
+// Spike-in options
+const spikeInOptions = [
+  { value: 'none', label: 'No Spike-in' },
+  { value: 'zymo_d6300', label: 'ZymoBIOMICS Microbial Community Standard (D6300)' },
+  { value: 'zymo_d6305', label: 'ZymoBIOMICS Microbial Community DNA Standard (D6305)' },
+  { value: 'zymo_d6306', label: 'ZymoBIOMICS HMW DNA Standard (D6306)' },
+  { value: 'zymo_d6310', label: 'ZymoBIOMICS Spike-in Control I (D6310)' },
+  { value: 'zymo_d6311', label: 'ZymoBIOMICS Spike-in Control II (D6311)' },
+  { value: 'custom_spike', label: 'Custom Spike-in' }
+];
+
 interface Sample {
   id: number;
   barcode: string;
@@ -90,12 +115,15 @@ const ExtractionQueue: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'available' | 'active' | 'history'>('available');
   const [isCreatePlateModalVisible, setIsCreatePlateModalVisible] = useState(false);
   const [isAutoAssignModalVisible, setIsAutoAssignModalVisible] = useState(false);
+  const [isManualAssignModalVisible, setIsManualAssignModalVisible] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [labTechs, setLabTechs] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [currentPlate, setCurrentPlate] = useState<ExtractionPlate | null>(null);
+  const [plateAssignmentMode, setPlateAssignmentMode] = useState<'auto' | 'manual'>('auto');
   const [form] = Form.useForm();
   const [autoAssignForm] = Form.useForm();
+  const [manualAssignForm] = Form.useForm();
 
   const fetchSamples = async () => {
     if (activeTab === 'available') {
@@ -193,8 +221,12 @@ const ExtractionQueue: React.FC = () => {
       form.resetFields();
       fetchPlates();
       
-      // Show auto-assign modal
-      setIsAutoAssignModalVisible(true);
+      // Show assignment modal based on mode
+      if (plateAssignmentMode === 'auto') {
+        setIsAutoAssignModalVisible(true);
+      } else {
+        setIsManualAssignModalVisible(true);
+      }
     } catch (error: any) {
       message.error(error.response?.data?.detail || 'Failed to create plate');
     }
@@ -211,6 +243,8 @@ const ExtractionQueue: React.FC = () => {
         sample_types: values.sample_types,
         prioritize_by_due_date: values.prioritize_by_due_date !== false,
         group_by_project: values.group_by_project !== false,
+        default_pretreatment: values.default_pretreatment || 'none',
+        default_spike_in: values.default_spike_in || 'none',
       });
       
       message.success(
@@ -709,6 +743,30 @@ const ExtractionQueue: React.FC = () => {
           />
 
           <Form.Item
+            label="Sample Assignment Mode"
+            style={{ marginBottom: 24 }}
+          >
+            <Select
+              value={plateAssignmentMode}
+              onChange={setPlateAssignmentMode}
+              style={{ width: '100%' }}
+            >
+              <Option value="auto">
+                <Space>
+                  <RobotOutlined />
+                  <span>Auto-assign samples (recommended)</span>
+                </Space>
+              </Option>
+              <Option value="manual">
+                <Space>
+                  <TableOutlined />
+                  <span>Manual assignment with pre-processing options</span>
+                </Space>
+              </Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item
             name="plate_name"
             label="Plate Name (Optional)"
             help="Leave blank for auto-generated ID"
@@ -856,6 +914,29 @@ const ExtractionQueue: React.FC = () => {
             </Select>
           </Form.Item>
 
+          <Divider orientation="left">Pre-processing Options (Applied to All Samples)</Divider>
+
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item
+                name="default_pretreatment"
+                label="Default Pre-treatment"
+                initialValue="none"
+              >
+                <Select options={pretreatmentOptions} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item
+                name="default_spike_in"
+                label="Default Spike-in"
+                initialValue="none"
+              >
+                <Select options={spikeInOptions} />
+              </Form.Item>
+            </Col>
+          </Row>
+
           <Form.Item name="prioritize_by_due_date" valuePropName="checked" initialValue={true}>
             <Checkbox>Prioritize by due date</Checkbox>
           </Form.Item>
@@ -878,6 +959,133 @@ const ExtractionQueue: React.FC = () => {
             </Space>
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Manual Assignment Modal */}
+      <Modal
+        title={`Manual Sample Assignment - ${currentPlate?.plate_id || ''}`}
+        open={isManualAssignModalVisible}
+        onCancel={() => {
+          setIsManualAssignModalVisible(false);
+          manualAssignForm.resetFields();
+        }}
+        footer={null}
+        width={1200}
+      >
+        <Alert
+          message="Manual Sample Assignment"
+          description="Select samples and assign pre-processing/spike-in options individually. Samples will be filled column-wise (A1→B1→C1...H1, then A2→B2...)"
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+        
+        <div style={{ marginBottom: 16 }}>
+          <Text>Selected Samples: {selectedSamples.length} / 92</Text>
+        </div>
+
+        <Table
+          dataSource={filteredSamples}
+          rowKey="id"
+          size="small"
+          scroll={{ y: 400 }}
+          rowSelection={{
+            selectedRowKeys: selectedSamples,
+            onChange: (keys) => setSelectedSamples(keys as number[]),
+            getCheckboxProps: () => ({
+              disabled: selectedSamples.length >= 92,
+            }),
+          }}
+          columns={[
+            {
+              title: 'Barcode',
+              dataIndex: 'barcode',
+              key: 'barcode',
+              width: 120,
+            },
+            {
+              title: 'Client ID',
+              dataIndex: 'client_sample_id',
+              key: 'client_sample_id',
+              width: 150,
+            },
+            {
+              title: 'Project',
+              dataIndex: 'project_code',
+              key: 'project_code',
+              width: 100,
+            },
+            {
+              title: 'Type',
+              dataIndex: 'sample_type',
+              key: 'sample_type',
+              width: 100,
+            },
+            {
+              title: 'Pre-treatment',
+              key: 'pretreatment',
+              width: 200,
+              render: (_, record) => (
+                <Select
+                  size="small"
+                  defaultValue="none"
+                  style={{ width: '100%' }}
+                  options={pretreatmentOptions}
+                  onChange={(value) => {
+                    // Store pretreatment selection for this sample
+                    manualAssignForm.setFieldsValue({
+                      [`pretreatment_${record.id}`]: value
+                    });
+                  }}
+                />
+              ),
+            },
+            {
+              title: 'Spike-in',
+              key: 'spike_in',
+              width: 200,
+              render: (_, record) => (
+                <Select
+                  size="small"
+                  defaultValue="none"
+                  style={{ width: '100%' }}
+                  options={spikeInOptions}
+                  onChange={(value) => {
+                    // Store spike-in selection for this sample
+                    manualAssignForm.setFieldsValue({
+                      [`spike_in_${record.id}`]: value
+                    });
+                  }}
+                />
+              ),
+            },
+          ]}
+          pagination={false}
+        />
+
+        <Divider />
+
+        <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+          <Button onClick={() => {
+            setIsManualAssignModalVisible(false);
+            manualAssignForm.resetFields();
+            setSelectedSamples([]);
+          }}>
+            Cancel
+          </Button>
+          <Button 
+            type="primary" 
+            disabled={selectedSamples.length === 0}
+            onClick={async () => {
+              // TODO: Implement manual assignment with pre-processing
+              message.info('Manual assignment with pre-processing coming soon!');
+              setIsManualAssignModalVisible(false);
+              navigate(`/extraction-plates/${currentPlate?.id}`);
+            }}
+          >
+            Assign {selectedSamples.length} Samples
+          </Button>
+        </Space>
       </Modal>
     </div>
   );
