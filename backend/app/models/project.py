@@ -69,6 +69,7 @@ class Project(Base, TimestampMixin):
     expected_sample_count = Column(Integer, nullable=False)  # Quoted sample count
     processing_sample_count = Column(Integer, nullable=True)  # Actual samples to be processed
     project_value = Column(Float)
+    crm_link = Column(String, nullable=True)  # Link to CRM system
     notes = Column(Text)
     
     # Dates
