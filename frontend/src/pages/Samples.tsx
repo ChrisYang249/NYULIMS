@@ -3,7 +3,7 @@ import {
   Table, Button, Tag, Space, message, Modal, Form, Select, 
   InputNumber, Input, Divider, Row, Col, Card, Upload,
   Tabs, Alert, Popover, Typography, Dropdown, Popconfirm,
-  DatePicker, Switch, Checkbox, Tooltip
+  DatePicker, Switch, Checkbox, Tooltip, Badge
 } from 'antd';
 import type { UploadProps, ColumnsType } from 'antd';
 import { 
@@ -12,7 +12,8 @@ import {
   DownloadOutlined, EnvironmentOutlined,
   FileTextOutlined, CheckCircleOutlined, DeleteOutlined,
   SearchOutlined, FilterOutlined, FlagOutlined,
-  WarningOutlined
+  WarningOutlined, ExclamationCircleOutlined,
+  CloseCircleOutlined
 } from '@ant-design/icons';
 import { api } from '../config/api';
 import dayjs from 'dayjs';
@@ -150,6 +151,13 @@ const Samples = () => {
   const [expandedView, setExpandedView] = useState(false);
   const [isBulkStatusModalVisible, setIsBulkStatusModalVisible] = useState(false);
   const [deletingSampleId, setDeletingSampleId] = useState<number | null>(null);
+  
+  // Interactive editor states
+  const [isEditorModalVisible, setIsEditorModalVisible] = useState(false);
+  const [editorData, setEditorData] = useState<any[]>([]);
+  const [editorErrors, setEditorErrors] = useState<{[key: string]: string[]}>({});
+  const [isValidating, setIsValidating] = useState(false);
+  const [selectedEditorRows, setSelectedEditorRows] = useState<string[]>([]);
   
   // Initialize filter states from URL params
   const [searchText, setSearchText] = useState(searchParams.get('search') || '');
@@ -779,28 +787,107 @@ const Samples = () => {
     a.click();
   };
 
-  // Handle file upload with validation
+  // Handle file upload with interactive editor
   const handleFileUpload = async (file: File) => {
+    console.log('=== HANDLE FILE UPLOAD CALLED ===');
+    console.log('File:', file.name, 'Size:', file.size, 'Type:', file.type);
+    
     try {
-      // Parse the uploaded file
+      // Parse the file
+      console.log('Parsing file...');
       const samples = await parseUploadedFile(file);
+      console.log('Parsed samples count:', samples.length);
+      console.log('First few samples:', samples.slice(0, 3));
       
       if (samples.length === 0) {
         message.error('No valid samples found in the file');
         return;
       }
       
-      // Validate the samples
-      const validation = validateSamples(samples);
+      // Add row IDs for tracking
+      const samplesWithIds = samples.map((sample, index) => ({
+        ...sample,
+        _rowId: `row_${index}`,
+        _rowNumber: index + 1
+      }));
       
-      // Store results for validation modal
-      setParsedSamples(samples);
-      setValidationResults(validation);
-      setIsValidationModalVisible(true);
+      console.log('Opening editor with', samplesWithIds.length, 'samples');
+      
+      // Set data and open editor
+      setEditorData(samplesWithIds);
+      setIsEditorModalVisible(true);
+      
+      // Validate all samples
+      console.log('Validating editor data...');
+      validateEditorData(samplesWithIds);
       
     } catch (error: any) {
+      console.error('File upload error:', error);
       message.error(error.message || 'Failed to process file');
     }
+  };
+  
+  // Validate editor data
+  const validateEditorData = (data: any[]) => {
+    console.log('=== VALIDATE EDITOR DATA ===');
+    console.log('Validating', data.length, 'samples');
+    
+    setIsValidating(true);
+    const errors: {[key: string]: string[]} = {};
+    const projectIds = projects.map(p => p.project_id);
+    const sampleTypeNames = sampleTypes.map(t => t.name);
+    
+    console.log('Available projects:', projectIds.length, 'First few:', projectIds.slice(0, 5));
+    console.log('Available sample types:', sampleTypeNames.length, 'First few:', sampleTypeNames.slice(0, 5));
+    
+    data.forEach((sample, index) => {
+      const rowErrors: string[] = [];
+      
+      // Validate project_id
+      if (!sample.project_id) {
+        rowErrors.push('Project ID is required');
+      } else if (!projectIds.includes(sample.project_id)) {
+        rowErrors.push(`Invalid project ID "${sample.project_id}"`);
+        if (index < 3) {
+          console.log(`Row ${index + 1}: Invalid project ID "${sample.project_id}"`);
+        }
+      }
+      
+      // Validate sample_type
+      if (!sample.sample_type) {
+        rowErrors.push('Sample type is required');
+      } else if (!sampleTypeNames.includes(sample.sample_type)) {
+        rowErrors.push(`Invalid sample type "${sample.sample_type}"`);
+      }
+      
+      // Validate service type if provided
+      if (sample.service_type && sample.project_id) {
+        const project = projects.find(p => p.project_id === sample.project_id);
+        if (project && project.project_type && sample.service_type !== project.project_type) {
+          rowErrors.push(`Service type "${sample.service_type}" doesn't match project type "${project.project_type}"`);
+        }
+      }
+      
+      // Validate DNA plate well location
+      if (sample.sample_type === 'dna_plate' && !sample.well_location) {
+        rowErrors.push('Well location is required for DNA plate samples');
+      }
+      
+      // Validate target depth
+      if (sample.target_depth && isNaN(Number(sample.target_depth))) {
+        rowErrors.push('Target depth must be a number');
+      }
+      
+      if (rowErrors.length > 0) {
+        errors[sample._rowId] = rowErrors;
+      }
+    });
+    
+    console.log('Total errors found:', Object.keys(errors).length);
+    console.log('Error details:', errors);
+    
+    setEditorErrors(errors);
+    setIsValidating(false);
   };
 
   // Handle confirmed upload after validation
@@ -821,7 +908,16 @@ const Samples = () => {
         samples: validationResults.cleanedSamples
       });
       
-      message.success(`Successfully imported ${response.data.imported} samples`);
+      // Check if there were partial failures
+      if (response.data.errors && response.data.errors.length > 0) {
+        message.warning(`Imported ${response.data.imported} samples. ${response.data.failed_count} samples failed validation.`);
+        
+        // Show detailed errors in console
+        console.error('Import errors:', response.data.errors);
+      } else {
+        message.success(`Successfully imported ${response.data.imported} samples`);
+      }
+      
       setIsValidationModalVisible(false);
       setParsedSamples([]);
       setValidationResults(null);
@@ -844,9 +940,132 @@ const Samples = () => {
     setIsUploading(false);
   };
 
+  // Handle import from editor
+  const handleEditorImport = async () => {
+    console.log('=== HANDLE EDITOR IMPORT ===');
+    console.log('Editor data length:', editorData.length);
+    console.log('Errors count:', Object.keys(editorErrors).length);
+    
+    // Check for errors
+    if (Object.keys(editorErrors).length > 0) {
+      message.error('Please fix all validation errors before importing');
+      return;
+    }
+    
+    if (editorData.length === 0) {
+      message.error('No samples to import');
+      return;
+    }
+    
+    setIsUploading(true);
+    try {
+      // Clean up the data (remove internal fields)
+      const cleanedSamples = editorData.map(sample => {
+        const { _rowId, _rowNumber, ...cleanSample } = sample;
+        
+        // Clean client sample ID
+        if (cleanSample.client_sample_id) {
+          cleanSample.client_sample_id = cleanSampleName(cleanSample.client_sample_id);
+        }
+        
+        return cleanSample;
+      });
+      
+      console.log('Cleaned samples count:', cleanedSamples.length);
+      console.log('First few cleaned samples:', cleanedSamples.slice(0, 3));
+      console.log('Sending to /samples/bulk-import...');
+      
+      const response = await api.post('/samples/bulk-import', {
+        samples: cleanedSamples
+      });
+      
+      console.log('Import response:', response.data);
+      
+      // Check if there were partial failures
+      if (response.data.errors && response.data.errors.length > 0) {
+        message.warning(`Imported ${response.data.imported} samples. ${response.data.failed_count} samples failed.`);
+        
+        // Show errors in modal
+        Modal.error({
+          title: 'Import completed with errors',
+          content: (
+            <div>
+              <p>Successfully imported: {response.data.imported} samples</p>
+              <p>Failed: {response.data.failed_count} samples</p>
+              <div style={{ maxHeight: '300px', overflowY: 'auto', marginTop: '10px' }}>
+                {response.data.errors.map((error: string, index: number) => (
+                  <div key={index} style={{ color: 'red', marginBottom: '5px' }}>
+                    • {error}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ),
+          width: 600
+        });
+      } else {
+        message.success(`Successfully imported ${response.data.imported} samples`);
+      }
+      
+      setIsEditorModalVisible(false);
+      setEditorData([]);
+      setEditorErrors({});
+      fetchSamples();
+      
+    } catch (error: any) {
+      console.error('Import error:', error.response?.data);
+      if (error.response?.data?.detail) {
+        const detail = error.response.data.detail;
+        if (typeof detail === 'string') {
+          message.error(detail);
+        } else if (detail.errors) {
+          // Show detailed errors
+          Modal.error({
+            title: 'Import failed',
+            content: (
+              <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                {detail.errors.map((err: string, index: number) => (
+                  <div key={index} style={{ marginBottom: '5px' }}>
+                    • {err}
+                  </div>
+                ))}
+              </div>
+            ),
+            width: 600
+          });
+        } else {
+          message.error('Import failed - check console for details');
+        }
+      } else {
+        message.error('Failed to import samples');
+      }
+    }
+    setIsUploading(false);
+  };
+
+  // Handle cell edit in editor
+  const handleEditorCellEdit = (rowId: string, field: string, value: any) => {
+    const updatedData = editorData.map(row => 
+      row._rowId === rowId ? { ...row, [field]: value } : row
+    );
+    setEditorData(updatedData);
+    
+    // Re-validate after edit
+    validateEditorData(updatedData);
+  };
+
+  // Handle row deletion in editor
+  const handleEditorRowDelete = (rowIds: string[]) => {
+    const updatedData = editorData.filter(row => !rowIds.includes(row._rowId));
+    setEditorData(updatedData);
+    validateEditorData(updatedData);
+    setSelectedEditorRows([]);
+  };
+
   const uploadProps: UploadProps = {
     accept: '.csv,.xlsx',
     beforeUpload: (file) => {
+      console.log('File selected:', file.name, file.size, file.type);
       handleFileUpload(file);
       return false; // Prevent default upload
     },
@@ -1230,7 +1449,7 @@ const Samples = () => {
     <div>
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h1>Samples</h1>
+          <h1>Samples <small style={{fontSize: '12px', color: '#888'}}>(v2 - Interactive Editor)</small></h1>
           <Space>
           {selectedSamples.length > 0 && (
             <Dropdown
@@ -2026,6 +2245,320 @@ const Samples = () => {
               </Space>
             </div>
           </div>
+        )}
+      </Modal>
+
+      {/* Interactive Editor Modal */}
+      <Modal
+        title={
+          <Space>
+            <span>Import Data Editor</span>
+            <Badge 
+              count={Object.keys(editorErrors).length} 
+              style={{ backgroundColor: '#ff4d4f' }}
+              title={`${Object.keys(editorErrors).length} rows with errors`}
+            />
+            <Badge 
+              count={editorData.length} 
+              style={{ backgroundColor: '#1890ff' }}
+              title={`${editorData.length} total rows`}
+            />
+          </Space>
+        }
+        open={isEditorModalVisible}
+        onCancel={() => {
+          Modal.confirm({
+            title: 'Discard changes?',
+            content: 'Are you sure you want to close? All changes will be lost.',
+            onOk: () => {
+              setIsEditorModalVisible(false);
+              setEditorData([]);
+              setEditorErrors({});
+              setSelectedEditorRows([]);
+            }
+          });
+        }}
+        width="90%"
+        style={{ top: 20 }}
+        footer={[
+          <Button key="cancel" onClick={() => {
+            Modal.confirm({
+              title: 'Discard changes?',
+              content: 'Are you sure you want to close? All changes will be lost.',
+              onOk: () => {
+                setIsEditorModalVisible(false);
+                setEditorData([]);
+                setEditorErrors({});
+                setSelectedEditorRows([]);
+              }
+            });
+          }}>
+            Cancel
+          </Button>,
+          <Button 
+            key="import" 
+            type="primary" 
+            loading={isUploading}
+            disabled={Object.keys(editorErrors).length > 0}
+            onClick={handleEditorImport}
+          >
+            Import {editorData.length} Samples
+          </Button>
+        ]}
+      >
+        {editorData.length > 0 && (
+          <>
+            <Alert
+              message="Edit your data directly in the table below"
+              description={
+                <ul style={{ marginBottom: 0, paddingLeft: 20 }}>
+                  <li>Click any cell to edit its value</li>
+                  <li>Red rows have validation errors - hover over the row number to see details</li>
+                  <li>Use the dropdowns to select valid projects and sample types</li>
+                  <li>Select rows and use bulk actions to delete them</li>
+                </ul>
+              }
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+            
+            {selectedEditorRows.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <Space>
+                  <span>{selectedEditorRows.length} rows selected</span>
+                  <Button 
+                    danger 
+                    size="small"
+                    icon={<DeleteOutlined />}
+                    onClick={() => handleEditorRowDelete(selectedEditorRows)}
+                  >
+                    Delete Selected
+                  </Button>
+                </Space>
+              </div>
+            )}
+            
+            <Table
+              rowKey="_rowId"
+              dataSource={editorData}
+              pagination={{ 
+                pageSize: 20,
+                showSizeChanger: true,
+                showTotal: (total) => `Total ${total} samples`
+              }}
+              scroll={{ x: 'max-content', y: 'calc(100vh - 400px)' }}
+              size="small"
+              rowSelection={{
+                selectedRowKeys: selectedEditorRows,
+                onChange: (keys) => setSelectedEditorRows(keys as string[])
+              }}
+              rowClassName={(record) => editorErrors[record._rowId] ? 'error-row' : ''}
+              columns={[
+                {
+                  title: 'Row',
+                  dataIndex: '_rowNumber',
+                  width: 60,
+                  fixed: 'left',
+                  render: (num: number, record: any) => {
+                    const errors = editorErrors[record._rowId];
+                    if (errors) {
+                      return (
+                        <Tooltip
+                          title={
+                            <div>
+                              <strong>Validation Errors:</strong>
+                              {errors.map((err, idx) => (
+                                <div key={idx}>• {err}</div>
+                              ))}
+                            </div>
+                          }
+                          color="red"
+                        >
+                          <span style={{ color: 'red', cursor: 'help' }}>
+                            <ExclamationCircleOutlined /> {num}
+                          </span>
+                        </Tooltip>
+                      );
+                    }
+                    return num;
+                  }
+                },
+                {
+                  title: 'Project ID',
+                  dataIndex: 'project_id',
+                  width: 150,
+                  render: (value: string, record: any) => (
+                    <Select
+                      value={value}
+                      onChange={(val) => handleEditorCellEdit(record._rowId, 'project_id', val)}
+                      style={{ width: '100%' }}
+                      showSearch
+                      placeholder="Select project"
+                      status={editorErrors[record._rowId]?.some(e => e.includes('project')) ? 'error' : undefined}
+                    >
+                      {projects.map(p => (
+                        <Select.Option key={p.project_id} value={p.project_id}>
+                          {p.project_id}
+                        </Select.Option>
+                      ))}
+                    </Select>
+                  )
+                },
+                {
+                  title: 'Client Sample ID',
+                  dataIndex: 'client_sample_id',
+                  width: 150,
+                  render: (value: string, record: any) => (
+                    <Input
+                      value={value}
+                      onChange={(e) => handleEditorCellEdit(record._rowId, 'client_sample_id', e.target.value)}
+                      placeholder="Sample ID"
+                    />
+                  )
+                },
+                {
+                  title: 'Sample Type',
+                  dataIndex: 'sample_type',
+                  width: 150,
+                  render: (value: string, record: any) => (
+                    <Select
+                      value={value}
+                      onChange={(val) => handleEditorCellEdit(record._rowId, 'sample_type', val)}
+                      style={{ width: '100%' }}
+                      showSearch
+                      placeholder="Select type"
+                      status={editorErrors[record._rowId]?.some(e => e.includes('sample type')) ? 'error' : undefined}
+                    >
+                      {sampleTypes.map(t => (
+                        <Select.Option key={t.name} value={t.name}>
+                          {t.label}
+                        </Select.Option>
+                      ))}
+                    </Select>
+                  )
+                },
+                {
+                  title: 'Service Type',
+                  dataIndex: 'service_type',
+                  width: 120,
+                  render: (value: string, record: any) => (
+                    <Select
+                      value={value}
+                      onChange={(val) => handleEditorCellEdit(record._rowId, 'service_type', val)}
+                      style={{ width: '100%' }}
+                      placeholder="Optional"
+                      allowClear
+                      status={editorErrors[record._rowId]?.some(e => e.includes('Service type')) ? 'error' : undefined}
+                    >
+                      <Select.Option value="WGS">WGS</Select.Option>
+                      <Select.Option value="V1V3_16S">V1V3_16S</Select.Option>
+                      <Select.Option value="V3V4_16S">V3V4_16S</Select.Option>
+                      <Select.Option value="ONT_WGS">ONT_WGS</Select.Option>
+                      <Select.Option value="ONT_V1V8">ONT_V1V8</Select.Option>
+                      <Select.Option value="ANALYSIS_ONLY">ANALYSIS_ONLY</Select.Option>
+                      <Select.Option value="INTERNAL">INTERNAL</Select.Option>
+                      <Select.Option value="CLINICAL">CLINICAL</Select.Option>
+                      <Select.Option value="OTHER">OTHER</Select.Option>
+                    </Select>
+                  )
+                },
+                {
+                  title: 'Target Depth',
+                  dataIndex: 'target_depth',
+                  width: 100,
+                  render: (value: number, record: any) => (
+                    <InputNumber
+                      value={value}
+                      onChange={(val) => handleEditorCellEdit(record._rowId, 'target_depth', val)}
+                      placeholder="M reads"
+                      min={0}
+                      style={{ width: '100%' }}
+                    />
+                  )
+                },
+                {
+                  title: 'Well Location',
+                  dataIndex: 'well_location',
+                  width: 100,
+                  render: (value: string, record: any) => (
+                    <Input
+                      value={value}
+                      onChange={(e) => handleEditorCellEdit(record._rowId, 'well_location', e.target.value)}
+                      placeholder="e.g. A1"
+                      status={
+                        record.sample_type === 'dna_plate' && !value &&
+                        editorErrors[record._rowId]?.some(e => e.includes('Well location'))
+                          ? 'error' : undefined
+                      }
+                    />
+                  )
+                },
+                {
+                  title: 'Storage',
+                  children: [
+                    {
+                      title: 'Freezer',
+                      dataIndex: 'storage_freezer',
+                      width: 100,
+                      render: (value: string, record: any) => (
+                        <Input
+                          value={value}
+                          onChange={(e) => handleEditorCellEdit(record._rowId, 'storage_freezer', e.target.value)}
+                          placeholder="Freezer"
+                        />
+                      )
+                    },
+                    {
+                      title: 'Shelf',
+                      dataIndex: 'storage_shelf',
+                      width: 80,
+                      render: (value: string, record: any) => (
+                        <Input
+                          value={value}
+                          onChange={(e) => handleEditorCellEdit(record._rowId, 'storage_shelf', e.target.value)}
+                          placeholder="Shelf"
+                        />
+                      )
+                    },
+                    {
+                      title: 'Box',
+                      dataIndex: 'storage_box',
+                      width: 80,
+                      render: (value: string, record: any) => (
+                        <Input
+                          value={value}
+                          onChange={(e) => handleEditorCellEdit(record._rowId, 'storage_box', e.target.value)}
+                          placeholder="Box"
+                        />
+                      )
+                    },
+                    {
+                      title: 'Position',
+                      dataIndex: 'storage_position',
+                      width: 80,
+                      render: (value: string, record: any) => (
+                        <Input
+                          value={value}
+                          onChange={(e) => handleEditorCellEdit(record._rowId, 'storage_position', e.target.value)}
+                          placeholder="Pos"
+                        />
+                      )
+                    }
+                  ]
+                }
+              ]}
+            />
+            
+            <style>{`
+              .error-row {
+                background-color: #fff2f0 !important;
+              }
+              .error-row:hover td {
+                background-color: #ffe7e7 !important;
+              }
+            `}</style>
+          </>
         )}
       </Modal>
 

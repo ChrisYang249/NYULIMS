@@ -1,12 +1,18 @@
 from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, UploadFile, File
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func, and_, or_
+from sqlalchemy import func, and_
 import random
 from datetime import datetime
 import os
 import uuid
 import shutil
+import pandas as pd
+import openpyxl
+from openpyxl.styles import PatternFill, Font
+from openpyxl.comments import Comment
+from io import BytesIO
 
 from app.api import deps
 from app.models import (
@@ -384,6 +390,10 @@ def import_samples_bulk(
     from app.models.sample_type import SampleType as SampleTypeModel
     from app.api.permissions import check_permission
     
+    print(f"\n=== BULK IMPORT ENDPOINT ===")
+    print(f"Total samples received: {len(import_data.samples)}")
+    print(f"User: {current_user.email}")
+    
     # Check permission
     check_permission(current_user, "registerSamples")
     
@@ -394,11 +404,16 @@ def import_samples_bulk(
     projects = {p.project_id: p for p in db.query(Project).all()}
     sample_types = {st.name: st for st in db.query(SampleTypeModel).all()}
     
+    print(f"Available projects: {len(projects)}")
+    print(f"Available sample types: {len(sample_types)}")
+    
     for i, sample_data in enumerate(import_data.samples):
         try:
             # Validate project
             if sample_data.project_id not in projects:
                 errors.append(f"Sample {i+1}: Invalid project_id '{sample_data.project_id}'")
+                if i < 5:  # Log first few errors
+                    print(f"Sample {i+1}: Invalid project_id '{sample_data.project_id}' not in {list(projects.keys())[:5]}...")
                 continue
             
             project = projects[sample_data.project_id]
@@ -481,20 +496,175 @@ def import_samples_bulk(
         except Exception as e:
             errors.append(f"Sample {i+1}: {str(e)}")
     
-    if errors:
+    if errors and len(imported_samples) == 0:
+        # Only fail completely if NO samples were valid
         db.rollback()
         raise HTTPException(
             status_code=400, 
-            detail={"message": "Import failed with errors", "errors": errors}
+            detail={"message": "Import failed - no valid samples", "errors": errors}
         )
     
-    db.commit()
+    # Commit the valid samples
+    if imported_samples:
+        db.commit()
     
-    return {
+    # Return results including any errors
+    result = {
         "imported": len(imported_samples),
-        "message": f"Successfully imported {len(imported_samples)} samples",
+        "message": f"Successfully imported {len(imported_samples)} of {len(import_data.samples)} samples",
         "sample_ids": [s.id for s in imported_samples]
     }
+    
+    if errors:
+        result["errors"] = errors
+        result["failed_count"] = len(errors)
+    
+    print(f"\n=== IMPORT RESULT ===")
+    print(f"Total received: {len(import_data.samples)}")
+    print(f"Successfully imported: {len(imported_samples)}")
+    print(f"Failed: {len(errors)}")
+    if errors:
+        print(f"First few errors: {errors[:5]}")
+    
+    return result
+
+@router.post("/validate-import")
+async def validate_import_file(
+    *,
+    db: Session = Depends(deps.get_db),
+    file: UploadFile = File(...),
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """Validate an Excel/CSV file and return Excel with errors highlighted"""
+    from app.models.sample_type import SampleType as SampleTypeModel
+    from app.api.permissions import check_permission
+    
+    # Check permission
+    check_permission(current_user, "registerSamples")
+    
+    # Read the uploaded file
+    contents = await file.read()
+    
+    # Parse Excel file
+    try:
+        df = pd.read_excel(BytesIO(contents))
+        print(f"DEBUG: Loaded Excel with {len(df)} rows")
+        print(f"DEBUG: Columns found: {list(df.columns)}")
+        print(f"DEBUG: First few rows:\n{df.head()}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to read Excel file: {str(e)}")
+    
+    # Get all projects and sample types for validation
+    projects = {p.project_id: p for p in db.query(Project).all()}
+    sample_types = {st.name: st for st in db.query(SampleTypeModel).all()}
+    
+    print(f"DEBUG: Available projects: {list(projects.keys())[:10]}")  # First 10
+    print(f"DEBUG: Available sample types: {list(sample_types.keys())[:10]}")  # First 10
+    
+    # Create a new workbook for the output
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        # Write the dataframe first
+        df.to_excel(writer, index=False, sheet_name='Samples')
+        
+        # Get the worksheet
+        worksheet = writer.sheets['Samples']
+        
+        # Define red fill for errors
+        red_fill = PatternFill(start_color="FFCCCC", end_color="FFCCCC", fill_type="solid")
+        
+        # Track validation results
+        total_errors = 0
+        error_rows = []
+        
+        # Validate each row
+        for idx, row in df.iterrows():
+            row_num = idx + 2  # Excel row number (1-indexed + header)
+            errors_in_row = []
+            
+            # Check project_id
+            project_id = str(row.get('project_id', '')) if pd.notna(row.get('project_id')) else ''
+            if not project_id:
+                errors_in_row.append("project_id is required")
+                worksheet[f'A{row_num}'].fill = red_fill
+            elif project_id not in projects:
+                errors_in_row.append(f"Invalid project_id '{project_id}'")
+                worksheet[f'A{row_num}'].fill = red_fill
+            
+            # Check sample_type
+            sample_type = str(row.get('sample_type', '')) if pd.notna(row.get('sample_type')) else ''
+            if not sample_type:
+                errors_in_row.append("sample_type is required")
+                col_idx = df.columns.get_loc('sample_type') + 1
+                worksheet.cell(row=row_num, column=col_idx).fill = red_fill
+            elif sample_type not in sample_types:
+                errors_in_row.append(f"Invalid sample_type '{sample_type}'")
+                col_idx = df.columns.get_loc('sample_type') + 1
+                worksheet.cell(row=row_num, column=col_idx).fill = red_fill
+            
+            # Check service_type if provided
+            if pd.notna(row.get('service_type')) and project_id in projects:
+                service_type = str(row['service_type'])
+                project = projects[project_id]
+                project_type = project.project_type.value if project.project_type else None
+                if project_type and service_type != project_type:
+                    errors_in_row.append(f"Service type '{service_type}' does not match project type '{project_type}'")
+                    col_idx = df.columns.get_loc('service_type') + 1
+                    worksheet.cell(row=row_num, column=col_idx).fill = red_fill
+            
+            # Check DNA plate well location
+            if sample_type == 'dna_plate' and pd.isna(row.get('well_location')):
+                errors_in_row.append("well_location is required for dna_plate samples")
+                if 'well_location' in df.columns:
+                    col_idx = df.columns.get_loc('well_location') + 1
+                    worksheet.cell(row=row_num, column=col_idx).fill = red_fill
+            
+            # If there are errors, add comment to first cell
+            if errors_in_row:
+                total_errors += 1
+                error_rows.append(row_num)
+                comment_text = "VALIDATION ERRORS:\n" + "\n".join(f"- {err}" for err in errors_in_row)
+                comment = Comment(comment_text, "LIMS Validator")
+                worksheet[f'A{row_num}'].comment = comment
+                
+                # Highlight the entire row
+                for col in range(1, len(df.columns) + 1):
+                    worksheet.cell(row=row_num, column=col).fill = red_fill
+        
+        # Add summary sheet
+        summary_df = pd.DataFrame({
+            'Validation Summary': [
+                f'Total Rows: {len(df)}',
+                f'Valid Rows: {len(df) - total_errors}',
+                f'Error Rows: {total_errors}',
+                f'Error Row Numbers: {", ".join(map(str, error_rows)) if error_rows else "None"}',
+                '',
+                'Instructions:',
+                '1. Red cells indicate validation errors',
+                '2. Hover over cells with comments to see specific errors',
+                '3. Fix the errors and re-upload the file',
+                '4. Valid projects must exist in the system',
+                '5. Valid sample types can be found in the template'
+            ]
+        })
+        summary_df.to_excel(writer, index=False, sheet_name='Validation Summary')
+    
+    # Prepare the file for download
+    output.seek(0)
+    
+    # Generate filename
+    original_name = os.path.splitext(file.filename)[0]
+    validated_filename = f"{original_name}_validated_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    
+    return StreamingResponse(
+        output,
+        media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        headers={
+            'Content-Disposition': f'attachment; filename="{validated_filename}"',
+            'X-Validation-Errors': str(total_errors),
+            'X-Total-Rows': str(len(df))
+        }
+    )
 
 @router.put("/{sample_id}", response_model=SampleSchema)
 def update_sample(
@@ -839,8 +1009,8 @@ def get_queue_samples(
     # Map queue names to status filters
     queue_map = {
         "accessioning": [SampleStatus.RECEIVED, SampleStatus.ACCESSIONING],
-        "extraction": [SampleStatus.EXTRACTION_QUEUE],  # Samples waiting to be assigned to plate
-        "extraction_active": [SampleStatus.IN_EXTRACTION],  # Samples actively being extracted
+        "extraction": [SampleStatus.EXTRACTION_QUEUE],  # Updated to use new status
+        "extraction_active": [SampleStatus.IN_EXTRACTION],
         "dna_quant": [SampleStatus.DNA_QUANT_QUEUE],  # New queue for DNA samples
         "library_prep": [SampleStatus.EXTRACTED],
         "library_prep_active": [SampleStatus.IN_LIBRARY_PREP],
@@ -863,23 +1033,6 @@ def get_queue_samples(
     if queue_name == "reprocess":
         # Get failed samples that need reprocessing
         query = query.filter(Sample.failed_stage.isnot(None))
-    elif queue_name == "extraction":
-        # Get samples in extraction queue that are NOT assigned to a plate yet
-        query = query.filter(
-            Sample.status == SampleStatus.EXTRACTION_QUEUE,
-            Sample.extraction_plate_ref_id.is_(None)
-        )
-    elif queue_name == "extraction_active":
-        # Get samples that are assigned to a plate OR have IN_EXTRACTION status
-        query = query.filter(
-            or_(
-                Sample.status == SampleStatus.IN_EXTRACTION,
-                and_(
-                    Sample.status == SampleStatus.EXTRACTION_QUEUE,
-                    Sample.extraction_plate_ref_id.isnot(None)
-                )
-            )
-        )
     else:
         statuses = queue_map[queue_name]
         if statuses:
