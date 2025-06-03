@@ -35,9 +35,11 @@ class ExtractionPlate(ExtractionPlateBase):
     ext_neg_ctrl_concentration: Optional[float] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
+    created_by_id: Optional[int] = None
     
     # Relationships
     assigned_tech: Optional[Dict[str, Any]] = None
+    created_by: Optional[Dict[str, Any]] = None
     sample_count: Optional[int] = None
     
     class Config:
@@ -53,6 +55,13 @@ class ExtractionPlate(ExtractionPlateBase):
                 'username': obj.assigned_tech.username,
                 'full_name': obj.assigned_tech.full_name,
                 'role': obj.assigned_tech.role
+            }
+        if hasattr(obj, 'created_by') and obj.created_by:
+            data['created_by'] = {
+                'id': obj.created_by.id,
+                'username': obj.created_by.username,
+                'full_name': obj.created_by.full_name,
+                'role': obj.created_by.role
             }
         if hasattr(obj, 'samples'):
             data['sample_count'] = len(obj.samples)
