@@ -9,6 +9,7 @@ from app.models.sequencing import SequencingRun, SequencingRunSample, RunStatus
 from app.models.employee import Employee
 from app.models.attachment import ProjectAttachment
 from app.models.extraction_plate import ExtractionPlate, PlateStatus, PlateWellAssignment
+from app.models.client_project_config import ClientProjectConfig
 
 __all__ = [
     "AuditLog", "TimestampMixin",
@@ -21,5 +22,6 @@ __all__ = [
     "SequencingRun", "SequencingRunSample", "RunStatus",
     "Employee",
     "ProjectAttachment",
-    "ExtractionPlate", "PlateStatus", "PlateWellAssignment"
+    "ExtractionPlate", "PlateStatus", "PlateWellAssignment",
+    "ClientProjectConfig"
 ]

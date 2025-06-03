@@ -10,6 +10,8 @@ class ClientBase(BaseModel):
     phone: Optional[str] = None
     address: Optional[str] = None
     subscription_id: Optional[str] = None
+    abbreviation: Optional[str] = None
+    use_custom_naming: bool = False
 
 
 class ClientCreate(ClientBase):
@@ -19,6 +21,12 @@ class ClientCreate(ClientBase):
 class ClientUpdate(ClientBase):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
+    institution: Optional[str] = None
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    subscription_id: Optional[str] = None
+    abbreviation: Optional[str] = None
+    use_custom_naming: Optional[bool] = None
 
 
 class ClientInDBBase(ClientBase):

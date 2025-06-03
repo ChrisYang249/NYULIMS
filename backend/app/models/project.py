@@ -50,8 +50,11 @@ class Client(Base, TimestampMixin):
     phone = Column(String)
     address = Column(Text)
     subscription_id = Column(String)
+    abbreviation = Column(String(10))
+    use_custom_naming = Column(Boolean, default=False)
     
     projects = relationship("Project", back_populates="client")
+    project_config = relationship("ClientProjectConfig", back_populates="client", uselist=False)
 
 class Project(Base, TimestampMixin):
     __tablename__ = "projects"
