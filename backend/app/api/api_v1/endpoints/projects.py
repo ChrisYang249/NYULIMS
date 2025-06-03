@@ -1,11 +1,12 @@
-from typing import Any, List
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from typing import Any, List, Optional
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session, joinedload
 from datetime import datetime, timedelta
 import holidays
 import os
 import uuid
+import json
 from pathlib import Path
 
 from app.api import deps
@@ -226,6 +227,215 @@ def create_project(
     )
     db.add(initial_log)
     db.commit()
+    
+    return project
+
+@router.post("/with-attachments", response_model=ProjectSchema)
+def create_project_with_attachments(
+    *,
+    db: Session = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user),
+    project_data: str = Form(..., description="JSON string of project data"),
+    quote_file: Optional[UploadFile] = File(None, description="Quote PDF file"),
+    submission_form: Optional[UploadFile] = File(None, description="Submission form XLSX file"),
+) -> Any:
+    """Create new project with file attachments"""
+    # Check permissions
+    if not check_project_permission(current_user, "create"):
+        raise HTTPException(
+            status_code=403,
+            detail="You don't have permission to create projects"
+        )
+    
+    # Parse project data from JSON
+    try:
+        project_dict = json.loads(project_data)
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid project data JSON"
+        )
+    
+    # Validate file types
+    if quote_file:
+        if not quote_file.filename.lower().endswith('.pdf'):
+            raise HTTPException(
+                status_code=400,
+                detail="Quote file must be a PDF"
+            )
+        if quote_file.size > 10 * 1024 * 1024:  # 10MB limit
+            raise HTTPException(
+                status_code=400,
+                detail="Quote file size must be less than 10MB"
+            )
+    
+    if submission_form:
+        if not submission_form.filename.lower().endswith(('.xlsx', '.xls')):
+            raise HTTPException(
+                status_code=400,
+                detail="Submission form must be an Excel file (.xlsx or .xls)"
+            )
+        if submission_form.size > 10 * 1024 * 1024:  # 10MB limit
+            raise HTTPException(
+                status_code=400,
+                detail="Submission form file size must be less than 10MB"
+            )
+    
+    # Create ProjectCreate object from parsed data
+    try:
+        # Convert string dates to datetime objects
+        if 'start_date' in project_dict:
+            project_dict['start_date'] = datetime.fromisoformat(project_dict['start_date'].replace('Z', '+00:00'))
+        
+        project_in = ProjectCreate(**project_dict)
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid project data: {str(e)}"
+        )
+    
+    # Handle project ID - use provided or generate new one
+    if project_in.project_id:
+        # Check if provided project ID already exists
+        existing = db.query(Project).filter(Project.project_id == project_in.project_id).first()
+        if existing:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Project ID {project_in.project_id} already exists"
+            )
+        project_id = project_in.project_id
+    else:
+        # Generate project ID with CMBP prefix
+        projects = db.query(Project).filter(
+            Project.project_id.like("CMBP%")
+        ).all()
+        
+        max_number = 0
+        for project in projects:
+            if project.project_id and project.project_id.startswith("CMBP"):
+                numeric_part = project.project_id[4:]
+                for i, char in enumerate(numeric_part):
+                    if not char.isdigit():
+                        numeric_part = numeric_part[:i]
+                        break
+                
+                try:
+                    number = int(numeric_part) if numeric_part else 0
+                    max_number = max(max_number, number)
+                except ValueError:
+                    continue
+        
+        new_number = max_number + 1
+        project_id = f"CMBP{new_number:05d}"
+    
+    # Calculate due date
+    due_date = calculate_due_date(project_in.start_date, project_in.tat)
+    
+    # Create project
+    project_data_dict = project_in.dict()
+    project_data_dict.pop('project_id', None)
+    project_data_dict.pop('status', None)
+    
+    project = Project(
+        project_id=project_id,
+        due_date=due_date,
+        created_by_id=current_user.id,
+        **project_data_dict
+    )
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+    
+    # Handle file uploads
+    uploaded_files = []
+    
+    if quote_file:
+        # Save quote file
+        file_extension = Path(quote_file.filename).suffix
+        unique_filename = f"{uuid.uuid4()}{file_extension}"
+        file_path = UPLOAD_DIR / unique_filename
+        
+        with open(file_path, "wb") as buffer:
+            content = quote_file.file.read()
+            buffer.write(content)
+        
+        # Create attachment record
+        attachment = ProjectAttachment(
+            project_id=project.id,
+            filename=unique_filename,  # Stored filename (with UUID)
+            original_filename=quote_file.filename,  # Original filename
+            file_path=str(file_path),
+            file_size=len(content),
+            file_type="quote",
+            uploaded_by_id=current_user.id,
+            created_by_id=current_user.id
+        )
+        db.add(attachment)
+        uploaded_files.append(f"Quote: {quote_file.filename}")
+    
+    if submission_form:
+        # Save submission form file
+        file_extension = Path(submission_form.filename).suffix
+        unique_filename = f"{uuid.uuid4()}{file_extension}"
+        file_path = UPLOAD_DIR / unique_filename
+        
+        with open(file_path, "wb") as buffer:
+            content = submission_form.file.read()
+            buffer.write(content)
+        
+        # Create attachment record
+        attachment = ProjectAttachment(
+            project_id=project.id,
+            filename=unique_filename,  # Stored filename (with UUID)
+            original_filename=submission_form.filename,  # Original filename
+            file_path=str(file_path),
+            file_size=len(content),
+            file_type="submission_form",
+            uploaded_by_id=current_user.id,
+            created_by_id=current_user.id
+        )
+        db.add(attachment)
+        uploaded_files.append(f"Submission Form: {submission_form.filename}")
+    
+    db.commit()
+    
+    # Create initial log entry
+    client = db.query(Client).filter(Client.id == project.client_id).first()
+    client_name = client.name if client else "Unknown"
+    log_details = [
+        f"Project ID: {project_id}",
+        f"Type: {project.project_type}",
+        f"Client: {client_name}",
+        f"Quoted Samples: {project.expected_sample_count}",
+        f"TAT: {project.tat}",
+        f"Due Date: {due_date.strftime('%Y-%m-%d')}"
+    ]
+    
+    if uploaded_files:
+        log_details.append(f"Attachments: {', '.join(uploaded_files)}")
+    
+    if project.sales_rep_id:
+        sales_rep = db.query(Employee).filter(Employee.id == project.sales_rep_id).first()
+        if sales_rep:
+            log_details.append(f"Sales Rep: {sales_rep.name}")
+    if project.project_value:
+        log_details.append(f"Value: ${project.project_value:,.2f}")
+    
+    initial_log = ProjectLog(
+        project_id=project.id,
+        comment=f"Project created with attachments - " + "; ".join(log_details),
+        log_type="creation",
+        created_by_id=current_user.id
+    )
+    db.add(initial_log)
+    db.commit()
+    
+    # Load project with relationships for response
+    project = db.query(Project).options(
+        joinedload(Project.client),
+        joinedload(Project.sales_rep),
+        joinedload(Project.attachments)
+    ).filter(Project.id == project.id).first()
     
     return project
 
