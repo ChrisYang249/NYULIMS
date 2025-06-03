@@ -35,6 +35,7 @@ import {
   FlagOutlined,
   RobotOutlined,
   TableOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { api } from '../../config/api';
@@ -108,6 +109,7 @@ interface PlateAssignment {
   sample_id: number;
   well_position?: string;
   sample_input_ul?: number;
+  elution_volume_ul?: number;
   pretreatment_type?: string;
   spike_in_type?: string;
   lysis_method?: string;
@@ -721,8 +723,9 @@ const ExtractionQueue: React.FC = () => {
           rowSelection={rowSelection}
           scroll={{ x: 1200 }}
           pagination={{
-            pageSize: 50,
+            defaultPageSize: 150,
             showSizeChanger: true,
+            pageSizeOptions: ['50', '100', '150', '200', '500'],
             showTotal: (total) => `Total ${total} samples`,
             position: ['topRight'],
           }}
@@ -999,7 +1002,7 @@ const ExtractionQueue: React.FC = () => {
           description={
             <ul style={{ marginBottom: 0, paddingLeft: 20 }}>
               <li>Select samples from available queue (max 92 samples)</li>
-              <li>Configure individual sample input volume, pre-processing, spike-in, and lysis methods</li>
+              <li>Configure individual sample input volume, elution volume, pre-processing, spike-in, and lysis methods</li>
               <li>Samples will be arranged column-wise (A1→B1→C1...H1, then A2→B2...)</li>
               <li>Control wells: H11 (Ext Pos), H12 (Ext Neg), G11 & G12 reserved for LP controls</li>
             </ul>
@@ -1029,7 +1032,12 @@ const ExtractionQueue: React.FC = () => {
                 rowKey="id"
                 size="small"
                 scroll={{ y: 350 }}
-                pagination={{ pageSize: 50, size: 'small' }}
+                pagination={{ 
+                  defaultPageSize: 150,
+                  size: 'small',
+                  showSizeChanger: true,
+                  pageSizeOptions: ['50', '100', '150', '200', '500'],
+                }}
                 rowSelection={{
                   selectedRowKeys: selectedSamples,
                   onChange: (keys) => {
@@ -1042,6 +1050,7 @@ const ExtractionQueue: React.FC = () => {
                         return existing || {
                           sample_id: sampleId,
                           sample_input_ul: 50, // Default 50 µL
+                          elution_volume_ul: 100, // Default 100 µL
                           pretreatment_type: 'none',
                           spike_in_type: 'none',
                           lysis_method: 'NA'
@@ -1104,6 +1113,9 @@ const ExtractionQueue: React.FC = () => {
                             <Form.Item name="sample_input_ul" label="Sample Input (µL)" initialValue={50}>
                               <InputNumber min={1} max={200} style={{ width: '100%' }} />
                             </Form.Item>
+                            <Form.Item name="elution_volume_ul" label="Elution Volume (µL)" initialValue={100}>
+                              <InputNumber min={25} max={200} style={{ width: '100%' }} />
+                            </Form.Item>
                             <Form.Item name="pretreatment_type" label="Pre-treatment" initialValue="none">
                               <Select options={pretreatmentOptions} />
                             </Form.Item>
@@ -1123,6 +1135,7 @@ const ExtractionQueue: React.FC = () => {
                           setPlateAssignments(prev => prev.map(assignment => ({
                             ...assignment,
                             sample_input_ul: Number(values.sample_input_ul) || assignment.sample_input_ul,
+                            elution_volume_ul: Number(values.elution_volume_ul) || assignment.elution_volume_ul,
                             pretreatment_type: values.pretreatment_type as string || assignment.pretreatment_type,
                             spike_in_type: values.spike_in_type as string || assignment.spike_in_type,
                             lysis_method: values.lysis_method as string || assignment.lysis_method,
@@ -1174,73 +1187,116 @@ const ExtractionQueue: React.FC = () => {
                     title: 'Input (µL)',
                     key: 'sample_input_ul',
                     width: 80,
-                    render: (_, record, index) => (
-                      <InputNumber
-                        size="small"
-                        min={1}
-                        max={200}
-                        value={plateAssignments[index]?.sample_input_ul}
-                        onChange={(value) => {
-                          const newAssignments = [...plateAssignments];
-                          newAssignments[index].sample_input_ul = value || 50;
-                          setPlateAssignments(newAssignments);
-                        }}
-                      />
-                    ),
+                    render: (_, record) => {
+                      const assignmentIndex = plateAssignments.findIndex(a => a.sample_id === record.sample_id);
+                      return (
+                        <InputNumber
+                          size="small"
+                          min={1}
+                          max={200}
+                          value={plateAssignments[assignmentIndex]?.sample_input_ul || 50}
+                          onChange={(value) => {
+                            const newAssignments = [...plateAssignments];
+                            if (assignmentIndex >= 0) {
+                              newAssignments[assignmentIndex].sample_input_ul = value || 50;
+                              setPlateAssignments(newAssignments);
+                            }
+                          }}
+                        />
+                      );
+                    },
+                  },
+                  {
+                    title: 'Elution (µL)',
+                    key: 'elution_volume_ul',
+                    width: 80,
+                    render: (_, record) => {
+                      const assignmentIndex = plateAssignments.findIndex(a => a.sample_id === record.sample_id);
+                      return (
+                        <InputNumber
+                          size="small"
+                          min={25}
+                          max={200}
+                          value={plateAssignments[assignmentIndex]?.elution_volume_ul || 100}
+                          onChange={(value) => {
+                            const newAssignments = [...plateAssignments];
+                            if (assignmentIndex >= 0) {
+                              newAssignments[assignmentIndex].elution_volume_ul = value || 100;
+                              setPlateAssignments(newAssignments);
+                            }
+                          }}
+                        />
+                      );
+                    },
                   },
                   {
                     title: 'Pre-treatment',
                     key: 'pretreatment_type',
-                    width: 150,
-                    render: (_, record, index) => (
-                      <Select
-                        size="small"
-                        value={plateAssignments[index]?.pretreatment_type}
-                        style={{ width: '100%' }}
-                        options={pretreatmentOptions}
-                        onChange={(value) => {
-                          const newAssignments = [...plateAssignments];
-                          newAssignments[index].pretreatment_type = value;
-                          setPlateAssignments(newAssignments);
-                        }}
-                      />
-                    ),
+                    width: 140,
+                    render: (_, record) => {
+                      const assignmentIndex = plateAssignments.findIndex(a => a.sample_id === record.sample_id);
+                      return (
+                        <Select
+                          size="small"
+                          value={plateAssignments[assignmentIndex]?.pretreatment_type || 'none'}
+                          style={{ width: '100%' }}
+                          options={pretreatmentOptions}
+                          onChange={(value) => {
+                            const newAssignments = [...plateAssignments];
+                            if (assignmentIndex >= 0) {
+                              newAssignments[assignmentIndex].pretreatment_type = value;
+                              setPlateAssignments(newAssignments);
+                            }
+                          }}
+                        />
+                      );
+                    },
                   },
                   {
                     title: 'Spike-in',
                     key: 'spike_in_type',
-                    width: 150,
-                    render: (_, record, index) => (
-                      <Select
-                        size="small"
-                        value={plateAssignments[index]?.spike_in_type}
-                        style={{ width: '100%' }}
-                        options={spikeInOptions}
-                        onChange={(value) => {
-                          const newAssignments = [...plateAssignments];
-                          newAssignments[index].spike_in_type = value;
-                          setPlateAssignments(newAssignments);
-                        }}
-                      />
-                    ),
+                    width: 140,
+                    render: (_, record) => {
+                      const assignmentIndex = plateAssignments.findIndex(a => a.sample_id === record.sample_id);
+                      return (
+                        <Select
+                          size="small"
+                          value={plateAssignments[assignmentIndex]?.spike_in_type || 'none'}
+                          style={{ width: '100%' }}
+                          options={spikeInOptions}
+                          onChange={(value) => {
+                            const newAssignments = [...plateAssignments];
+                            if (assignmentIndex >= 0) {
+                              newAssignments[assignmentIndex].spike_in_type = value;
+                              setPlateAssignments(newAssignments);
+                            }
+                          }}
+                        />
+                      );
+                    },
                   },
                   {
                     title: 'Lysis',
                     key: 'lysis_method',
-                    width: 150,
-                    render: (_, record, index) => (
-                      <Select
-                        size="small"
-                        value={plateAssignments[index]?.lysis_method}
-                        style={{ width: '100%' }}
-                        options={lysisMethodOptions}
-                        onChange={(value) => {
-                          const newAssignments = [...plateAssignments];
-                          newAssignments[index].lysis_method = value;
-                          setPlateAssignments(newAssignments);
-                        }}
-                      />
-                    ),
+                    width: 140,
+                    render: (_, record) => {
+                      const assignmentIndex = plateAssignments.findIndex(a => a.sample_id === record.sample_id);
+                      return (
+                        <Select
+                          size="small"
+                          value={plateAssignments[assignmentIndex]?.lysis_method || 'NA'}
+                          style={{ width: '100%' }}
+                          options={lysisMethodOptions}
+                          onChange={(value) => {
+                            const newAssignments = [...plateAssignments];
+                            if (assignmentIndex >= 0) {
+                              newAssignments[assignmentIndex].lysis_method = value;
+                              setPlateAssignments(newAssignments);
+                            }
+                          }}
+                        />
+                      );
+                    },
                   },
                   {
                     title: '',
