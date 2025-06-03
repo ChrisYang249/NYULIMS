@@ -110,6 +110,9 @@ def read_samples(
             SampleTypeModel.name == sample_type
         )
     
+    # Sort by created_at descending (newest first)
+    query = query.order_by(Sample.created_at.desc())
+    
     # Count total before limiting
     total_count = query.count()
     

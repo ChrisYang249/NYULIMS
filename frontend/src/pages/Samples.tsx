@@ -1184,20 +1184,19 @@ const Samples = () => {
     
     return true;
   }).sort((a, b) => {
-    // First sort by due date (earliest first, null values last)
-    if (a.due_date && b.due_date) {
-      const dateA = dayjs(a.due_date);
-      const dateB = dayjs(b.due_date);
-      if (dateA.isBefore(dateB)) return -1;
-      if (dateA.isAfter(dateB)) return 1;
-    } else if (a.due_date && !b.due_date) {
-      return -1; // a has due date, b doesn't - a comes first
-    } else if (!a.due_date && b.due_date) {
-      return 1; // b has due date, a doesn't - b comes first
+    // Sort by created_at descending (newest first)
+    if (a.created_at && b.created_at) {
+      const dateA = new Date(a.created_at).getTime();
+      const dateB = new Date(b.created_at).getTime();
+      return dateB - dateA; // Descending order
+    } else if (a.created_at && !b.created_at) {
+      return -1; // a has created date, b doesn't - a comes first
+    } else if (!a.created_at && b.created_at) {
+      return 1; // b has created date, a doesn't - b comes first
     }
     
-    // Then sort by project code
-    return (a.project_code || '').localeCompare(b.project_code || '');
+    // If no created dates, sort by barcode
+    return (a.barcode || '').localeCompare(b.barcode || '');
   });
 
   // Compact columns for reduced scrolling
