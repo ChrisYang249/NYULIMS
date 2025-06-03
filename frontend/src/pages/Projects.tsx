@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Select, InputNumber, message, DatePicker, Popconfirm, Tag, Checkbox, Row, Col, Alert, Radio, Divider } from 'antd';
-import { PlusOutlined, DeleteOutlined, FilterOutlined, SearchOutlined, RobotOutlined, EditOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Modal, Form, Input, Select, InputNumber, message, DatePicker, Popconfirm, Tag, Checkbox, Row, Col, Alert, Radio, Divider, Dropdown } from 'antd';
+import { PlusOutlined, DeleteOutlined, FilterOutlined, SearchOutlined, RobotOutlined, EditOutlined, CheckCircleOutlined, DownOutlined } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../config/api';
 import { useAuthStore } from '../store/authStore';
@@ -36,6 +36,7 @@ const Projects = () => {
   const [selectedProject, setSelectedProject] = useState<any>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [bulkDeleteModalVisible, setBulkDeleteModalVisible] = useState(false);
+  const [bulkStatusModalVisible, setBulkStatusModalVisible] = useState(false);
   const [nextProjectId, setNextProjectId] = useState<string>('');
   const [dueDate, setDueDate] = useState<dayjs.Dayjs | null>(null);
   const [projectIdMode, setProjectIdMode] = useState<'auto' | 'manual'>('auto');
@@ -55,12 +56,36 @@ const Projects = () => {
   const [clientForm] = Form.useForm();
   const [deleteForm] = Form.useForm();
   const [bulkDeleteForm] = Form.useForm();
+  const [statusForm] = Form.useForm();
   const { user } = useAuthStore();
   
   const allStatuses = ['pending', 'pm_review', 'lab', 'bis', 'hold', 'cancelled', 'completed', 'deleted'];
   
+  const statusOptions = [
+    { value: 'pending', label: 'Pending' },
+    { value: 'pm_review', label: 'PM Review' },
+    { value: 'lab', label: 'Lab' },
+    { value: 'bis', label: 'BIS' },
+    { value: 'hold', label: 'On Hold' },
+    { value: 'cancelled', label: 'Cancelled' },
+    { value: 'completed', label: 'Completed' },
+    { value: 'deleted', label: 'Deleted' }
+  ];
+  
+  const statusColors: { [key: string]: string } = {
+    'pending': 'default',
+    'pm_review': 'processing',
+    'lab': 'blue',
+    'bis': 'purple',
+    'hold': 'warning',
+    'cancelled': 'error',
+    'completed': 'success',
+    'deleted': 'default'
+  };
+  
   const canCreateProject = user && ['super_admin', 'pm', 'director'].includes(user.role);
   const canDeleteProject = user && ['super_admin', 'pm', 'director'].includes(user.role);
+  const canUpdateStatus = user && ['super_admin', 'pm', 'director', 'lab'].includes(user.role);
 
   const fetchProjects = async () => {
     setLoading(true);
@@ -523,6 +548,42 @@ const Projects = () => {
     }
   };
 
+  const handleBulkStatusUpdate = async (values: any) => {
+    try {
+      const selectedProjects = filteredProjects.filter((p: any) => 
+        selectedRowKeys.includes(p.id)
+      );
+      
+      let successCount = 0;
+      let failCount = 0;
+      
+      for (const project of selectedProjects) {
+        try {
+          await api.put(`/projects/${project.id}`, {
+            status: values.status
+          });
+          successCount++;
+        } catch (error) {
+          failCount++;
+        }
+      }
+      
+      if (successCount > 0) {
+        message.success(`${successCount} project(s) updated to ${values.status.replace('_', ' ')}`);
+      }
+      if (failCount > 0) {
+        message.error(`Failed to update ${failCount} project(s)`);
+      }
+      
+      setBulkStatusModalVisible(false);
+      statusForm.resetFields();
+      setSelectedRowKeys([]);
+      fetchProjects();
+    } catch (error) {
+      message.error('Failed to update project status');
+    }
+  };
+
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
@@ -537,28 +598,44 @@ const Projects = () => {
             </Checkbox>
           </Col>
           <Col span={12} style={{ textAlign: 'right' }}>
-            {selectedRowKeys.length > 0 && canDeleteProject && (
+            {selectedRowKeys.length > 0 && (
               <>
                 <span style={{ marginRight: 8 }}>
                   {selectedRowKeys.length} selected
                 </span>
-                <Button
-                  danger
-                  onClick={() => {
-                    if (user?.role === 'super_admin') {
-                      Modal.confirm({
-                        title: 'Delete Projects',
-                        content: `Are you sure you want to delete ${selectedRowKeys.length} project(s)?`,
-                        onOk: () => handleBulkDelete({}),
-                      });
-                    } else {
-                      setBulkDeleteModalVisible(true);
-                    }
+                <Dropdown
+                  menu={{
+                    items: [
+                      canUpdateStatus && {
+                        key: 'status',
+                        icon: <CheckCircleOutlined />,
+                        label: 'Update Status',
+                        onClick: () => setBulkStatusModalVisible(true),
+                      },
+                      canDeleteProject && {
+                        key: 'delete',
+                        icon: <DeleteOutlined />,
+                        label: 'Delete Selected',
+                        danger: true,
+                        onClick: () => {
+                          if (user?.role === 'super_admin') {
+                            Modal.confirm({
+                              title: 'Delete Projects',
+                              content: `Are you sure you want to delete ${selectedRowKeys.length} project(s)?`,
+                              onOk: () => handleBulkDelete({}),
+                            });
+                          } else {
+                            setBulkDeleteModalVisible(true);
+                          }
+                        },
+                      },
+                    ].filter(Boolean)
                   }}
-                  style={{ marginRight: 8 }}
                 >
-                  Delete Selected
-                </Button>
+                  <Button>
+                    Bulk Actions <DownOutlined />
+                  </Button>
+                </Dropdown>
               </>
             )}
             {canCreateProject && (
@@ -1152,6 +1229,76 @@ const Projects = () => {
                 bulkDeleteForm.resetFields();
               }}>
                 Cancel
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Bulk Status Update Modal */}
+      <Modal
+        title={`Update Status for ${selectedRowKeys.length} Projects`}
+        open={bulkStatusModalVisible}
+        onCancel={() => {
+          setBulkStatusModalVisible(false);
+          statusForm.resetFields();
+        }}
+        footer={null}
+        width={600}
+      >
+        <Alert
+          message="Bulk Status Update"
+          description="All selected projects will be updated to the chosen status."
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+        
+        <Form
+          form={statusForm}
+          layout="vertical"
+          onFinish={handleBulkStatusUpdate}
+        >
+          <Form.Item
+            name="status"
+            label="New Status"
+            rules={[{ required: true, message: 'Please select a status' }]}
+          >
+            <Select
+              placeholder="Select new status for all selected projects"
+              showSearch
+              optionFilterProp="children"
+            >
+              {statusOptions.map(status => (
+                <Select.Option key={status.value} value={status.value}>
+                  <Tag color={statusColors[status.value] || 'default'}>
+                    {status.label}
+                  </Tag>
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="notes"
+            label="Notes (Optional)"
+          >
+            <Input.TextArea 
+              rows={3} 
+              placeholder="Add any notes about this status change..."
+            />
+          </Form.Item>
+
+          <Form.Item>
+            <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+              <Button onClick={() => {
+                setBulkStatusModalVisible(false);
+                statusForm.resetFields();
+              }}>
+                Cancel
+              </Button>
+              <Button type="primary" htmlType="submit">
+                Update Status
               </Button>
             </Space>
           </Form.Item>
