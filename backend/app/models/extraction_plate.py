@@ -5,8 +5,8 @@ from app.models.base import Base, TimestampMixin
 import enum
 
 class PlateStatus(str, enum.Enum):
-    PLANNING = "planning"
-    READY = "ready"
+    DRAFT = "draft"          # Supervisor can edit freely
+    FINALIZED = "finalized"  # Locked, ready for technician
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -23,9 +23,10 @@ class ExtractionPlate(Base, TimestampMixin):
     sample_wells = Column(Integer, default=92)  # 96 - 4 controls
     
     # Status tracking
-    status = Column(Enum(PlateStatus), default=PlateStatus.PLANNING)
+    status = Column(Enum(PlateStatus), default=PlateStatus.DRAFT)
     
-    # Assignment info
+    # Creation and assignment info
+    created_by_id = Column(Integer, ForeignKey("users.id"))
     assigned_tech_id = Column(Integer, ForeignKey("users.id"))
     assigned_date = Column(DateTime(timezone=True))
     
@@ -60,8 +61,10 @@ class ExtractionPlate(Base, TimestampMixin):
     ext_neg_ctrl_concentration = Column(Float)
     
     # Relationships
+    created_by = relationship("User", foreign_keys=[created_by_id])
     assigned_tech = relationship("User", foreign_keys=[assigned_tech_id])
     samples = relationship("Sample", back_populates="extraction_plate_ref")
+    control_samples = relationship("ControlSample", back_populates="plate", cascade="all, delete-orphan")
     
 class PlateWellAssignment(Base, TimestampMixin):
     """Track which sample is in which well of a plate"""
