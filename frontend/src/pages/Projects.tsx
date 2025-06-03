@@ -37,6 +37,8 @@ const Projects = () => {
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [bulkDeleteModalVisible, setBulkDeleteModalVisible] = useState(false);
   const [bulkStatusModalVisible, setBulkStatusModalVisible] = useState(false);
+  const [confirmModalVisible, setConfirmModalVisible] = useState(false);
+  const [pendingProjectData, setPendingProjectData] = useState<any>(null);
   const [nextProjectId, setNextProjectId] = useState<string>('');
   const [dueDate, setDueDate] = useState<dayjs.Dayjs | null>(null);
   const [projectIdMode, setProjectIdMode] = useState<'auto' | 'manual'>('auto');
@@ -387,14 +389,31 @@ const Projects = () => {
     },
   ];
 
-  const handleSubmit = async (values: any) => {
+  const handleSubmit = (values: any) => {
+    // Prepare the project data
+    const projectData = {
+      ...values,
+      start_date: values.start_date.toISOString(),
+      calculatedDueDate: dueDate,
+      files: {
+        quote: quoteFile,
+        submissionForm: submissionFormFile
+      }
+    };
+    
+    // Store the data and show confirmation modal
+    setPendingProjectData(projectData);
+    setConfirmModalVisible(true);
+  };
+
+  const handleConfirmSubmit = async () => {
     try {
-      // Remove due_date from submission (calculated on backend)
-      const { due_date, ...submitData } = values;
+      const values = pendingProjectData;
+      // Remove due_date and files from submission (calculated on backend)
+      const { due_date, calculatedDueDate, files, ...submitData } = values;
       
       const projectData = {
         ...submitData,
-        start_date: values.start_date.toISOString(),
       };
       
       // Only include project_id if user provided one
@@ -427,10 +446,12 @@ const Projects = () => {
       
       message.success('Project created successfully');
       setModalVisible(false);
+      setConfirmModalVisible(false);
       form.resetFields();
       setDueDate(null);
       setQuoteFile(null);
       setSubmissionFormFile(null);
+      setPendingProjectData(null);
       fetchProjects();
     } catch (error: any) {
       console.error('Project creation error:', error.response?.data);
@@ -459,6 +480,8 @@ const Projects = () => {
         // Generic error
         message.error('Failed to create project. Please try again.');
       }
+      // Don't close the confirmation modal on error
+      setConfirmModalVisible(false);
     }
   };
   
@@ -1484,6 +1507,132 @@ const Projects = () => {
             </Space>
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Project Creation Confirmation Modal */}
+      <Modal
+        title="Confirm Project Creation"
+        open={confirmModalVisible}
+        onCancel={() => {
+          setConfirmModalVisible(false);
+          setPendingProjectData(null);
+        }}
+        footer={[
+          <Button key="back" onClick={() => {
+            setConfirmModalVisible(false);
+            setPendingProjectData(null);
+          }}>
+            Back to Edit
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            onClick={handleConfirmSubmit}
+          >
+            Create Project
+          </Button>,
+        ]}
+        width={700}
+      >
+        {pendingProjectData && (
+          <div>
+            <Alert
+              message="Please review the project details before creating"
+              type="info"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+            
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <tbody>
+                <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <td style={{ padding: '12px 0', fontWeight: 'bold', width: '40%' }}>Project ID:</td>
+                  <td style={{ padding: '12px 0' }}>
+                    {pendingProjectData.project_id || `Auto-generated (${generatedProjectId || nextProjectId || 'CMBP#####'})`}
+                  </td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <td style={{ padding: '12px 0', fontWeight: 'bold' }}>Client:</td>
+                  <td style={{ padding: '12px 0' }}>
+                    {clients.find(c => c.id === pendingProjectData.client_id)?.name || 'Unknown'}
+                    {clients.find(c => c.id === pendingProjectData.client_id)?.institution && 
+                      ` (${clients.find(c => c.id === pendingProjectData.client_id)?.institution})`
+                    }
+                  </td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <td style={{ padding: '12px 0', fontWeight: 'bold' }}>Project Type:</td>
+                  <td style={{ padding: '12px 0' }}>{pendingProjectData.project_type}</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <td style={{ padding: '12px 0', fontWeight: 'bold' }}>Start Date:</td>
+                  <td style={{ padding: '12px 0' }}>{dayjs(pendingProjectData.start_date).format('YYYY-MM-DD')}</td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <td style={{ padding: '12px 0', fontWeight: 'bold' }}>TAT:</td>
+                  <td style={{ padding: '12px 0' }}>
+                    {pendingProjectData.tat.replace('DAYS_', '').replace('WEEKS_', '').replace('_', '-')} 
+                    {pendingProjectData.tat.includes('DAYS') ? ' Days' : ' Weeks'}
+                  </td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <td style={{ padding: '12px 0', fontWeight: 'bold' }}>Due Date:</td>
+                  <td style={{ padding: '12px 0' }}>
+                    {pendingProjectData.calculatedDueDate ? 
+                      pendingProjectData.calculatedDueDate.format('YYYY-MM-DD') : 
+                      'Will be calculated'
+                    }
+                  </td>
+                </tr>
+                <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                  <td style={{ padding: '12px 0', fontWeight: 'bold' }}>Quoted Sample Count:</td>
+                  <td style={{ padding: '12px 0' }}>{pendingProjectData.expected_sample_count}</td>
+                </tr>
+                {pendingProjectData.processing_sample_count && (
+                  <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                    <td style={{ padding: '12px 0', fontWeight: 'bold' }}>Processing Sample Count:</td>
+                    <td style={{ padding: '12px 0' }}>{pendingProjectData.processing_sample_count}</td>
+                  </tr>
+                )}
+                {pendingProjectData.sales_rep_id && (
+                  <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                    <td style={{ padding: '12px 0', fontWeight: 'bold' }}>Sales Rep:</td>
+                    <td style={{ padding: '12px 0' }}>
+                      {employees.find(e => e.id === pendingProjectData.sales_rep_id)?.name || 'Unknown'}
+                    </td>
+                  </tr>
+                )}
+                {pendingProjectData.crm_link && (
+                  <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                    <td style={{ padding: '12px 0', fontWeight: 'bold' }}>CRM Link:</td>
+                    <td style={{ padding: '12px 0' }}>
+                      <a href={pendingProjectData.crm_link} target="_blank" rel="noopener noreferrer">
+                        {pendingProjectData.crm_link}
+                      </a>
+                    </td>
+                  </tr>
+                )}
+                {(pendingProjectData.files?.quote || pendingProjectData.files?.submissionForm) && (
+                  <tr style={{ borderBottom: '1px solid #f0f0f0' }}>
+                    <td style={{ padding: '12px 0', fontWeight: 'bold' }}>Attachments:</td>
+                    <td style={{ padding: '12px 0' }}>
+                      {pendingProjectData.files?.quote && (
+                        <div>
+                          <FilePdfOutlined /> Quote: {pendingProjectData.files.quote.name}
+                        </div>
+                      )}
+                      {pendingProjectData.files?.submissionForm && (
+                        <div>
+                          <FileTextOutlined /> Submission Form: {pendingProjectData.files.submissionForm.name}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Modal>
     </div>
   );
