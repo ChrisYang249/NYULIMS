@@ -63,12 +63,12 @@ const pretreatmentOptions = [
 // Spike-in options
 const spikeInOptions = [
   { value: 'none', label: 'No Spike-in' },
-  { value: 'zymo_d6300', label: 'ZymoBIOMICS Microbial Community Standard (D6300)' },
-  { value: 'zymo_d6305', label: 'ZymoBIOMICS Microbial Community DNA Standard (D6305)' },
-  { value: 'zymo_d6306', label: 'ZymoBIOMICS HMW DNA Standard (D6306)' },
-  { value: 'zymo_d6310', label: 'ZymoBIOMICS Spike-in Control I (D6310)' },
-  { value: 'zymo_d6311', label: 'ZymoBIOMICS Spike-in Control II (D6311)' },
-  { value: 'custom_spike', label: 'Custom Spike-in' }
+  { value: 'zymo_d6300', label: 'Zymo D6300' },
+  { value: 'zymo_d6305', label: 'Zymo DNA D6305' },
+  { value: 'zymo_d6306', label: 'Zymo HMW D6306' },
+  { value: 'zymo_d6310', label: 'Zymo Control I D6310' },
+  { value: 'zymo_d6311', label: 'Zymo Control II D6311' },
+  { value: 'custom_spike', label: 'Custom (Enter Value)' }
 ];
 
 // Lysis method options
