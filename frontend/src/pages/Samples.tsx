@@ -150,6 +150,7 @@ const Samples = () => {
   const [selectedSamples, setSelectedSamples] = useState<number[]>([]);
   const [expandedView, setExpandedView] = useState(false);
   const [isBulkStatusModalVisible, setIsBulkStatusModalVisible] = useState(false);
+  const [isAccessioningConfirmVisible, setIsAccessioningConfirmVisible] = useState(false);
   const [deletingSampleId, setDeletingSampleId] = useState<number | null>(null);
   
   // Interactive editor states
@@ -1520,10 +1521,7 @@ const Samples = () => {
                 <Button
                   type="primary"
                   icon={<CheckCircleOutlined />}
-                  onClick={() => {
-                    // Quick action to send to accessioning
-                    handleBulkStatusUpdate({ status: 'ACCESSIONING', notes: 'Sent to accessioning queue' });
-                  }}
+                  onClick={() => setIsAccessioningConfirmVisible(true)}
                 >
                   Send to Accessioning ({selectedSamples.length})
                 </Button>
@@ -2178,6 +2176,59 @@ const Samples = () => {
             </Space>
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* Accessioning Confirmation Modal */}
+      <Modal
+        title="Confirm Send to Accessioning"
+        open={isAccessioningConfirmVisible}
+        onCancel={() => setIsAccessioningConfirmVisible(false)}
+        onOk={() => {
+          setIsAccessioningConfirmVisible(false);
+          handleBulkStatusUpdate({ status: 'ACCESSIONING', notes: 'Sent to accessioning queue' });
+        }}
+        okText="Send to Accessioning"
+        cancelText="Cancel"
+      >
+        {(() => {
+          // Group selected samples by project
+          const selectedSampleData = samples.filter(s => selectedSamples.includes(s.id));
+          const projectGroups = selectedSampleData.reduce((acc: any, sample: any) => {
+            const projectKey = sample.project_code || 'Unknown Project';
+            if (!acc[projectKey]) {
+              acc[projectKey] = {
+                count: 0,
+                projectName: sample.project_name || projectKey,
+                institution: sample.client_institution || 'Unknown'
+              };
+            }
+            acc[projectKey].count++;
+            return acc;
+          }, {});
+
+          return (
+            <>
+              <p>You have selected {selectedSamples.length} sample(s) to send to accessioning:</p>
+              <div style={{ marginTop: 16, marginBottom: 16 }}>
+                {Object.entries(projectGroups).map(([projectCode, data]: [string, any]) => (
+                  <div key={projectCode} style={{ marginBottom: 8 }}>
+                    <strong>{data.count}</strong> sample{data.count > 1 ? 's' : ''} for project{' '}
+                    <Tag color="blue">{projectCode}</Tag>
+                    <span style={{ color: '#666', fontSize: '12px' }}>
+                      ({data.institution})
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <Alert
+                message="Proceed to send to accessioning?"
+                description="These samples will be moved to ACCESSIONING status and will appear in the accessioning queue."
+                type="info"
+                showIcon
+              />
+            </>
+          );
+        })()}
       </Modal>
 
       {/* Delete Sample Modal */}
