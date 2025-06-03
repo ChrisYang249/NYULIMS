@@ -127,14 +127,22 @@ const DiscrepancyManagement = () => {
     if (!selectedDiscrepancy) return;
 
     try {
-      // First validate the password
+      // First validate the password - catch auth errors separately to prevent logout
       try {
         await api.post('/auth/validate-password', {
           password: values.password
         });
-      } catch (error) {
-        message.error('Invalid password. Please enter your correct password.');
-        return;
+      } catch (error: any) {
+        // Handle password validation errors without triggering logout
+        if (error.response?.status === 401) {
+          message.error('Invalid password. Please enter your correct password.');
+          // Clear only the password field
+          form.setFieldsValue({ password: '' });
+          return;
+        } else {
+          // Other errors can be thrown normally
+          throw error;
+        }
       }
 
       await api.put(`/samples/${selectedDiscrepancy.sample_id}/discrepancy-approvals/${selectedDiscrepancy.id}`, {
@@ -144,15 +152,20 @@ const DiscrepancyManagement = () => {
         password: values.password  // Include for audit trail
       });
 
-      // If rejected (discrepancy is invalid), also update the sample to mark discrepancy as resolved
-      if (!values.approved) {
-        await api.put(`/samples/${selectedDiscrepancy.sample_id}`, {
-          discrepancy_resolved: true,
-          discrepancy_resolution_date: new Date().toISOString()
-        });
-      }
+      // Note: Sample updates (status, discrepancy_resolved, etc.) are now handled by the backend endpoint
 
-      message.success(values.approved ? 'Discrepancy confirmed - Special handling may be required' : 'Discrepancy rejected - Sample can proceed normally');
+      // Show appropriate success message based on action taken
+      let successMessage = '';
+      if (!values.approved) {
+        successMessage = 'Discrepancy rejected - Sample can proceed normally';
+      } else if (values.signature_meaning && values.signature_meaning.includes('authorize sample cancellation')) {
+        successMessage = 'Discrepancy confirmed and sample cancelled';
+      } else if (values.signature_meaning && values.signature_meaning.includes('proceed with client confirmation')) {
+        successMessage = 'Discrepancy confirmed - Client communication required';
+      } else {
+        successMessage = 'Discrepancy confirmed - Special handling may be required';
+      }
+      message.success(successMessage);
       setIsApprovalModalVisible(false);
       form.resetFields();
       setSelectedDiscrepancy(null);
@@ -526,7 +539,21 @@ const DiscrepancyManagement = () => {
                 label="Decision"
                 rules={[{ required: true, message: 'Please make a decision' }]}
               >
-                <Select placeholder="Select your decision">
+                <Select 
+                  placeholder="Select your decision"
+                  onChange={(value) => {
+                    // Auto-select signature meaning based on decision
+                    if (value === false) {
+                      form.setFieldsValue({ 
+                        signature_meaning: 'I reject this discrepancy claim and authorize sample processing to continue' 
+                      });
+                    } else if (value === true) {
+                      form.setFieldsValue({ 
+                        signature_meaning: 'I confirm this discrepancy exists and have documented the resolution' 
+                      });
+                    }
+                  }}
+                >
                   <Select.Option value={true}>
                     <Space>
                       <CheckCircleOutlined style={{ color: '#52c41a' }} />
@@ -578,8 +605,17 @@ const DiscrepancyManagement = () => {
                   <Select.Option value="I reject this discrepancy claim and authorize sample processing to continue">
                     I reject this discrepancy claim and authorize sample processing to continue
                   </Select.Option>
-                  <Select.Option value="I have reviewed and documented this matter for quality records">
-                    I have reviewed and documented this matter for quality records
+                  <Select.Option value="I confirm this discrepancy and proceed with client confirmation">
+                    I confirm this discrepancy and proceed with client confirmation
+                  </Select.Option>
+                  <Select.Option value="I confirm this discrepancy and authorize sample cancellation">
+                    I confirm this discrepancy and authorize sample cancellation
+                  </Select.Option>
+                  <Select.Option value="I have reviewed and documented this quality issue for compliance records">
+                    I have reviewed and documented this quality issue for compliance records
+                  </Select.Option>
+                  <Select.Option value="I acknowledge this discrepancy and authorize corrective action">
+                    I acknowledge this discrepancy and authorize corrective action
                   </Select.Option>
                 </Select>
               </Form.Item>

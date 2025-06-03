@@ -178,7 +178,7 @@ const Samples = () => {
   const [showDeleted, setShowDeleted] = useState(searchParams.get('deleted') === 'true');
   
   // Pagination state
-  const [pageSize, setPageSize] = useState(Number(searchParams.get('pageSize')) || 50);
+  const [pageSize, setPageSize] = useState(Number(searchParams.get('pageSize')) || 500);
   const [currentPage, setCurrentPage] = useState(Number(searchParams.get('page')) || 1);
   
   // Upload validation states
@@ -1762,7 +1762,7 @@ const Samples = () => {
           current: currentPage,
           pageSize: pageSize,
           showSizeChanger: true,
-          pageSizeOptions: ['20', '50', '100', '200'],
+          pageSizeOptions: ['50', '100', '200', '500', '1000'],
           showTotal: (total) => `Total ${total} samples`,
           position: ['topRight'],
           onChange: (page, size) => {

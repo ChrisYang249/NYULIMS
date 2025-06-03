@@ -36,6 +36,7 @@ interface Sample {
   status: string;
   created_at: string;
   received_date: string;
+  due_date?: string;
   pretreatment_type?: string;
   spike_in_type?: string;
   has_flag?: boolean;
@@ -79,7 +80,7 @@ const Accessioning = () => {
   const [discrepancyFilter, setDiscrepancyFilter] = useState<'all' | 'has' | 'none'>('all');
   
   // Pagination state
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize, setPageSize] = useState(500);
   
   // For dropdown options
   const [projects, setProjects] = useState<Project[]>([]);
@@ -505,6 +506,18 @@ const Accessioning = () => {
       ),
     },
     {
+      title: 'Institution',
+      dataIndex: 'client_institution',
+      key: 'client_institution',
+      width: 150,
+      ellipsis: true,
+      render: (institution: string) => (
+        <Tooltip title={institution}>
+          <span>{institution}</span>
+        </Tooltip>
+      ),
+    },
+    {
       title: 'Type',
       dataIndex: 'sample_type',
       key: 'sample_type',
@@ -530,32 +543,29 @@ const Accessioning = () => {
       render: (date: string) => date ? dayjs(date).format('YYYY-MM-DD') : '-',
     },
     {
-      title: 'Pre-treatment',
-      dataIndex: 'pretreatment_type',
-      key: 'pretreatment_type',
+      title: 'Due Date',
+      dataIndex: 'due_date',
+      key: 'due_date',
       width: 120,
-      render: (type: string) => {
-        if (!type) return '-';
-        const option = pretreatmentOptions.find(o => o.value === type);
-        return (
-          <Tag color="purple" icon={<MedicineBoxOutlined />}>
-            {option?.label || type}
-          </Tag>
-        );
+      sorter: (a, b) => {
+        const dateA = a.due_date ? dayjs(a.due_date).unix() : 0;
+        const dateB = b.due_date ? dayjs(b.due_date).unix() : 0;
+        return dateA - dateB;
       },
-    },
-    {
-      title: 'Spike-in',
-      dataIndex: 'spike_in_type',
-      key: 'spike_in_type',
-      width: 120,
-      render: (type: string) => {
-        if (!type || type === 'none') return '-';
-        const option = spikeInOptions.find(o => o.value === type);
+      render: (date: string) => {
+        if (!date) return '-';
+        const dueDate = dayjs(date);
+        const today = dayjs();
+        const isOverdue = dueDate.isBefore(today, 'day');
+        const isDueSoon = dueDate.diff(today, 'day') <= 3 && !isOverdue;
+        
         return (
-          <Tag color="green" icon={<ExperimentOutlined />}>
-            {option?.label || type}
-          </Tag>
+          <span style={{ 
+            color: isOverdue ? '#ff4d4f' : isDueSoon ? '#faad14' : undefined,
+            fontWeight: (isOverdue || isDueSoon) ? 'bold' : 'normal'
+          }}>
+            {dueDate.format('YYYY-MM-DD')}
+          </span>
         );
       },
     },
