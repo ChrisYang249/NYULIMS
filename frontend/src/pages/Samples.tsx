@@ -791,6 +791,23 @@ const Samples = () => {
     a.click();
   };
 
+  // Check for duplicates in database
+  const checkDatabaseDuplicates = async (samples: any[]) => {
+    try {
+      const samplesToCheck = samples.map((s, idx) => ({
+        client_sample_id: s.client_sample_id,
+        project_id: s.project_id,
+        row_number: idx + 1
+      }));
+      
+      const response = await api.post('/samples/check-duplicates', samplesToCheck);
+      return response.data.duplicates || [];
+    } catch (error) {
+      console.error('Failed to check duplicates:', error);
+      return [];
+    }
+  };
+
   // Handle file upload with interactive editor
   const handleFileUpload = async (file: File) => {
     console.log('=== HANDLE FILE UPLOAD CALLED ===');
@@ -825,6 +842,29 @@ const Samples = () => {
       console.log('Validating editor data...');
       validateEditorData(samplesWithIds);
       
+      // Check for duplicates in database
+      console.log('Checking for duplicates in database...');
+      const dbDuplicates = await checkDatabaseDuplicates(samplesWithIds);
+      if (dbDuplicates.length > 0) {
+        console.log('Found duplicates in database:', dbDuplicates);
+        
+        // Add database duplicate errors to validation
+        const currentErrors = { ...editorErrors };
+        dbDuplicates.forEach((dup: any) => {
+          const rowId = `row_${dup.row_number - 1}`;
+          const errorMsg = `Duplicate in database: Client sample ID "${dup.client_sample_id}" ` +
+            `already exists for project "${dup.project_id}" with service type "${dup.service_type}" ` +
+            `(Existing barcode: ${dup.existing_barcode})`;
+          
+          if (currentErrors[rowId]) {
+            currentErrors[rowId].push(errorMsg);
+          } else {
+            currentErrors[rowId] = [errorMsg];
+          }
+        });
+        setEditorErrors(currentErrors);
+      }
+      
     } catch (error: any) {
       console.error('File upload error:', error);
       message.error(error.message || 'Failed to process file');
@@ -844,8 +884,28 @@ const Samples = () => {
     console.log('Available projects:', projectIds.length, 'First few:', projectIds.slice(0, 5));
     console.log('Available sample types:', sampleTypeNames.length, 'First few:', sampleTypeNames.slice(0, 5));
     
+    // Check for duplicates within the batch
+    const seenCombinations = new Map<string, number>();
+    
     data.forEach((sample, index) => {
       const rowErrors: string[] = [];
+      
+      // Check for duplicates (project + client_sample_id + service_type)
+      if (sample.client_sample_id && sample.project_id) {
+        const project = projects.find(p => p.project_id === sample.project_id);
+        const serviceType = project?.project_type || sample.service_type || 'N/A';
+        const key = `${sample.project_id}|${sample.client_sample_id}|${serviceType}`;
+        
+        const existingRow = seenCombinations.get(key);
+        if (existingRow !== undefined) {
+          rowErrors.push(
+            `Duplicate: Client sample ID "${sample.client_sample_id}" already exists in row ${existingRow + 1} ` +
+            `for project "${sample.project_id}" with service type "${serviceType}"`
+          );
+        } else {
+          seenCombinations.set(key, index);
+        }
+      }
       
       // Validate project_id
       if (!sample.project_id) {
@@ -2318,6 +2378,7 @@ const Samples = () => {
                 <ul style={{ marginBottom: 0, paddingLeft: 20 }}>
                   <li>Click any cell to edit its value</li>
                   <li>Red rows have validation errors - hover over the row number to see details</li>
+                  <li>Duplicate samples (same client ID + project + service) are not allowed</li>
                   <li>Use the dropdowns to select valid projects and sample types</li>
                   <li>Select rows and use bulk actions to delete them</li>
                 </ul>

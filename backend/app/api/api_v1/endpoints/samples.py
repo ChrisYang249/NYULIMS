@@ -422,6 +422,47 @@ def import_samples_bulk(
     else:
         print(f"WARNING: Project CP06214 NOT found in database!")
     
+    # Check for duplicates within the import batch
+    seen_combinations = {}
+    for i, sample_data in enumerate(import_data.samples):
+        if sample_data.client_sample_id and sample_data.project_id:
+            # Get the service type from the project
+            project = projects.get(sample_data.project_id)
+            service_type = project.project_type.value if project and project.project_type else sample_data.service_type
+            
+            # Create a key for duplicate checking
+            key = (sample_data.project_id, sample_data.client_sample_id, service_type)
+            
+            if key in seen_combinations:
+                errors.append(
+                    f"Sample {i+1}: Duplicate - client_sample_id '{sample_data.client_sample_id}' "
+                    f"already exists in row {seen_combinations[key]} for project '{sample_data.project_id}' "
+                    f"with service type '{service_type}'"
+                )
+            else:
+                seen_combinations[key] = i + 1
+    
+    # Check for duplicates already in the database
+    if not errors:  # Only check DB if no duplicates in the batch
+        for i, sample_data in enumerate(import_data.samples):
+            if sample_data.client_sample_id and sample_data.project_id in projects:
+                project = projects[sample_data.project_id]
+                
+                # Check if this combination already exists in the database
+                existing = db.query(Sample).filter(
+                    Sample.project_id == project.id,
+                    Sample.client_sample_id == sample_data.client_sample_id,
+                    Sample.status != SampleStatus.DELETED  # Don't count deleted samples
+                ).first()
+                
+                if existing:
+                    service_type = project.project_type.value if project.project_type else "N/A"
+                    errors.append(
+                        f"Sample {i+1}: Duplicate - client_sample_id '{sample_data.client_sample_id}' "
+                        f"already exists in database for project '{sample_data.project_id}' "
+                        f"with service type '{service_type}' (Barcode: {existing.barcode})"
+                    )
+    
     for i, sample_data in enumerate(import_data.samples):
         try:
             # Validate project
@@ -542,6 +583,44 @@ def import_samples_bulk(
         print(f"First few errors: {errors[:5]}")
     
     return result
+
+@router.post("/check-duplicates", response_model=dict)
+def check_duplicates(
+    *,
+    db: Session = Depends(deps.get_db),
+    samples_to_check: List[dict] = Body(...),
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """Check if any samples would be duplicates"""
+    duplicates = []
+    
+    for sample in samples_to_check:
+        if not sample.get('client_sample_id') or not sample.get('project_id'):
+            continue
+            
+        # Get the project
+        project = db.query(Project).filter(Project.project_id == sample['project_id']).first()
+        if not project:
+            continue
+            
+        # Check if this combination already exists
+        existing = db.query(Sample).filter(
+            Sample.project_id == project.id,
+            Sample.client_sample_id == sample['client_sample_id'],
+            Sample.status != SampleStatus.DELETED
+        ).first()
+        
+        if existing:
+            service_type = project.project_type.value if project.project_type else "N/A"
+            duplicates.append({
+                'client_sample_id': sample['client_sample_id'],
+                'project_id': sample['project_id'],
+                'service_type': service_type,
+                'existing_barcode': existing.barcode,
+                'row_number': sample.get('row_number')
+            })
+    
+    return {'duplicates': duplicates}
 
 @router.post("/validate-import")
 async def validate_import_file(
