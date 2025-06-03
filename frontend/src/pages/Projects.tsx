@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Select, InputNumber, message, DatePicker, Popconfirm, Tag, Checkbox, Row, Col, Alert, Radio, Divider, Dropdown, Upload } from 'antd';
+import { Table, Button, Space, Modal, Form, Input, Select, InputNumber, message, DatePicker, Popconfirm, Tag, Checkbox, Row, Col, Alert, Radio, Divider, Dropdown, Upload, App } from 'antd';
 import { PlusOutlined, DeleteOutlined, FilterOutlined, SearchOutlined, RobotOutlined, EditOutlined, CheckCircleOutlined, DownOutlined, UploadOutlined, FileTextOutlined, FilePdfOutlined } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../config/api';
@@ -60,6 +60,7 @@ const Projects = () => {
   const [bulkDeleteForm] = Form.useForm();
   const [statusForm] = Form.useForm();
   const { user } = useAuthStore();
+  const { modal } = App.useApp();
   
   const allStatuses = ['pending', 'pm_review', 'lab', 'bis', 'hold', 'cancelled', 'completed', 'deleted'];
   
@@ -680,7 +681,7 @@ const Projects = () => {
                         danger: true,
                         onClick: () => {
                           if (user?.role === 'super_admin') {
-                            Modal.confirm({
+                            modal.confirm({
                               title: 'Delete Projects',
                               content: `Are you sure you want to delete ${selectedRowKeys.length} project(s)?`,
                               onOk: () => handleBulkDelete({ reason: 'Bulk deletion by super admin' }),
