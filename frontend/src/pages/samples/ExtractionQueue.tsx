@@ -70,6 +70,16 @@ const spikeInOptions = [
   { value: 'custom_spike', label: 'Custom Spike-in' }
 ];
 
+// Lysis method options
+const lysisMethodOptions = [
+  { value: 'NA', label: 'NA' },
+  { value: 'powerbead_powerlyzer', label: 'PowerBead Pro Tubes - PowerLyzer - 1500 x 150sec' },
+  { value: 'vortex_5min', label: 'Vortex 5 min @ max speed' },
+  { value: 'powerbead_tissuelyzer_p3', label: 'PowerBead Pro Tubes - TissueLyzer P3: 25Hz, 10 min' },
+  { value: 'powerbead_tissuelyzer_p4', label: 'PowerBead Pro Tubes - TissueLyzer P4: 3Hz, 15 min' },
+  { value: 'other', label: 'Other (specify in notes)' }
+];
+
 interface Sample {
   id: number;
   barcode: string;
@@ -92,6 +102,15 @@ interface Sample {
   discrepancy_resolved?: boolean;
   extraction_plate_id?: string;
   extraction_well_position?: string;
+}
+
+interface PlateAssignment {
+  sample_id: number;
+  well_position?: string;
+  sample_input_ul?: number;
+  pretreatment_type?: string;
+  spike_in_type?: string;
+  lysis_method?: string;
 }
 
 interface ExtractionPlate {
@@ -121,6 +140,7 @@ const ExtractionQueue: React.FC = () => {
   const [projects, setProjects] = useState<any[]>([]);
   const [currentPlate, setCurrentPlate] = useState<ExtractionPlate | null>(null);
   const [plateAssignmentMode, setPlateAssignmentMode] = useState<'auto' | 'manual'>('auto');
+  const [plateAssignments, setPlateAssignments] = useState<PlateAssignment[]>([]);
   const [form] = Form.useForm();
   const [autoAssignForm] = Form.useForm();
   const [manualAssignForm] = Form.useForm();
@@ -961,131 +981,324 @@ const ExtractionQueue: React.FC = () => {
         </Form>
       </Modal>
 
-      {/* Manual Assignment Modal */}
+      {/* Manual Assignment Modal with Table Editor */}
       <Modal
-        title={`Manual Sample Assignment - ${currentPlate?.plate_id || ''}`}
+        title={`Extraction Plate Editor - ${currentPlate?.plate_id || ''}`}
         open={isManualAssignModalVisible}
         onCancel={() => {
           setIsManualAssignModalVisible(false);
-          manualAssignForm.resetFields();
+          setPlateAssignments([]);
+          setSelectedSamples([]);
         }}
         footer={null}
-        width={1200}
+        width="95%"
+        style={{ top: 20 }}
       >
         <Alert
-          message="Manual Sample Assignment"
-          description="Select samples and assign pre-processing/spike-in options individually. Samples will be filled column-wise (A1→B1→C1...H1, then A2→B2...)"
+          message="Extraction Plate Configuration"
+          description={
+            <ul style={{ marginBottom: 0, paddingLeft: 20 }}>
+              <li>Select samples from available queue (max 92 samples)</li>
+              <li>Configure individual sample input volume, pre-processing, spike-in, and lysis methods</li>
+              <li>Samples will be arranged column-wise (A1→B1→C1...H1, then A2→B2...)</li>
+              <li>Control wells: H11 (Ext Pos), H12 (Ext Neg), G11 & G12 reserved for LP controls</li>
+            </ul>
+          }
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
         />
         
-        <div style={{ marginBottom: 16 }}>
-          <Text>Selected Samples: {selectedSamples.length} / 92</Text>
-        </div>
+        <Row gutter={16} style={{ marginBottom: 16 }}>
+          <Col span={12}>
+            <Card title="Available Samples" size="small">
+              <div style={{ marginBottom: 8 }}>
+                <Space>
+                  <Input
+                    placeholder="Search samples..."
+                    prefix={<SearchOutlined />}
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    style={{ width: 300 }}
+                  />
+                  <Text>Selected: {selectedSamples.length}/92</Text>
+                </Space>
+              </div>
+              <Table
+                dataSource={filteredSamples}
+                rowKey="id"
+                size="small"
+                scroll={{ y: 350 }}
+                pagination={{ pageSize: 50, size: 'small' }}
+                rowSelection={{
+                  selectedRowKeys: selectedSamples,
+                  onChange: (keys) => {
+                    const newKeys = keys as number[];
+                    if (newKeys.length <= 92) {
+                      setSelectedSamples(newKeys);
+                      // Create plate assignments for new selections
+                      const newAssignments = newKeys.map(sampleId => {
+                        const existing = plateAssignments.find(a => a.sample_id === sampleId);
+                        return existing || {
+                          sample_id: sampleId,
+                          sample_input_ul: 50, // Default 50 µL
+                          pretreatment_type: 'none',
+                          spike_in_type: 'none',
+                          lysis_method: 'NA'
+                        };
+                      });
+                      setPlateAssignments(newAssignments);
+                    } else {
+                      message.warning('Maximum 92 samples per plate');
+                    }
+                  },
+                  getCheckboxProps: (record) => ({
+                    disabled: selectedSamples.length >= 92 && !selectedSamples.includes(record.id),
+                  }),
+                }}
+                columns={[
+                  {
+                    title: 'Barcode',
+                    dataIndex: 'barcode',
+                    key: 'barcode',
+                    width: 100,
+                  },
+                  {
+                    title: 'Client ID',
+                    dataIndex: 'client_sample_id',
+                    key: 'client_sample_id',
+                    width: 120,
+                    ellipsis: true,
+                  },
+                  {
+                    title: 'Project',
+                    dataIndex: 'project_code',
+                    key: 'project_code',
+                    width: 80,
+                  },
+                  {
+                    title: 'Type',
+                    dataIndex: 'sample_type',
+                    key: 'sample_type',
+                    width: 80,
+                  },
+                ]}
+              />
+            </Card>
+          </Col>
+          
+          <Col span={12}>
+            <Card 
+              title={`Plate Configuration (${plateAssignments.length} samples)`} 
+              size="small"
+              extra={
+                <Space>
+                  <Button 
+                    size="small"
+                    onClick={() => {
+                      // Apply bulk settings
+                      Modal.confirm({
+                        title: 'Apply Bulk Settings',
+                        content: (
+                          <Form layout="vertical" id="bulkSettingsForm">
+                            <Form.Item name="sample_input_ul" label="Sample Input (µL)" initialValue={50}>
+                              <InputNumber min={1} max={200} style={{ width: '100%' }} />
+                            </Form.Item>
+                            <Form.Item name="pretreatment_type" label="Pre-treatment" initialValue="none">
+                              <Select options={pretreatmentOptions} />
+                            </Form.Item>
+                            <Form.Item name="spike_in_type" label="Spike-in" initialValue="none">
+                              <Select options={spikeInOptions} />
+                            </Form.Item>
+                            <Form.Item name="lysis_method" label="Lysis Method" initialValue="NA">
+                              <Select options={lysisMethodOptions} />
+                            </Form.Item>
+                          </Form>
+                        ),
+                        onOk: () => {
+                          const form = document.getElementById('bulkSettingsForm') as HTMLFormElement;
+                          const formData = new FormData(form);
+                          const values = Object.fromEntries(formData.entries());
+                          
+                          setPlateAssignments(prev => prev.map(assignment => ({
+                            ...assignment,
+                            sample_input_ul: Number(values.sample_input_ul) || assignment.sample_input_ul,
+                            pretreatment_type: values.pretreatment_type as string || assignment.pretreatment_type,
+                            spike_in_type: values.spike_in_type as string || assignment.spike_in_type,
+                            lysis_method: values.lysis_method as string || assignment.lysis_method,
+                          })));
+                          message.success('Bulk settings applied');
+                        }
+                      });
+                    }}
+                  >
+                    Apply Bulk Settings
+                  </Button>
+                </Space>
+              }
+            >
+              <Table
+                dataSource={plateAssignments.map((assignment, index) => {
+                  const sample = samples.find(s => s.id === assignment.sample_id);
+                  const wellRow = String.fromCharCode(65 + (index % 8)); // A-H
+                  const wellCol = Math.floor(index / 8) + 1; // 1-12
+                  const wellPosition = `${wellRow}${wellCol}`;
+                  
+                  return {
+                    ...assignment,
+                    ...sample,
+                    well_position: wellPosition,
+                    key: assignment.sample_id
+                  };
+                })}
+                rowKey="key"
+                size="small"
+                scroll={{ y: 350 }}
+                pagination={false}
+                columns={[
+                  {
+                    title: 'Well',
+                    dataIndex: 'well_position',
+                    key: 'well_position',
+                    width: 50,
+                    fixed: 'left',
+                  },
+                  {
+                    title: 'Barcode',
+                    dataIndex: 'barcode',
+                    key: 'barcode',
+                    width: 100,
+                    fixed: 'left',
+                  },
+                  {
+                    title: 'Input (µL)',
+                    key: 'sample_input_ul',
+                    width: 80,
+                    render: (_, record, index) => (
+                      <InputNumber
+                        size="small"
+                        min={1}
+                        max={200}
+                        value={plateAssignments[index]?.sample_input_ul}
+                        onChange={(value) => {
+                          const newAssignments = [...plateAssignments];
+                          newAssignments[index].sample_input_ul = value || 50;
+                          setPlateAssignments(newAssignments);
+                        }}
+                      />
+                    ),
+                  },
+                  {
+                    title: 'Pre-treatment',
+                    key: 'pretreatment_type',
+                    width: 150,
+                    render: (_, record, index) => (
+                      <Select
+                        size="small"
+                        value={plateAssignments[index]?.pretreatment_type}
+                        style={{ width: '100%' }}
+                        options={pretreatmentOptions}
+                        onChange={(value) => {
+                          const newAssignments = [...plateAssignments];
+                          newAssignments[index].pretreatment_type = value;
+                          setPlateAssignments(newAssignments);
+                        }}
+                      />
+                    ),
+                  },
+                  {
+                    title: 'Spike-in',
+                    key: 'spike_in_type',
+                    width: 150,
+                    render: (_, record, index) => (
+                      <Select
+                        size="small"
+                        value={plateAssignments[index]?.spike_in_type}
+                        style={{ width: '100%' }}
+                        options={spikeInOptions}
+                        onChange={(value) => {
+                          const newAssignments = [...plateAssignments];
+                          newAssignments[index].spike_in_type = value;
+                          setPlateAssignments(newAssignments);
+                        }}
+                      />
+                    ),
+                  },
+                  {
+                    title: 'Lysis',
+                    key: 'lysis_method',
+                    width: 150,
+                    render: (_, record, index) => (
+                      <Select
+                        size="small"
+                        value={plateAssignments[index]?.lysis_method}
+                        style={{ width: '100%' }}
+                        options={lysisMethodOptions}
+                        onChange={(value) => {
+                          const newAssignments = [...plateAssignments];
+                          newAssignments[index].lysis_method = value;
+                          setPlateAssignments(newAssignments);
+                        }}
+                      />
+                    ),
+                  },
+                  {
+                    title: '',
+                    key: 'actions',
+                    width: 50,
+                    render: (_, record, index) => (
+                      <Button
+                        size="small"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => {
+                          const newAssignments = plateAssignments.filter((_, i) => i !== index);
+                          setPlateAssignments(newAssignments);
+                          setSelectedSamples(newAssignments.map(a => a.sample_id));
+                        }}
+                      />
+                    ),
+                  },
+                ]}
+              />
+            </Card>
+          </Col>
+        </Row>
 
-        <Table
-          dataSource={filteredSamples}
-          rowKey="id"
-          size="small"
-          scroll={{ y: 400 }}
-          rowSelection={{
-            selectedRowKeys: selectedSamples,
-            onChange: (keys) => setSelectedSamples(keys as number[]),
-            getCheckboxProps: () => ({
-              disabled: selectedSamples.length >= 92,
-            }),
-          }}
-          columns={[
-            {
-              title: 'Barcode',
-              dataIndex: 'barcode',
-              key: 'barcode',
-              width: 120,
-            },
-            {
-              title: 'Client ID',
-              dataIndex: 'client_sample_id',
-              key: 'client_sample_id',
-              width: 150,
-            },
-            {
-              title: 'Project',
-              dataIndex: 'project_code',
-              key: 'project_code',
-              width: 100,
-            },
-            {
-              title: 'Type',
-              dataIndex: 'sample_type',
-              key: 'sample_type',
-              width: 100,
-            },
-            {
-              title: 'Pre-treatment',
-              key: 'pretreatment',
-              width: 200,
-              render: (_, record) => (
-                <Select
-                  size="small"
-                  defaultValue="none"
-                  style={{ width: '100%' }}
-                  options={pretreatmentOptions}
-                  onChange={(value) => {
-                    // Store pretreatment selection for this sample
-                    manualAssignForm.setFieldsValue({
-                      [`pretreatment_${record.id}`]: value
-                    });
-                  }}
-                />
-              ),
-            },
-            {
-              title: 'Spike-in',
-              key: 'spike_in',
-              width: 200,
-              render: (_, record) => (
-                <Select
-                  size="small"
-                  defaultValue="none"
-                  style={{ width: '100%' }}
-                  options={spikeInOptions}
-                  onChange={(value) => {
-                    // Store spike-in selection for this sample
-                    manualAssignForm.setFieldsValue({
-                      [`spike_in_${record.id}`]: value
-                    });
-                  }}
-                />
-              ),
-            },
-          ]}
-          pagination={false}
-        />
-
-        <Divider />
-
-        <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
-          <Button onClick={() => {
-            setIsManualAssignModalVisible(false);
-            manualAssignForm.resetFields();
-            setSelectedSamples([]);
-          }}>
-            Cancel
-          </Button>
-          <Button 
-            type="primary" 
-            disabled={selectedSamples.length === 0}
-            onClick={async () => {
-              // TODO: Implement manual assignment with pre-processing
-              message.info('Manual assignment with pre-processing coming soon!');
+        <div style={{ textAlign: 'right', marginTop: 16 }}>
+          <Space>
+            <Button onClick={() => {
               setIsManualAssignModalVisible(false);
-              navigate(`/extraction-plates/${currentPlate?.id}`);
-            }}
-          >
-            Assign {selectedSamples.length} Samples
-          </Button>
-        </Space>
+              setPlateAssignments([]);
+              setSelectedSamples([]);
+            }}>
+              Cancel
+            </Button>
+            <Button 
+              type="primary" 
+              disabled={plateAssignments.length === 0}
+              onClick={async () => {
+                try {
+                  // Submit the plate assignments
+                  const response = await api.post(`/extraction-plates/${currentPlate?.id}/assign-samples-manual`, {
+                    assignments: plateAssignments
+                  });
+                  
+                  message.success(`Assigned ${plateAssignments.length} samples to plate ${currentPlate?.plate_id}`);
+                  setIsManualAssignModalVisible(false);
+                  setPlateAssignments([]);
+                  setSelectedSamples([]);
+                  fetchSamples();
+                  navigate(`/extraction-plates/${currentPlate?.id}`);
+                } catch (error: any) {
+                  message.error(error.response?.data?.detail || 'Failed to assign samples');
+                }
+              }}
+            >
+              Assign {plateAssignments.length} Samples to Plate
+            </Button>
+          </Space>
+        </div>
       </Modal>
     </div>
   );
