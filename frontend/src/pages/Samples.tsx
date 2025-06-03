@@ -2343,11 +2343,16 @@ const Samples = () => {
             Modal.confirm({
               title: 'Discard changes?',
               content: 'Are you sure you want to close? All changes will be lost.',
+              okText: 'Yes, discard changes',
+              cancelText: 'Keep editing',
               onOk: () => {
                 setIsEditorModalVisible(false);
                 setEditorData([]);
                 setEditorErrors({});
                 setSelectedEditorRows([]);
+              },
+              onCancel: () => {
+                // User chose to keep editing, do nothing
               }
             });
           }
@@ -2367,11 +2372,16 @@ const Samples = () => {
               Modal.confirm({
                 title: 'Discard changes?',
                 content: 'Are you sure you want to close? All changes will be lost.',
+                okText: 'Yes, discard changes',
+                cancelText: 'Keep editing',
                 onOk: () => {
                   setIsEditorModalVisible(false);
                   setEditorData([]);
                   setEditorErrors({});
                   setSelectedEditorRows([]);
+                },
+                onCancel: () => {
+                  // User chose to keep editing, do nothing
                 }
               });
             }
@@ -2416,7 +2426,7 @@ const Samples = () => {
                     <Button 
                       size="small"
                       onClick={() => {
-                        // Select all visible rows
+                        // Select all rows in the dataset
                         const allRowIds = editorData.map(row => row._rowId);
                         setSelectedEditorRows(allRowIds);
                       }}
@@ -2550,16 +2560,21 @@ const Samples = () => {
               rowKey="_rowId"
               dataSource={editorData}
               pagination={{ 
-                pageSize: 20,
+                defaultPageSize: 250,
+                pageSize: 250,
                 showSizeChanger: true,
+                pageSizeOptions: ['50', '100', '250', '500', '1000'],
                 showTotal: (total) => `Total ${total} samples`,
                 position: ['topRight']
               }}
               scroll={{ x: 'max-content', y: 'calc(100vh - 400px)' }}
               size="small"
               rowSelection={{
+                type: 'checkbox',
                 selectedRowKeys: selectedEditorRows,
-                onChange: (keys) => setSelectedEditorRows(keys as string[])
+                onChange: (selectedRowKeys: React.Key[]) => {
+                  setSelectedEditorRows(selectedRowKeys as string[]);
+                }
               }}
               rowClassName={(record) => editorErrors[record._rowId] ? 'error-row' : ''}
               columns={[
