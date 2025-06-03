@@ -8,6 +8,7 @@ from app.models.workflow import ExtractionPlan, ExtractionPlanSample, PrepPlan, 
 from app.models.sequencing import SequencingRun, SequencingRunSample, RunStatus
 from app.models.employee import Employee
 from app.models.attachment import ProjectAttachment
+from app.models.extraction_plate import ExtractionPlate, PlateStatus, PlateWellAssignment
 
 __all__ = [
     "AuditLog", "TimestampMixin",
@@ -19,5 +20,6 @@ __all__ = [
     "ExtractionPlan", "ExtractionPlanSample", "PrepPlan", "PrepPlanSample", "PlanStatus",
     "SequencingRun", "SequencingRunSample", "RunStatus",
     "Employee",
-    "ProjectAttachment"
+    "ProjectAttachment",
+    "ExtractionPlate", "PlateStatus", "PlateWellAssignment"
 ]

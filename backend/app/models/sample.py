@@ -167,6 +167,7 @@ class Sample(Base, TimestampMixin):
     
     # Extraction workflow fields
     extraction_plate_id = Column(String)  # Plate identifier
+    extraction_plate_ref_id = Column(Integer, ForeignKey("extraction_plates.id"))  # New FK to extraction_plates table
     extraction_tech_id = Column(Integer, ForeignKey("users.id"))
     extraction_assigned_date = Column(DateTime(timezone=True))
     extraction_started_date = Column(DateTime(timezone=True))
@@ -188,6 +189,7 @@ class Sample(Base, TimestampMixin):
     extraction_results = relationship("ExtractionResult", back_populates="sample", cascade="all, delete-orphan")
     library_prep_results = relationship("LibraryPrepResult", back_populates="sample", cascade="all, delete-orphan")
     sequencing_run_samples = relationship("SequencingRunSample", back_populates="sample", cascade="all, delete-orphan")
+    extraction_plate_ref = relationship("ExtractionPlate", back_populates="samples", foreign_keys=[extraction_plate_ref_id])
     logs = relationship("SampleLog", back_populates="sample", cascade="all, delete-orphan", order_by="desc(SampleLog.created_at)")
     
 class ExtractionResult(Base, TimestampMixin):

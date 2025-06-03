@@ -1,7 +1,7 @@
 from typing import Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Body, UploadFile, File
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func, and_
+from sqlalchemy import func, and_, or_
 import random
 from datetime import datetime
 import os
@@ -839,8 +839,8 @@ def get_queue_samples(
     # Map queue names to status filters
     queue_map = {
         "accessioning": [SampleStatus.RECEIVED, SampleStatus.ACCESSIONING],
-        "extraction": [SampleStatus.EXTRACTION_QUEUE],  # Updated to use new status
-        "extraction_active": [SampleStatus.IN_EXTRACTION],
+        "extraction": [SampleStatus.EXTRACTION_QUEUE],  # Samples waiting to be assigned to plate
+        "extraction_active": [SampleStatus.IN_EXTRACTION],  # Samples actively being extracted
         "dna_quant": [SampleStatus.DNA_QUANT_QUEUE],  # New queue for DNA samples
         "library_prep": [SampleStatus.EXTRACTED],
         "library_prep_active": [SampleStatus.IN_LIBRARY_PREP],
@@ -863,6 +863,23 @@ def get_queue_samples(
     if queue_name == "reprocess":
         # Get failed samples that need reprocessing
         query = query.filter(Sample.failed_stage.isnot(None))
+    elif queue_name == "extraction":
+        # Get samples in extraction queue that are NOT assigned to a plate yet
+        query = query.filter(
+            Sample.status == SampleStatus.EXTRACTION_QUEUE,
+            Sample.extraction_plate_ref_id.is_(None)
+        )
+    elif queue_name == "extraction_active":
+        # Get samples that are assigned to a plate OR have IN_EXTRACTION status
+        query = query.filter(
+            or_(
+                Sample.status == SampleStatus.IN_EXTRACTION,
+                and_(
+                    Sample.status == SampleStatus.EXTRACTION_QUEUE,
+                    Sample.extraction_plate_ref_id.isnot(None)
+                )
+            )
+        )
     else:
         statuses = queue_map[queue_name]
         if statuses:
