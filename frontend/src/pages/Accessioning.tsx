@@ -85,30 +85,6 @@ const Accessioning = () => {
   // For dropdown options
   const [projects, setProjects] = useState<Project[]>([]);
 
-  // Pre-treatment options
-  const pretreatmentOptions = [
-    { value: 'metapolyzyme', label: 'Metapolyzyme' },
-    { value: 'proteinase_k', label: 'Proteinase K' },
-    { value: 'lysozyme', label: 'Lysozyme' },
-    { value: 'enzymatic_cocktail', label: 'Enzymatic Cocktail' },
-    { value: 'heat_shock', label: 'Heat Shock' },
-    { value: 'freeze_thaw', label: 'Freeze-Thaw' },
-    { value: 'chemical_lysis', label: 'Chemical Lysis' },
-    { value: 'mechanical_disruption', label: 'Mechanical Disruption' },
-    { value: 'other', label: 'Other' }
-  ];
-
-  // Spike-in options
-  const spikeInOptions = [
-    { value: 'zymo_d6300', label: 'ZymoBIOMICS Microbial Community Standard (D6300)' },
-    { value: 'zymo_d6305', label: 'ZymoBIOMICS Microbial Community DNA Standard (D6305)' },
-    { value: 'zymo_d6306', label: 'ZymoBIOMICS HMW DNA Standard (D6306)' },
-    { value: 'zymo_d6310', label: 'ZymoBIOMICS Spike-in Control I (D6310)' },
-    { value: 'zymo_d6311', label: 'ZymoBIOMICS Spike-in Control II (D6311)' },
-    { value: 'custom_spike', label: 'Custom Spike-in' },
-    { value: 'none', label: 'No Spike-in' }
-  ];
-
   // Flag abbreviations
   const flagAbbreviations = [
     { value: 'LOW_VOL', label: 'LOW_VOL - Low Volume' },
@@ -228,12 +204,6 @@ const Accessioning = () => {
       };
 
       // Add optional fields if provided
-      if (values.pretreatment_type) {
-        updateData.pretreatment_type = values.pretreatment_type;
-      }
-      if (values.spike_in_type) {
-        updateData.spike_in_type = values.spike_in_type;
-      }
       if (values.has_flag) {
         updateData.has_flag = true;
         updateData.flag_abbreviation = values.flag_abbreviation;
@@ -835,40 +805,13 @@ const Accessioning = () => {
           form.resetFields();
         }}
         footer={null}
-        width={700}
+        width={500}
       >
         <Form
           form={form}
           layout="vertical"
           onFinish={handleAccessionSamples}
         >
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="pretreatment_type"
-                label="Pre-treatment (Optional)"
-              >
-                <Select
-                  placeholder="Select pre-treatment"
-                  allowClear
-                  options={pretreatmentOptions}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item
-                name="spike_in_type"
-                label="Spike-in (Optional)"
-              >
-                <Select
-                  placeholder="Select spike-in"
-                  allowClear
-                  options={spikeInOptions}
-                />
-              </Form.Item>
-            </Col>
-          </Row>
-
           <Form.Item
             name="has_flag"
             valuePropName="checked"

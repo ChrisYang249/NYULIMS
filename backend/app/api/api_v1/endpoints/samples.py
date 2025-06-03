@@ -1623,22 +1623,51 @@ def update_discrepancy_approval(
     approval.approval_reason = approval_data.approval_reason
     approval.signature_meaning = approval_data.signature_meaning
     
-    # Update sample - only mark as resolved if discrepancy is rejected (invalid)
+    # Update sample based on approval decision and signature meaning
     sample = db.query(Sample).filter(Sample.id == sample_id).first()
     if sample:
-        # If rejected (False), the discrepancy is invalid and sample can proceed
-        # If approved (True), the discrepancy is valid and still needs handling
+        # Check if this is a rejection (discrepancy is invalid)
         if not approval_data.approved:
             sample.discrepancy_resolved = True
             sample.discrepancy_resolution_date = func.now()
             sample.discrepancy_resolved_by_id = current_user.id
+            # Clear the discrepancy flag since it was invalid
+            sample.has_discrepancy = False
+        
+        # Check if this is an approval with a resolution (cancellation)
+        elif approval_data.approved and approval_data.signature_meaning:
+            signature = approval_data.signature_meaning.lower()
+            if "authorize sample cancellation" in signature or "cancel" in signature:
+                # Cancel the sample and mark discrepancy as resolved
+                sample.status = SampleStatus.CANCELLED.value
+                sample.discrepancy_resolved = True
+                sample.discrepancy_resolution_date = func.now()
+                sample.discrepancy_resolved_by_id = current_user.id
+                # Keep the discrepancy flag but mark as resolved since action was taken
+            elif "proceed with client confirmation" in signature:
+                # Mark as resolved since PM will handle client communication
+                sample.discrepancy_resolved = True
+                sample.discrepancy_resolution_date = func.now()
+                sample.discrepancy_resolved_by_id = current_user.id
     
-    # Create log entry
-    action = "confirmed" if approval_data.approved else "rejected"
+    # Create log entry with appropriate action description
+    if not approval_data.approved:
+        action = "rejected"
+        comment = f"Discrepancy rejected: {approval_data.approval_reason}"
+    elif approval_data.signature_meaning and "authorize sample cancellation" in approval_data.signature_meaning.lower():
+        action = "confirmed and cancelled"
+        comment = f"Discrepancy confirmed and sample cancelled: {approval_data.approval_reason}"
+    elif approval_data.signature_meaning and "proceed with client confirmation" in approval_data.signature_meaning.lower():
+        action = "confirmed with client communication"
+        comment = f"Discrepancy confirmed, proceeding with client confirmation: {approval_data.approval_reason}"
+    else:
+        action = "confirmed"
+        comment = f"Discrepancy confirmed: {approval_data.approval_reason}"
+    
     create_sample_log(
         db=db,
         sample_id=sample_id,
-        comment=f"Discrepancy {action}: {approval_data.approval_reason}",
+        comment=comment,
         log_type="discrepancy_resolution",
         user_id=current_user.id
     )

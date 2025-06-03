@@ -22,6 +22,7 @@ import {
   Divider,
   Alert,
   Progress,
+  Tabs,
 } from 'antd';
 import {
   ExperimentOutlined,
@@ -86,7 +87,7 @@ const ExtractionQueue: React.FC = () => {
   const [plates, setPlates] = useState<ExtractionPlate[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedSamples, setSelectedSamples] = useState<number[]>([]);
-  const [showPlates, setShowPlates] = useState(false);
+  const [activeTab, setActiveTab] = useState<'available' | 'active' | 'history'>('available');
   const [isCreatePlateModalVisible, setIsCreatePlateModalVisible] = useState(false);
   const [isAutoAssignModalVisible, setIsAutoAssignModalVisible] = useState(false);
   const [searchText, setSearchText] = useState('');
@@ -97,7 +98,7 @@ const ExtractionQueue: React.FC = () => {
   const [autoAssignForm] = Form.useForm();
 
   const fetchSamples = async () => {
-    if (!showPlates) {
+    if (activeTab === 'available') {
       setLoading(true);
       try {
         const response = await api.get(`/samples/queues/extraction`, {
@@ -113,12 +114,19 @@ const ExtractionQueue: React.FC = () => {
   };
 
   const fetchPlates = async () => {
-    if (showPlates) {
+    if (activeTab !== 'available') {
       setLoading(true);
       try {
-        const response = await api.get('/extraction-plates', {
-          params: { status: showPlates ? undefined : 'planning' }
-        });
+        let params = {};
+        if (activeTab === 'active') {
+          // Get plates that are not completed or failed
+          params = { status_in: 'planning,ready,in_progress' };
+        } else if (activeTab === 'history') {
+          // Get completed and failed plates
+          params = { status_in: 'completed,failed' };
+        }
+        
+        const response = await api.get('/extraction-plates', { params });
         setPlates(response.data || []);
       } catch (error) {
         console.error('Failed to fetch plates:', error);
@@ -150,16 +158,22 @@ const ExtractionQueue: React.FC = () => {
   };
 
   useEffect(() => {
-    if (showPlates) {
-      fetchPlates();
-    } else {
+    if (activeTab === 'available') {
       fetchSamples();
+    } else {
+      fetchPlates();
     }
     fetchLabTechs();
     fetchProjects();
-  }, [showPlates]);
+  }, [activeTab]);
 
   const filteredSamples = samples.filter((sample) => {
+    // First filter out samples that are already assigned to plates
+    if (sample.extraction_plate_id) {
+      return false;
+    }
+    
+    // Then apply search filter
     if (!searchText) return true;
     const searchLower = searchText.toLowerCase();
     return (
@@ -239,12 +253,15 @@ const ExtractionQueue: React.FC = () => {
   // Get unique sample types from samples
   const uniqueSampleTypes = [...new Set(samples.map(s => s.sample_type))];
 
-  // Get project count and samples per project
+  // Get project count and samples per project (only unassigned samples)
   const projectStats = samples.reduce((acc: any, sample) => {
-    if (!acc[sample.project_code]) {
-      acc[sample.project_code] = { count: 0, project_id: sample.project_id };
+    // Only count samples that aren't assigned to plates yet
+    if (!sample.extraction_plate_id) {
+      if (!acc[sample.project_code]) {
+        acc[sample.project_code] = { count: 0, project_id: sample.project_id };
+      }
+      acc[sample.project_code].count++;
     }
-    acc[sample.project_code].count++;
     return acc;
   }, {});
 
@@ -437,16 +454,13 @@ const ExtractionQueue: React.FC = () => {
           </Col>
           <Col>
             <Space>
-              <Switch
-                checked={showPlates}
-                onChange={setShowPlates}
-                checkedChildren="Show Plates"
-                unCheckedChildren="Show Queue"
-              />
-              <Button icon={<SyncOutlined />} onClick={() => showPlates ? fetchPlates() : fetchSamples()}>
+              <Button 
+                icon={<SyncOutlined />} 
+                onClick={() => activeTab === 'available' ? fetchSamples() : fetchPlates()}
+              >
                 Refresh
               </Button>
-              {!showPlates && (
+              {activeTab === 'available' && (
                 <Button
                   type="primary"
                   icon={<TableOutlined />}
@@ -460,14 +474,47 @@ const ExtractionQueue: React.FC = () => {
         </Row>
       </div>
 
+      <Tabs
+        activeKey={activeTab}
+        onChange={(key) => setActiveTab(key as 'available' | 'active' | 'history')}
+        items={[
+          {
+            key: 'available',
+            label: (
+              <span>
+                <ExperimentOutlined /> Available Samples
+                <Badge count={samples.filter(s => !s.extraction_plate_id).length} style={{ marginLeft: 8 }} />
+              </span>
+            ),
+          },
+          {
+            key: 'active',
+            label: (
+              <span>
+                <SyncOutlined /> Active Plates
+                <Badge count={plates.filter(p => ['planning', 'ready', 'in_progress'].includes(p.status)).length} style={{ marginLeft: 8 }} />
+              </span>
+            ),
+          },
+          {
+            key: 'history',
+            label: (
+              <span>
+                <CheckCircleOutlined /> Plate History
+              </span>
+            ),
+          },
+        ]}
+      />
+
       {/* Summary Stats */}
-      {showPlates ? (
+      {activeTab === 'active' ? (
         <Row gutter={16} style={{ marginBottom: 16 }}>
           <Col span={6}>
             <Card size="small">
               <Statistic
-                title="Total Plates"
-                value={plates.length}
+                title="Planning"
+                value={plates.filter(p => p.status === 'planning').length}
                 prefix={<TableOutlined />}
               />
             </Card>
@@ -475,7 +522,7 @@ const ExtractionQueue: React.FC = () => {
           <Col span={6}>
             <Card size="small">
               <Statistic
-                title="Ready"
+                title="Ready to Extract"
                 value={plates.filter(p => p.status === 'ready').length}
                 prefix={<CheckCircleOutlined />}
                 valueStyle={{ color: '#52c41a' }}
@@ -485,7 +532,7 @@ const ExtractionQueue: React.FC = () => {
           <Col span={6}>
             <Card size="small">
               <Statistic
-                title="In Progress"
+                title="Extraction In Progress"
                 value={plates.filter(p => p.status === 'in_progress').length}
                 prefix={<SyncOutlined />}
                 valueStyle={{ color: '#faad14' }}
@@ -495,10 +542,50 @@ const ExtractionQueue: React.FC = () => {
           <Col span={6}>
             <Card size="small">
               <Statistic
-                title="Completed"
+                title="Assigned Techs"
+                value={[...new Set(plates.map(p => p.assigned_tech?.id).filter(Boolean))].length}
+                prefix={<TeamOutlined />}
+              />
+            </Card>
+          </Col>
+        </Row>
+      ) : activeTab === 'history' ? (
+        <Row gutter={16} style={{ marginBottom: 16 }}>
+          <Col span={6}>
+            <Card size="small">
+              <Statistic
+                title="Total Completed"
                 value={plates.filter(p => p.status === 'completed').length}
                 prefix={<CheckCircleOutlined />}
-                valueStyle={{ color: '#1890ff' }}
+                valueStyle={{ color: '#52c41a' }}
+              />
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card size="small">
+              <Statistic
+                title="Failed Plates"
+                value={plates.filter(p => p.status === 'failed').length}
+                prefix={<WarningOutlined />}
+                valueStyle={{ color: '#ff4d4f' }}
+              />
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card size="small">
+              <Statistic
+                title="Total Samples Processed"
+                value={plates.reduce((sum, p) => sum + (p.sample_count || 0), 0)}
+                prefix={<ExperimentOutlined />}
+              />
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card size="small">
+              <Statistic
+                title="Success Rate"
+                value={plates.length > 0 ? Math.round((plates.filter(p => p.status === 'completed').length / plates.length) * 100) : 0}
+                suffix="%"
               />
             </Card>
           </Col>
@@ -527,7 +614,7 @@ const ExtractionQueue: React.FC = () => {
             <Card size="small">
               <Statistic
                 title="Urgent (>3 days)"
-                value={samples.filter(s => dayjs().diff(dayjs(s.created_at), 'day') > 3).length}
+                value={samples.filter(s => !s.extraction_plate_id && dayjs().diff(dayjs(s.created_at), 'day') > 3).length}
                 valueStyle={{ color: '#cf1322' }}
                 prefix={<WarningOutlined />}
               />
@@ -547,7 +634,7 @@ const ExtractionQueue: React.FC = () => {
       )}
 
       {/* Project Summary */}
-      {!showPlates && Object.keys(projectStats).length > 0 && (
+      {activeTab === 'available' && Object.keys(projectStats).length > 0 && (
         <Card size="small" style={{ marginBottom: 16 }} title="Projects in Queue">
           <Space wrap>
             {Object.entries(projectStats).map(([project, data]: [string, any]) => (
@@ -571,20 +658,7 @@ const ExtractionQueue: React.FC = () => {
         />
       </Card>
 
-      {showPlates ? (
-        <Table
-          columns={plateColumns}
-          dataSource={plates}
-          rowKey="id"
-          loading={loading}
-          pagination={{
-            pageSize: 20,
-            showSizeChanger: true,
-            showTotal: (total) => `Total ${total} plates`,
-            position: ['topRight'],
-          }}
-        />
-      ) : (
+      {activeTab === 'available' ? (
         <Table
           columns={columns}
           dataSource={filteredSamples}
@@ -596,6 +670,19 @@ const ExtractionQueue: React.FC = () => {
             pageSize: 50,
             showSizeChanger: true,
             showTotal: (total) => `Total ${total} samples`,
+            position: ['topRight'],
+          }}
+        />
+      ) : (
+        <Table
+          columns={plateColumns}
+          dataSource={plates}
+          rowKey="id"
+          loading={loading}
+          pagination={{
+            pageSize: 20,
+            showSizeChanger: true,
+            showTotal: (total) => `Total ${total} plates`,
             position: ['topRight'],
           }}
         />
