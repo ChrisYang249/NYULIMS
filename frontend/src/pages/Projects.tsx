@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Select, InputNumber, message, DatePicker, Popconfirm, Tag, Checkbox, Row, Col, Alert, Radio, Divider, Dropdown } from 'antd';
-import { PlusOutlined, DeleteOutlined, FilterOutlined, SearchOutlined, RobotOutlined, EditOutlined, CheckCircleOutlined, DownOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Modal, Form, Input, Select, InputNumber, message, DatePicker, Popconfirm, Tag, Checkbox, Row, Col, Alert, Radio, Divider, Dropdown, Upload } from 'antd';
+import { PlusOutlined, DeleteOutlined, FilterOutlined, SearchOutlined, RobotOutlined, EditOutlined, CheckCircleOutlined, DownOutlined, UploadOutlined, FileTextOutlined, FilePdfOutlined } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../config/api';
 import { useAuthStore } from '../store/authStore';
@@ -52,6 +52,8 @@ const Projects = () => {
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
   const [searchText, setSearchText] = useState('');
   const [filteredProjects, setFilteredProjects] = useState([]);
+  const [quoteFile, setQuoteFile] = useState<any>(null);
+  const [submissionFormFile, setSubmissionFormFile] = useState<any>(null);
   const [form] = Form.useForm();
   const [clientForm] = Form.useForm();
   const [deleteForm] = Form.useForm();
@@ -389,21 +391,45 @@ const Projects = () => {
       // Remove due_date from submission (calculated on backend)
       const { due_date, ...submitData } = values;
       
-      const formData = {
+      const projectData = {
         ...submitData,
         start_date: values.start_date.toISOString(),
       };
       
       // Only include project_id if user provided one
       if (values.project_id && values.project_id.trim()) {
-        formData.project_id = values.project_id.trim();
+        projectData.project_id = values.project_id.trim();
       }
       
-      await api.post('/projects/', formData);
+      // Check if we have files to upload
+      if (quoteFile || submissionFormFile) {
+        // Use the new endpoint with file uploads
+        const formData = new FormData();
+        formData.append('project_data', JSON.stringify(projectData));
+        
+        if (quoteFile) {
+          formData.append('quote_file', quoteFile);
+        }
+        if (submissionFormFile) {
+          formData.append('submission_form', submissionFormFile);
+        }
+        
+        await api.post('/projects/with-attachments', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+      } else {
+        // Use the original endpoint without files
+        await api.post('/projects/', projectData);
+      }
+      
       message.success('Project created successfully');
       setModalVisible(false);
       form.resetFields();
       setDueDate(null);
+      setQuoteFile(null);
+      setSubmissionFormFile(null);
       fetchProjects();
     } catch (error: any) {
       console.error('Project creation error:', error.response?.data);
@@ -753,8 +779,18 @@ const Projects = () => {
       <Modal
         title="Create New Project"
         open={modalVisible}
-        onCancel={() => setModalVisible(false)}
+        onCancel={() => {
+          setModalVisible(false);
+          form.resetFields();
+          setDueDate(null);
+          setQuoteFile(null);
+          setSubmissionFormFile(null);
+          setProjectIdMode('auto');
+          setGeneratedProjectId('');
+          setClientProjectConfig(null);
+        }}
         footer={null}
+        width={800}
       >
         <Form
           form={form}
@@ -1059,10 +1095,99 @@ const Projects = () => {
             </Select>
           </Form.Item>
 
+          <Divider orientation="left">Project Attachments</Divider>
+          
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="Quote (PDF)">
+                <Upload
+                  beforeUpload={(file) => {
+                    // Validate file type
+                    if (!file.name.toLowerCase().endsWith('.pdf')) {
+                      message.error('Quote file must be a PDF');
+                      return false;
+                    }
+                    // Validate file size (10MB)
+                    if (file.size > 10 * 1024 * 1024) {
+                      message.error('Quote file size must be less than 10MB');
+                      return false;
+                    }
+                    setQuoteFile(file);
+                    return false; // Prevent automatic upload
+                  }}
+                  onRemove={() => {
+                    setQuoteFile(null);
+                  }}
+                  fileList={quoteFile ? [quoteFile] : []}
+                  maxCount={1}
+                  accept=".pdf"
+                >
+                  <Button icon={<UploadOutlined />}>
+                    <FilePdfOutlined /> Upload Quote
+                  </Button>
+                </Upload>
+                <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                  PDF format, max 10MB
+                </div>
+              </Form.Item>
+            </Col>
+            
+            <Col span={12}>
+              <Form.Item label="Submission Form (Excel)">
+                <Upload
+                  beforeUpload={(file) => {
+                    // Validate file type
+                    const isExcel = file.name.toLowerCase().endsWith('.xlsx') || 
+                                   file.name.toLowerCase().endsWith('.xls');
+                    if (!isExcel) {
+                      message.error('Submission form must be an Excel file (.xlsx or .xls)');
+                      return false;
+                    }
+                    // Validate file size (10MB)
+                    if (file.size > 10 * 1024 * 1024) {
+                      message.error('Submission form file size must be less than 10MB');
+                      return false;
+                    }
+                    setSubmissionFormFile(file);
+                    return false; // Prevent automatic upload
+                  }}
+                  onRemove={() => {
+                    setSubmissionFormFile(null);
+                  }}
+                  fileList={submissionFormFile ? [submissionFormFile] : []}
+                  maxCount={1}
+                  accept=".xlsx,.xls"
+                >
+                  <Button icon={<UploadOutlined />}>
+                    <FileTextOutlined /> Upload Form
+                  </Button>
+                </Upload>
+                <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                  Excel format (.xlsx/.xls), max 10MB
+                </div>
+              </Form.Item>
+            </Col>
+          </Row>
+          
+          {(quoteFile || submissionFormFile) && (
+            <Alert
+              message="Files attached"
+              description={
+                <div>
+                  {quoteFile && <div>• Quote: {quoteFile.name}</div>}
+                  {submissionFormFile && <div>• Submission Form: {submissionFormFile.name}</div>}
+                </div>
+              }
+              type="success"
+              showIcon
+              style={{ marginBottom: 16 }}
+            />
+          )}
+
           <Form.Item>
             <Space>
               <Button type="primary" htmlType="submit">
-                Create
+                Create Project
               </Button>
               <Button onClick={() => setModalVisible(false)}>
                 Cancel
