@@ -143,6 +143,7 @@ const ExtractionQueue: React.FC = () => {
   const [currentPlate, setCurrentPlate] = useState<ExtractionPlate | null>(null);
   const [plateAssignmentMode, setPlateAssignmentMode] = useState<'auto' | 'manual'>('auto');
   const [plateAssignments, setPlateAssignments] = useState<PlateAssignment[]>([]);
+  const [selectedPlateRows, setSelectedPlateRows] = useState<number[]>([]);
   const [form] = Form.useForm();
   const [autoAssignForm] = Form.useForm();
   const [manualAssignForm] = Form.useForm();
@@ -286,10 +287,10 @@ const ExtractionQueue: React.FC = () => {
             <p><strong>Projects:</strong> {projectSummary}</p>
             <p><strong>Control Wells:</strong></p>
             <ul>
-              <li>Extraction Positive: H11</li>
-              <li>Extraction Negative: H12</li>
-              <li>Library Prep Positive: G11 (reserved)</li>
-              <li>Library Prep Negative: G12 (reserved)</li>
+              <li>Extraction Positive: E12</li>
+              <li>Extraction Negative: F12</li>
+              <li>Library Prep Positive: G12</li>
+              <li>Library Prep Negative: H12</li>
             </ul>
           </div>
         ),
@@ -1004,7 +1005,7 @@ const ExtractionQueue: React.FC = () => {
               <li>Select samples from available queue (max 92 samples)</li>
               <li>Configure individual sample input volume, elution volume, pre-processing, spike-in, and lysis methods</li>
               <li>Samples will be arranged column-wise (A1→B1→C1...H1, then A2→B2...)</li>
-              <li>Control wells: H11 (Ext Pos), H12 (Ext Neg), G11 & G12 reserved for LP controls</li>
+              <li>Control wells: E12 (Ext Pos), F12 (Ext Neg), G12 (LP Pos), H12 (LP Neg)</li>
             </ul>
           }
           type="info"
@@ -1049,7 +1050,7 @@ const ExtractionQueue: React.FC = () => {
                         const existing = plateAssignments.find(a => a.sample_id === sampleId);
                         return existing || {
                           sample_id: sampleId,
-                          sample_input_ul: 50, // Default 50 µL
+                          sample_input_ul: 250, // Default 250 µL
                           elution_volume_ul: 100, // Default 100 µL
                           pretreatment_type: 'none',
                           spike_in_type: 'none',
@@ -1101,17 +1102,26 @@ const ExtractionQueue: React.FC = () => {
               title={`Plate Configuration (${plateAssignments.length} samples)`} 
               size="small"
               extra={
+                <Text type="secondary">
+                  Controls: {plateAssignments.length >= 88 ? 'E12-H12' : `After sample #${plateAssignments.length}`}
+                  {(plateAssignments.length + 4) % 2 !== 0 && ' + Water balance'}
+                </Text>
+              }
+            >
+              <div style={{ marginBottom: 16 }}>
                 <Space>
                   <Button 
                     size="small"
                     onClick={() => {
                       // Apply bulk settings
                       Modal.confirm({
-                        title: 'Apply Bulk Settings',
+                        title: selectedPlateRows.length > 0 
+                          ? `Apply Bulk Settings to ${selectedPlateRows.length} Selected Samples`
+                          : 'Apply Bulk Settings to All Samples',
                         content: (
                           <Form layout="vertical" id="bulkSettingsForm">
-                            <Form.Item name="sample_input_ul" label="Sample Input (µL)" initialValue={50}>
-                              <InputNumber min={1} max={200} style={{ width: '100%' }} />
+                            <Form.Item name="sample_input_ul" label="Sample Input (µL)" initialValue={250}>
+                              <InputNumber min={1} max={500} style={{ width: '100%' }} />
                             </Form.Item>
                             <Form.Item name="elution_volume_ul" label="Elution Volume (µL)" initialValue={100}>
                               <InputNumber min={25} max={200} style={{ width: '100%' }} />
@@ -1132,29 +1142,59 @@ const ExtractionQueue: React.FC = () => {
                           const formData = new FormData(form);
                           const values = Object.fromEntries(formData.entries());
                           
-                          setPlateAssignments(prev => prev.map(assignment => ({
-                            ...assignment,
-                            sample_input_ul: Number(values.sample_input_ul) || assignment.sample_input_ul,
-                            elution_volume_ul: Number(values.elution_volume_ul) || assignment.elution_volume_ul,
-                            pretreatment_type: values.pretreatment_type as string || assignment.pretreatment_type,
-                            spike_in_type: values.spike_in_type as string || assignment.spike_in_type,
-                            lysis_method: values.lysis_method as string || assignment.lysis_method,
-                          })));
-                          message.success('Bulk settings applied');
+                          setPlateAssignments(prev => prev.map(assignment => {
+                            // Apply only to selected rows, or all if none selected
+                            if (selectedPlateRows.length === 0 || selectedPlateRows.includes(assignment.sample_id)) {
+                              return {
+                                ...assignment,
+                                sample_input_ul: Number(values.sample_input_ul) || assignment.sample_input_ul,
+                                elution_volume_ul: Number(values.elution_volume_ul) || assignment.elution_volume_ul,
+                                pretreatment_type: values.pretreatment_type as string || assignment.pretreatment_type,
+                                spike_in_type: values.spike_in_type as string || assignment.spike_in_type,
+                                lysis_method: values.lysis_method as string || assignment.lysis_method,
+                              };
+                            }
+                            return assignment;
+                          }));
+                          message.success(
+                            selectedPlateRows.length > 0 
+                              ? `Bulk settings applied to ${selectedPlateRows.length} samples`
+                              : 'Bulk settings applied to all samples'
+                          );
                         }
                       });
                     }}
                   >
-                    Apply Bulk Settings
+                    Apply Bulk Settings {selectedPlateRows.length > 0 && `(${selectedPlateRows.length})`}
+                  </Button>
+                  <Button
+                    size="small"
+                    danger
+                    disabled={selectedPlateRows.length === 0}
+                    onClick={() => {
+                      Modal.confirm({
+                        title: `Remove ${selectedPlateRows.length} Selected Samples?`,
+                        content: 'These samples will be removed from the plate and returned to the extraction queue.',
+                        onOk: () => {
+                          const removedIds = new Set(selectedPlateRows);
+                          setPlateAssignments(prev => prev.filter(a => !removedIds.has(a.sample_id)));
+                          setSelectedSamples(prev => prev.filter(id => !removedIds.has(id)));
+                          setSelectedPlateRows([]);
+                          message.success(`${selectedPlateRows.length} samples removed from plate`);
+                        }
+                      });
+                    }}
+                  >
+                    Remove Selected
                   </Button>
                 </Space>
-              }
-            >
+              </div>
               <Table
                 dataSource={plateAssignments.map((assignment, index) => {
                   const sample = samples.find(s => s.id === assignment.sample_id);
-                  const wellRow = String.fromCharCode(65 + (index % 8)); // A-H
+                  // Fill vertically by columns (A1-H1, then A2-H2, etc.)
                   const wellCol = Math.floor(index / 8) + 1; // 1-12
+                  const wellRow = String.fromCharCode(65 + (index % 8)); // A-H
                   const wellPosition = `${wellRow}${wellCol}`;
                   
                   return {
@@ -1168,6 +1208,12 @@ const ExtractionQueue: React.FC = () => {
                 size="small"
                 scroll={{ y: 350 }}
                 pagination={false}
+                rowSelection={{
+                  selectedRowKeys: selectedPlateRows,
+                  onChange: (selectedRowKeys) => {
+                    setSelectedPlateRows(selectedRowKeys as number[]);
+                  }
+                }}
                 columns={[
                   {
                     title: 'Well',
@@ -1193,8 +1239,8 @@ const ExtractionQueue: React.FC = () => {
                         <InputNumber
                           size="small"
                           min={1}
-                          max={200}
-                          value={plateAssignments[assignmentIndex]?.sample_input_ul || 50}
+                          max={500}
+                          value={plateAssignments[assignmentIndex]?.sample_input_ul || 250}
                           onChange={(value) => {
                             const newAssignments = [...plateAssignments];
                             if (assignmentIndex >= 0) {
@@ -1335,17 +1381,96 @@ const ExtractionQueue: React.FC = () => {
               disabled={plateAssignments.length === 0}
               onClick={async () => {
                 try {
-                  // Submit the plate assignments
-                  const response = await api.post(`/extraction-plates/${currentPlate?.id}/assign-samples-manual`, {
-                    assignments: plateAssignments
+                  // Calculate control well positions
+                  const sampleCount = plateAssignments.length;
+                  const controlCount = 4; // EXT+, EXT-, LP+, LP-
+                  const totalWells = sampleCount + controlCount;
+                  const needsWaterBalance = totalWells % 2 !== 0;
+                  
+                  // Determine where controls should go
+                  let controlStartPosition;
+                  if (sampleCount >= 88) {
+                    // Plate is full or nearly full, use E12-H12
+                    controlStartPosition = 91; // E12 (column 12 starts at position 88, E=4th row)
+                  } else {
+                    // Place controls after last sample
+                    controlStartPosition = sampleCount;
+                  }
+                  
+                  // Add control wells to assignments
+                  const allAssignments = [...plateAssignments];
+                  const controlWells = [
+                    { type: 'EXT_POS', name: 'Extraction Positive Control' },
+                    { type: 'EXT_NEG', name: 'Extraction Negative Control' },
+                    { type: 'LP_POS', name: 'Library Prep Positive Control' },
+                    { type: 'LP_NEG', name: 'Library Prep Negative Control' }
+                  ];
+                  
+                  controlWells.forEach((control, index) => {
+                    const position = controlStartPosition + index;
+                    const wellCol = Math.floor(position / 8) + 1;
+                    const wellRow = String.fromCharCode(65 + (position % 8));
+                    
+                    allAssignments.push({
+                      sample_id: -(index + 1), // Negative IDs for controls
+                      well_position: `${wellRow}${wellCol}`,
+                      control_type: control.type,
+                      control_name: control.name,
+                      sample_input_ul: 250,
+                      elution_volume_ul: 100,
+                      pretreatment_type: 'none',
+                      spike_in_type: 'none',
+                      lysis_method: 'NA'
+                    } as any);
                   });
                   
-                  message.success(`Assigned ${plateAssignments.length} samples to plate ${currentPlate?.plate_id}`);
-                  setIsManualAssignModalVisible(false);
-                  setPlateAssignments([]);
-                  setSelectedSamples([]);
-                  fetchSamples();
-                  navigate(`/extraction-plates/${currentPlate?.id}`);
+                  // Add water balance if needed
+                  if (needsWaterBalance) {
+                    const waterPosition = controlStartPosition + 4;
+                    const wellCol = Math.floor(waterPosition / 8) + 1;
+                    const wellRow = String.fromCharCode(65 + (waterPosition % 8));
+                    
+                    allAssignments.push({
+                      sample_id: -5, // Special ID for water
+                      well_position: `${wellRow}${wellCol}`,
+                      control_type: 'WATER',
+                      control_name: 'Water (Balance)',
+                      sample_input_ul: 250,
+                      elution_volume_ul: 100,
+                      pretreatment_type: 'none',
+                      spike_in_type: 'none',
+                      lysis_method: 'NA'
+                    } as any);
+                  }
+                  
+                  // Show confirmation
+                  Modal.confirm({
+                    title: 'Confirm Plate Assignment',
+                    content: (
+                      <div>
+                        <p>Sample assignments: {sampleCount}</p>
+                        <p>Control wells: {controlCount}</p>
+                        {needsWaterBalance && <p>Water balance: 1 (for centrifuge balance)</p>}
+                        <p><strong>Total wells: {allAssignments.length}</strong></p>
+                      </div>
+                    ),
+                    onOk: async () => {
+                      // Submit the plate assignments with controls
+                      const response = await api.post(`/extraction-plates/${currentPlate?.id}/assign-samples-manual`, {
+                        assignments: allAssignments.filter(a => a.sample_id > 0), // Only send actual samples
+                        include_controls: true,
+                        add_water_balance: needsWaterBalance
+                      });
+                      
+                      message.success(`Assigned ${sampleCount} samples + ${controlCount} controls to plate ${currentPlate?.plate_id}`);
+                      setIsManualAssignModalVisible(false);
+                      setPlateAssignments([]);
+                      setSelectedSamples([]);
+                      setSelectedPlateRows([]);
+                      fetchSamples();
+                      navigate(`/extraction-plates/${currentPlate?.id}`);
+                    }
+                  });
                 } catch (error: any) {
                   message.error(error.response?.data?.detail || 'Failed to assign samples');
                 }
