@@ -41,6 +41,8 @@ import type { ColumnsType } from 'antd/es/table';
 import { api } from '../../config/api';
 import dayjs from 'dayjs';
 import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../../store/authStore';
+import { usePermissions } from '../../hooks/usePermissions';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -95,6 +97,7 @@ interface Sample {
   target_depth: number;
   pretreatment_type?: string;
   spike_in_type?: string;
+  extraction_volume?: number;
   has_flag?: boolean;
   flag_abbreviation?: string;
   flag_notes?: string;
@@ -129,6 +132,8 @@ interface ExtractionPlate {
 
 const ExtractionQueue: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const { hasPermission } = usePermissions();
   const [samples, setSamples] = useState<Sample[]>([]);
   const [plates, setPlates] = useState<ExtractionPlate[]>([]);
   const [loading, setLoading] = useState(false);
@@ -137,6 +142,7 @@ const ExtractionQueue: React.FC = () => {
   const [isCreatePlateModalVisible, setIsCreatePlateModalVisible] = useState(false);
   const [isAutoAssignModalVisible, setIsAutoAssignModalVisible] = useState(false);
   const [isManualAssignModalVisible, setIsManualAssignModalVisible] = useState(false);
+  const [isBulkUpdateModalVisible, setIsBulkUpdateModalVisible] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [labTechs, setLabTechs] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
@@ -147,6 +153,7 @@ const ExtractionQueue: React.FC = () => {
   const [form] = Form.useForm();
   const [autoAssignForm] = Form.useForm();
   const [manualAssignForm] = Form.useForm();
+  const [bulkUpdateForm] = Form.useForm();
 
   const fetchSamples = async () => {
     if (activeTab === 'available') {
@@ -287,10 +294,10 @@ const ExtractionQueue: React.FC = () => {
             <p><strong>Projects:</strong> {projectSummary}</p>
             <p><strong>Control Wells:</strong></p>
             <ul>
-              <li>Extraction Positive: E12</li>
-              <li>Extraction Negative: F12</li>
-              <li>Library Prep Positive: G12</li>
-              <li>Library Prep Negative: H12</li>
+              <li>Extraction Positive: {response.data.control_wells?.extraction_positive || 'Not assigned'}</li>
+              <li>Extraction Negative: {response.data.control_wells?.extraction_negative || 'Not assigned'}</li>
+              <li>Library Prep Positive: {response.data.control_wells?.library_prep_positive || 'Not assigned'}</li>
+              <li>Library Prep Negative: {response.data.control_wells?.library_prep_negative || 'Not assigned'}</li>
             </ul>
           </div>
         ),
@@ -450,6 +457,13 @@ const ExtractionQueue: React.FC = () => {
       },
     },
     {
+      title: 'Input (µL)',
+      dataIndex: 'extraction_volume',
+      key: 'extraction_volume',
+      width: 80,
+      render: (volume: number) => volume || 250,
+    },
+    {
       title: 'Due Date',
       dataIndex: 'due_date',
       key: 'due_date',
@@ -598,13 +612,30 @@ const ExtractionQueue: React.FC = () => {
                 Refresh
               </Button>
               {activeTab === 'available' && (
-                <Button
-                  type="primary"
-                  icon={<TableOutlined />}
-                  onClick={() => setIsCreatePlateModalVisible(true)}
-                >
-                  Create Extraction Plate
-                </Button>
+                <>
+                  {(user?.role === 'super_admin' || user?.role === 'lab_manager' || user?.role === 'director') && (
+                    <Button
+                      icon={<ExperimentOutlined />}
+                      onClick={() => {
+                        if (selectedSamples.length === 0) {
+                          message.warning('Please select samples to update');
+                          return;
+                        }
+                        setIsBulkUpdateModalVisible(true);
+                      }}
+                      disabled={selectedSamples.length === 0}
+                    >
+                      Bulk Update ({selectedSamples.length})
+                    </Button>
+                  )}
+                  <Button
+                    type="primary"
+                    icon={<TableOutlined />}
+                    onClick={() => setIsCreatePlateModalVisible(true)}
+                  >
+                    Create Extraction Plate
+                  </Button>
+                </>
               )}
             </Space>
           </Col>
@@ -802,7 +833,7 @@ const ExtractionQueue: React.FC = () => {
           rowKey="id"
           loading={loading}
           rowSelection={rowSelection}
-          scroll={{ x: 1000 }}
+          scroll={{ x: 1100 }}
           size="small"
           pagination={{
             defaultPageSize: 150,
@@ -1588,15 +1619,8 @@ const ExtractionQueue: React.FC = () => {
                   const totalWells = sampleCount + controlCount;
                   const needsWaterBalance = totalWells % 2 !== 0;
                   
-                  // Determine where controls should go
-                  let controlStartPosition;
-                  if (sampleCount >= 88) {
-                    // Plate is full or nearly full, use E12-H12
-                    controlStartPosition = 92; // E12 (column 12 starts at position 88, E=5th row, index 92)
-                  } else {
-                    // Place controls after last sample
-                    controlStartPosition = sampleCount;
-                  }
+                  // Always place controls after last sample
+                  const controlStartPosition = sampleCount;
                   
                   // Add control wells to assignments
                   const allAssignments = [...plateAssignments];
@@ -1644,6 +1668,15 @@ const ExtractionQueue: React.FC = () => {
                     } as any);
                   }
                   
+                  // Calculate control well positions for display
+                  const controlPositions: Record<string, string> = {};
+                  controlWells.forEach((control, index) => {
+                    const position = controlStartPosition + index;
+                    const wellCol = Math.floor(position / 8) + 1;
+                    const wellRow = String.fromCharCode(65 + (position % 8));
+                    controlPositions[control.type] = `${wellRow}${wellCol}`;
+                  });
+                  
                   // Show confirmation
                   Modal.confirm({
                     title: 'Confirm Plate Assignment',
@@ -1653,6 +1686,13 @@ const ExtractionQueue: React.FC = () => {
                         <p>Control wells: {controlCount}</p>
                         {needsWaterBalance && <p>Water balance: 1 (for centrifuge balance)</p>}
                         <p><strong>Total wells: {allAssignments.length}</strong></p>
+                        <p style={{ marginTop: 8 }}><strong>Control Positions:</strong></p>
+                        <ul style={{ marginBottom: 0 }}>
+                          <li>Extraction Positive: {controlPositions.EXT_POS}</li>
+                          <li>Extraction Negative: {controlPositions.EXT_NEG}</li>
+                          <li>Library Prep Positive: {controlPositions.LP_POS}</li>
+                          <li>Library Prep Negative: {controlPositions.LP_NEG}</li>
+                        </ul>
                       </div>
                     ),
                     onOk: async () => {
@@ -1691,6 +1731,97 @@ const ExtractionQueue: React.FC = () => {
             </Button>
           </Space>
         </div>
+      </Modal>
+
+      {/* Bulk Update Modal */}
+      <Modal
+        title={`Bulk Update ${selectedSamples.length} Selected Samples`}
+        open={isBulkUpdateModalVisible}
+        onCancel={() => {
+          setIsBulkUpdateModalVisible(false);
+          bulkUpdateForm.resetFields();
+        }}
+        onOk={async () => {
+          try {
+            const values = await bulkUpdateForm.validateFields();
+            
+            // Build update data with only fields that have values
+            const updateData: any = {};
+            if (values.pretreatment_type !== undefined) {
+              updateData.pretreatment_type = values.pretreatment_type;
+            }
+            if (values.spike_in_type !== undefined) {
+              updateData.spike_in_type = values.spike_in_type;
+            }
+            if (values.extraction_volume !== undefined) {
+              updateData.extraction_volume = values.extraction_volume;
+            }
+            
+            if (Object.keys(updateData).length === 0) {
+              message.warning('No updates specified');
+              return;
+            }
+            
+            const response = await api.post('/samples/bulk-update', {
+              sample_ids: selectedSamples,
+              ...updateData
+            });
+            
+            message.success(`Updated ${selectedSamples.length} samples`);
+            setIsBulkUpdateModalVisible(false);
+            bulkUpdateForm.resetFields();
+            setSelectedSamples([]);
+            fetchSamples();
+          } catch (error: any) {
+            message.error(error.response?.data?.detail || 'Failed to update samples');
+          }
+        }}
+        width={600}
+      >
+        <Alert
+          message="Leave fields empty to keep existing values"
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+        <Form
+          form={bulkUpdateForm}
+          layout="vertical"
+        >
+          <Form.Item 
+            name="pretreatment_type" 
+            label="Pre-treatment"
+          >
+            <Select 
+              placeholder="Select to update (leave empty to keep existing)"
+              options={pretreatmentOptions} 
+              allowClear
+            />
+          </Form.Item>
+          
+          <Form.Item 
+            name="spike_in_type" 
+            label="Spike-in"
+          >
+            <Select 
+              placeholder="Select to update (leave empty to keep existing)"
+              options={spikeInOptions} 
+              allowClear
+            />
+          </Form.Item>
+          
+          <Form.Item 
+            name="extraction_volume" 
+            label="Sample Input (µL)"
+          >
+            <InputNumber 
+              placeholder="Enter value to update (leave empty to keep existing)"
+              min={1} 
+              max={500} 
+              style={{ width: '100%' }}
+            />
+          </Form.Item>
+        </Form>
       </Modal>
     </div>
   );
