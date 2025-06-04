@@ -465,7 +465,7 @@ const Projects = () => {
         // Check if it's a duplicate project ID error
         if (errorDetail.includes('already exists')) {
           // Show error and close confirmation modal to go back to form
-          Modal.error({
+          modal.error({
             title: 'Duplicate Project ID',
             content: errorDetail,
             onOk: () => {
