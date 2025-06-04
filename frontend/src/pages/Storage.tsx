@@ -47,25 +47,33 @@ const Storage = () => {
   const [selectedTab, setSelectedTab] = useState('overview');
   const [form] = Form.useForm();
 
-  // Mock statistics - would come from API
-  const stats = {
-    totalLocations: locations.length,
-    availableLocations: locations.filter(l => l.is_available).length,
-    totalSamples: 1234,
-    freezerCount: new Set(locations.map(l => l.freezer)).size,
-  };
+  const [stats, setStats] = useState({
+    totalLocations: 0,
+    availableLocations: 0,
+    totalSamples: 0,
+    freezerCount: 0,
+  });
 
   const fetchLocations = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/samples/storage/locations?available_only=false');
-      // Mock sample counts
-      const locationsWithCounts = response.data.map((loc: StorageLocation) => ({
-        ...loc,
-        sample_count: Math.floor(Math.random() * 96),
-        capacity: 96
-      }));
-      setLocations(locationsWithCounts);
+      // Fetch locations with sample counts included (add timestamp to prevent caching)
+      const timestamp = new Date().getTime();
+      const response = await api.get(`/samples/storage/locations?available_only=false&include_counts=true&_t=${timestamp}`);
+      
+      // Log the data to debug
+      console.log('Storage locations data:', response.data);
+      
+      setLocations(response.data);
+      
+      // Fetch storage statistics
+      const statsResponse = await api.get(`/samples/storage/statistics?_t=${timestamp}`);
+      setStats({
+        totalLocations: statsResponse.data.total_locations,
+        availableLocations: statsResponse.data.available_locations,
+        totalSamples: statsResponse.data.total_samples,
+        freezerCount: statsResponse.data.freezer_count,
+      });
     } catch (error) {
       message.error('Failed to fetch storage locations');
     }
