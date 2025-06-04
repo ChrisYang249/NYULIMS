@@ -84,4 +84,7 @@ env/
 venv/
 ENV/
 env.bak/
-venv.bak/
+venv.bak/# Claude-specific files
+CLAUDE.md
+CHAT_HISTORY*.md
+docs/CHAT_HISTORY*.md
