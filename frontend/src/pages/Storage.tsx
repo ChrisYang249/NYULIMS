@@ -87,7 +87,13 @@ const Storage = () => {
 
   const handleCreate = async (values: any) => {
     try {
-      await api.post('/samples/storage/locations', values);
+      // Extract freezer value from array if it's in array format due to tags mode
+      const payload = {
+        ...values,
+        freezer: Array.isArray(values.freezer) ? values.freezer[0] : values.freezer
+      };
+      
+      await api.post('/samples/storage/locations', payload);
       message.success('Storage location created successfully');
       setIsCreateModalVisible(false);
       form.resetFields();
