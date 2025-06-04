@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Select, InputNumber, message, DatePicker, Popconfirm, Tag, Checkbox, Row, Col, Alert, Radio, Divider, Dropdown, Upload, App } from 'antd';
+import { Table, Button, Space, Modal, Form, Input, Select, InputNumber, DatePicker, Popconfirm, Tag, Checkbox, Row, Col, Alert, Radio, Divider, Dropdown, Upload, App } from 'antd';
 import { PlusOutlined, DeleteOutlined, FilterOutlined, SearchOutlined, RobotOutlined, EditOutlined, CheckCircleOutlined, DownOutlined, UploadOutlined, FileTextOutlined, FilePdfOutlined } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../config/api';
@@ -62,7 +62,7 @@ const Projects = () => {
   const [bulkDeleteForm] = Form.useForm();
   const [statusForm] = Form.useForm();
   const { user } = useAuthStore();
-  const { modal } = App.useApp();
+  const { modal, message } = App.useApp();
   
   const allStatuses = ['pending', 'pm_review', 'lab', 'bis', 'hold', 'cancelled', 'completed', 'deleted'];
   
@@ -454,7 +454,9 @@ const Projects = () => {
       setPendingProjectData(null);
       fetchProjects();
     } catch (error: any) {
-      console.error('Project creation error:', error.response?.data);
+      console.error('Project creation error:', error);
+      console.error('Error response:', error.response);
+      console.error('Error data:', error.response?.data);
       
       // Handle specific error messages
       if (error.response?.status === 400 && error.response?.data?.detail) {
@@ -463,15 +465,20 @@ const Projects = () => {
         // Check if it's a duplicate project ID error
         if (errorDetail.includes('already exists')) {
           // Show error and close confirmation modal to go back to form
-          message.error(errorDetail);
-          setConfirmModalVisible(false);
-          // Also set form field error so it's visible when user is back at the form
-          form.setFields([
-            {
-              name: 'project_id',
-              errors: [errorDetail],
-            },
-          ]);
+          Modal.error({
+            title: 'Duplicate Project ID',
+            content: errorDetail,
+            onOk: () => {
+              setConfirmModalVisible(false);
+              // Also set form field error so it's visible when user is back at the form
+              form.setFields([
+                {
+                  name: 'project_id',
+                  errors: [errorDetail],
+                },
+              ]);
+            }
+          });
         } else {
           // Other validation errors
           message.error(errorDetail);
@@ -841,7 +848,7 @@ const Projects = () => {
                 const searchText = `${client.name} ${client.institution || ''}`.toLowerCase();
                 return searchText.includes(input.toLowerCase());
               }}
-              dropdownRender={(menu) => (
+              popupRender={(menu) => (
                 <>
                   {menu}
                   <div style={{ padding: '8px', borderTop: '1px solid #e8e8e8' }}>
