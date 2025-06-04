@@ -462,7 +462,10 @@ const Projects = () => {
         
         // Check if it's a duplicate project ID error
         if (errorDetail.includes('already exists')) {
-          // Set form field error for project_id
+          // Show error and close confirmation modal to go back to form
+          message.error(errorDetail);
+          setConfirmModalVisible(false);
+          // Also set form field error so it's visible when user is back at the form
           form.setFields([
             {
               name: 'project_id',
@@ -472,16 +475,17 @@ const Projects = () => {
         } else {
           // Other validation errors
           message.error(errorDetail);
+          setConfirmModalVisible(false);
         }
       } else if (error.response?.status === 403) {
         // Permission denied
         message.error('You do not have permission to create projects');
+        setConfirmModalVisible(false);
       } else {
         // Generic error
         message.error('Failed to create project. Please try again.');
+        setConfirmModalVisible(false);
       }
-      // Don't close the confirmation modal on error
-      setConfirmModalVisible(false);
     }
   };
   
