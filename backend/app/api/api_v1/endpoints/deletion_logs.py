@@ -57,7 +57,7 @@ def get_deletion_logs(
         # For projects, we look for deleted status in the projects table
         # and deletion logs in project_logs
         deleted_projects = db.query(Project).filter(
-            Project.status == ProjectStatus.deleted
+            Project.status == ProjectStatus.DELETED
         ).all()
         
         for project in deleted_projects:

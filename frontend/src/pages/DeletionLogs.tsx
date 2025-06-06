@@ -82,6 +82,10 @@ const DeletionLogs = () => {
       key: 'deletion_reason',
       width: 300,
       ellipsis: true,
+      render: (text: string) => {
+        const match = text.match(/Reason:\s*(.*)$/);
+        return match ? match[1] : text;
+      },
     },
     {
       title: 'Previous Status',

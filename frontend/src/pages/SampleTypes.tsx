@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Switch, message, InputNumber } from 'antd';
+import { Table, Button, Space, Modal, Form, Input, Switch, message, InputNumber, Select } from 'antd';
 import { PlusOutlined, EditOutlined } from '@ant-design/icons';
 import { api } from '../config/api';
 import { usePermissions } from '../hooks/usePermissions';
@@ -15,6 +15,11 @@ interface SampleType {
   created_at: string;
   updated_at?: string;
 }
+
+// Backend enum values for SampleType (should be kept in sync with backend)
+const BACKEND_SAMPLE_TYPE_ENUMS = [
+  'abscess', 'air_filter_fluid', 'amniotic_fluid', 'animal_wound_swabs', 'bacterial_biofilms', 'bal', 'biofilm_cultured', 'biofluids', 'biopsy_extract', 'blood', 'breast_milk', 'buccal_swab', 'buffer', 'capsule', 'carcass_swab', 'cdna', 'cecum', 'control', 'cow_rumen', 'dna', 'dna_cdna', 'dna_library', 'dna_plate', 'environmental_sample', 'environmental_swab', 'enzymes', 'equipment_swabs', 'fecal_swab', 'ffpe_block', 'filter', 'food_product', 'hair', 'icellpellet', 'isolate', 'library_pool', 'liquid', 'lyophilized_powder', 'mcellpellet', 'media', 'milk', 'mock_community_standard', 'mucosa', 'nasal_sample', 'nasal_swab', 'ocular_swab', 'oral_sample', 'oral_swab', 'other', 'paper_points', 'plaque', 'plant', 'plasma', 'plasma_tumor', 'probiotic', 'rectal_swab', 'rna', 'rna_library', 'rumen_fluid_pellet', 'saliva', 'sea_mucilage', 'skin_strip', 'skin_swab', 'soil', 'speciality', 'sputum', 'stool', 'swab', 'tissue', 'tumor_samples', 'urine', 'vaginal_swab', 'vitreous_wash_sample', 'wastewater', 'water', 'wound_swab'
+];
 
 const SampleTypes = () => {
   const [sampleTypes, setSampleTypes] = useState<SampleType[]>([]);
@@ -184,12 +189,27 @@ const SampleTypes = () => {
               name="name"
               label="Internal Name"
               rules={[
-                { required: true, message: 'Please enter internal name' },
-                { pattern: /^[a-z_]+$/, message: 'Only lowercase letters and underscores allowed' }
+                { required: true, message: 'Please select internal name' }
               ]}
-              help="Use lowercase with underscores (e.g., 'blood_sample')"
+              help="Select a backend sample type (e.g., 'blood', 'stool'). Already-used types are disabled."
             >
-              <Input placeholder="e.g., blood_sample" />
+              <Select
+                showSearch
+                placeholder="Select sample type"
+                filterOption={(input, option) =>
+                  String(option?.value ?? '').toLowerCase().includes(input.toLowerCase())
+                }
+              >
+                {BACKEND_SAMPLE_TYPE_ENUMS.map(type => (
+                  <Select.Option
+                    key={type}
+                    value={type}
+                    disabled={sampleTypes.some(st => st.name === type)}
+                  >
+                    {type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </Select.Option>
+                ))}
+              </Select>
             </Form.Item>
           )}
 
