@@ -1308,9 +1308,11 @@ def update_samples_bulk(
     sample_ids = request.get("sample_ids", [])
     if not sample_ids:
         raise HTTPException(status_code=400, detail="No sample IDs provided")
-    
-    # Remove sample_ids from request to get update data
-    update_dict = {k: v for k, v in request.items() if k != "sample_ids"}
+
+    # Extract update_data from request if present, else fallback to all other keys
+    update_dict = request.get("update_data")
+    if update_dict is None:
+        update_dict = {k: v for k, v in request.items() if k not in ["sample_ids"]}
     
     samples = db.query(Sample).filter(Sample.id.in_(sample_ids)).all()
     

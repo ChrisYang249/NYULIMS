@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Table, Tag, Space, Card, Select, DatePicker } from 'antd';
+import { Table, Tag, Space, Card, Select, DatePicker, message } from 'antd';
 import { Link } from 'react-router-dom';
 import { api } from '../config/api';
 import dayjs from 'dayjs';
@@ -22,7 +22,12 @@ interface Log {
 const Logs = () => {
   const [logs, setLogs] = useState<Log[]>([]);
   const [loading, setLoading] = useState(false);
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<{
+    project_id?: number;
+    log_type?: string;
+    date_from?: string;
+    date_to?: string;
+  }>({
     project_id: undefined,
     log_type: undefined,
     date_from: undefined,
@@ -30,17 +35,38 @@ const Logs = () => {
   });
 
   useEffect(() => {
-    fetchLogs();
+    fetchAllProjectLogs();
   }, [filters]);
 
-  const fetchLogs = async () => {
+  const fetchAllProjectLogs = async () => {
     setLoading(true);
     try {
-      // This endpoint would need to be created in the backend
-      const response = await api.get('/logs', { params: filters });
-      setLogs(response.data);
+      // Fetch all projects first
+      const projectsResponse = await api.get('/projects', { params: { include_deleted: true } });
+      const projects = projectsResponse.data;
+      // Fetch logs for each project
+      const logPromises = projects.map((project: any) =>
+        api.get(`/projects/${project.id}/logs`).then(res =>
+          res.data.map((log: any) => ({ ...log, project: { project_id: project.project_id, name: project.name } }))
+        )
+      );
+      const logsArrays = await Promise.all(logPromises);
+      // Flatten the array of arrays
+      let allLogs = logsArrays.flat();
+      // Apply filters if any
+      if (filters.log_type) {
+        allLogs = allLogs.filter(log => log.log_type.toLowerCase() === String(filters.log_type).toLowerCase());
+      }
+      if (filters.date_from) {
+        allLogs = allLogs.filter(log => dayjs(log.created_at).isAfter(dayjs(filters.date_from)));
+      }
+      if (filters.date_to) {
+        allLogs = allLogs.filter(log => dayjs(log.created_at).isBefore(dayjs(filters.date_to)));
+      }
+      setLogs(allLogs.sort((a, b) => dayjs(b.created_at).unix() - dayjs(a.created_at).unix()));
     } catch (error) {
-      console.error('Failed to fetch logs:', error);
+      message.error('Failed to fetch logs');
+      setLogs([]);
     } finally {
       setLoading(false);
     }
@@ -57,7 +83,7 @@ const Logs = () => {
     {
       title: 'Project',
       key: 'project',
-      render: (_, record: Log) => (
+      render: (_: any, record: Log) => (
         <Link to={`/projects/${record.project_id}`}>
           {record.project?.project_id || `Project ${record.project_id}`}
         </Link>
@@ -82,7 +108,7 @@ const Logs = () => {
     {
       title: 'Created By',
       key: 'created_by',
-      render: (_, record: Log) => record.created_by?.full_name || 'System',
+      render: (_: any, record: Log) => record.created_by?.full_name || 'System',
     },
   ];
 

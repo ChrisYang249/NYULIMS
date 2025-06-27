@@ -1,5 +1,4 @@
 from fastapi import APIRouter
-
 from app.api.api_v1.endpoints import auth, users, projects, samples, dashboard, clients, employees, sample_types, deletion_logs, extraction_plates, plate_editor, client_project_config
 
 api_router = APIRouter()

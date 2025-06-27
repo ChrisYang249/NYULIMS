@@ -222,12 +222,15 @@ def create_project(
     initial_log = ProjectLog(
         project_id=project.id,
         comment=f"Project created - " + "; ".join(log_details),
-        log_type="creation",
+        log_type="CREATION",
         created_by_id=current_user.id
     )
     db.add(initial_log)
+    print(f"DEBUG: About to commit log - project_id={initial_log.project_id}, log_type={initial_log.log_type}, comment={initial_log.comment[:50]}...")
     db.commit()
+    print(f"DEBUG: Created project log for project_id={project.id}, log_id={initial_log.id}, created_by_id={initial_log.created_by_id}")
     
+    print(f"DEBUG: Returning project {project.id} from create_project")
     return project
 
 @router.post("/with-attachments", response_model=ProjectSchema)
@@ -424,11 +427,13 @@ def create_project_with_attachments(
     initial_log = ProjectLog(
         project_id=project.id,
         comment=f"Project created with attachments - " + "; ".join(log_details),
-        log_type="creation",
+        log_type="CREATION",
         created_by_id=current_user.id
     )
     db.add(initial_log)
+    print(f"DEBUG: About to commit log - project_id={initial_log.project_id}, log_type={initial_log.log_type}, comment={initial_log.comment[:50]}...")
     db.commit()
+    print(f"DEBUG: Created project log for project_id={project.id}, log_id={initial_log.id}, created_by_id={initial_log.created_by_id}")
     
     # Load project with relationships for response
     project = db.query(Project).options(
@@ -489,7 +494,7 @@ def create_project_log(
     log = ProjectLog(
         project_id=project_id,
         comment=comment,
-        log_type="comment",
+        log_type="COMMENT",
         created_by_id=current_user.id
     )
     db.add(log)
@@ -607,7 +612,7 @@ def update_project(
     log = ProjectLog(
         project_id=project_id,
         comment=log_comment,
-        log_type="update",
+        log_type="UPDATE",
         created_by_id=current_user.id
     )
     db.add(log)
@@ -666,7 +671,7 @@ async def upload_attachment(
     log = ProjectLog(
         project_id=project_id,
         comment=f"Attachment uploaded: '{file.filename}' ({file_size_mb:.2f} MB, {file.content_type or 'unknown type'})",
-        log_type="attachment_upload",
+        log_type="ATTACHMENT_UPLOAD",
         created_by_id=current_user.id
     )
     db.add(log)
@@ -737,7 +742,7 @@ def delete_attachment(
     log = ProjectLog(
         project_id=attachment.project_id,
         comment=f"Attachment deleted: '{attachment.original_filename}' ({file_size_mb:.2f} MB)",
-        log_type="attachment_delete",
+        log_type="ATTACHMENT_DELETE",
         created_by_id=current_user.id
     )
     db.add(log)
@@ -793,7 +798,7 @@ def delete_project(
     log = ProjectLog(
         project_id=project_id,
         comment=log_comment,
-        log_type="deletion",
+        log_type="DELETION",
         created_by_id=current_user.id
     )
     db.add(log)
