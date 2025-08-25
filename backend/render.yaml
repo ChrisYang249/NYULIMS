@@ -4,7 +4,7 @@ services:
     name: nyu-lims-backend
     env: python
     pythonVersion: "3.10"
-    buildCommand: chmod +x build.sh && ./build.sh
+    buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app.main:app --bind 0.0.0.0:$PORT
     envVars:
       - key: USE_SQLITE
