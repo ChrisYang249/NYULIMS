@@ -9,6 +9,8 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: "3.10.12"
+      - key: DATABASE_URL
+        value: "sqlite:///./nyu_lims.db"
       - key: USE_SQLITE
         value: true
       - key: SECRET_KEY
