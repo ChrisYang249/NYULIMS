@@ -61,11 +61,29 @@ const DeletionLogs = () => {
       dataIndex: 'entity_type',
       key: 'entity_type',
       width: 100,
-      render: (type: string) => (
-        <Tag color={type === 'sample' ? 'blue' : 'green'}>
-          {type.toUpperCase()}
-        </Tag>
-      ),
+      render: (type: string) => {
+        // Use consistent colors with the rest of the system
+        let color = '#d9d9d9'; // Gray for default
+        switch (type) {
+          case 'sample':
+            color = '#1890ff'; // Blue
+            break;
+          case 'project':
+            color = '#52c41a'; // Green
+            break;
+          case 'product':
+          case 'blocker':
+            color = '#722ed1'; // Purple (NYU branding)
+            break;
+          default:
+            color = '#d9d9d9'; // Gray
+        }
+        return (
+          <Tag color={color}>
+            {type.toUpperCase()}
+          </Tag>
+        );
+      },
     },
     {
       title: 'Identifier',
@@ -132,6 +150,8 @@ const DeletionLogs = () => {
           >
             <Select.Option value="sample">Samples Only</Select.Option>
             <Select.Option value="project">Projects Only</Select.Option>
+            <Select.Option value="product">Products Only</Select.Option>
+            <Select.Option value="blocker">Blockers Only</Select.Option>
           </Select>
           <Button
             icon={<ReloadOutlined />}

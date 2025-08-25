@@ -27,6 +27,8 @@ class User(Base, TimestampMixin):
     # Relationships
     audit_logs = relationship("AuditLog", back_populates="user")
     electronic_signatures = relationship("ElectronicSignature", back_populates="signer")
+    blockers = relationship("Blocker", back_populates="created_by")
+    blocker_logs = relationship("BlockerLog", back_populates="created_by")
 
 class ElectronicSignature(Base):
     __tablename__ = "electronic_signatures"

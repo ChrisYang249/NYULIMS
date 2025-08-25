@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, message, Tag, Checkbox, Divider, Badge } from 'antd';
-import { PlusOutlined, EditOutlined, EyeOutlined, SettingOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Modal, Form, Input, message, Tag, Checkbox, Divider, Badge, Popconfirm } from 'antd';
+import { PlusOutlined, EditOutlined, EyeOutlined, SettingOutlined, DeleteOutlined } from '@ant-design/icons';
 import { api } from '../config/api';
 
 interface Client {
@@ -99,6 +99,22 @@ const Clients = () => {
           >
             Edit
           </Button>
+          <Popconfirm
+            title="Delete Client"
+            description="Are you sure you want to delete this client? This action cannot be undone."
+            onConfirm={() => handleDelete(record)}
+            okText="Yes"
+            cancelText="No"
+            okType="danger"
+          >
+            <Button 
+              type="link" 
+              danger
+              icon={<DeleteOutlined />}
+            >
+              Delete
+            </Button>
+          </Popconfirm>
         </Space>
       ),
     },
@@ -140,6 +156,17 @@ const Clients = () => {
     } catch (error: any) {
       console.error('Client update error:', error);
       message.error(error.response?.data?.detail || 'Failed to update client');
+    }
+  };
+
+  const handleDelete = async (client: Client) => {
+    try {
+      await api.delete(`/clients/${client.id}`);
+      message.success('Client deleted successfully');
+      fetchClients();
+    } catch (error: any) {
+      console.error('Client deletion error:', error);
+      message.error(error.response?.data?.detail || 'Failed to delete client');
     }
   };
 

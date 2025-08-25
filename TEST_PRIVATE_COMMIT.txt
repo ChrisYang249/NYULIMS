@@ -1,3 +1,0 @@
-This is a test file to verify that commits only go to the private repository.
-Created on: 2025-02-06
-Purpose: Verify private repository isolation

@@ -2,19 +2,16 @@ import { Layout, Menu, Avatar, Dropdown, Space, Button } from 'antd';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   DashboardOutlined,
-  ProjectOutlined,
-  ExperimentOutlined,
   UserOutlined,
   LogoutOutlined,
   TeamOutlined,
   FileTextOutlined,
   InboxOutlined,
-  TagsOutlined,
   DeleteOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  WarningOutlined,
-  SettingOutlined,
+  ShoppingOutlined,
+  ExperimentOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../../store/authStore';
 import { canAccessRoute } from '../../config/rolePermissions';
@@ -41,60 +38,19 @@ const MainLayout = () => {
       label: 'Clients',
     },
     {
-      key: '/projects',
-      icon: <ProjectOutlined />,
-      label: 'Projects',
+      key: '/products',
+      icon: <ShoppingOutlined />,
+      label: 'Products',
     },
     {
-      key: 'samples',
+      key: '/blockers',
       icon: <ExperimentOutlined />,
-      label: 'Samples',
-      children: [
-        {
-          key: '/samples',
-          label: 'All Samples',
-        },
-        {
-          key: '/samples/accessioning',
-          label: 'Accessioning',
-        },
-        {
-          key: '/samples/extraction-queue',
-          label: 'Extraction Queue',
-        },
-        {
-          key: '/samples/extraction',
-          label: 'In Extraction',
-        },
-        {
-          key: '/samples/dna-quant-queue',
-          label: 'DNA Quant Queue',
-        },
-        {
-          key: '/samples/reprocess',
-          label: 'Reprocess Queue',
-        },
-      ],
-    },
-    {
-      key: '/discrepancy-management',
-      icon: <WarningOutlined />,
-      label: 'Discrepancies',
+      label: 'EP Blockers',
     },
     {
       key: '/storage',
       icon: <InboxOutlined />,
       label: 'Storage',
-    },
-    {
-      key: '/sample-types',
-      icon: <TagsOutlined />,
-      label: 'Sample Types',
-    },
-    {
-      key: '/client-project-config',
-      icon: <SettingOutlined />,
-      label: 'Project ID Config',
     },
     {
       key: '/employees',
@@ -104,7 +60,7 @@ const MainLayout = () => {
     {
       key: '/logs',
       icon: <FileTextOutlined />,
-      label: 'Logs',
+      label: 'Creation Logs',
     },
     {
       key: '/deletion-logs',
@@ -158,13 +114,22 @@ const MainLayout = () => {
   ];
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ height: '100vh', overflow: 'hidden' }}>
       <Sider 
         theme="dark" 
         breakpoint="lg"
         collapsedWidth="80"
         collapsed={collapsed}
         onCollapse={(collapsed) => setCollapsed(collapsed)}
+        style={{
+          background: '#57068c', // NYU Abu Dhabi purple
+          height: '100vh',
+          position: 'fixed',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          zIndex: 1000
+        }}
       >
         <div style={{ 
           height: 32, 
@@ -173,7 +138,7 @@ const MainLayout = () => {
           fontSize: collapsed ? 14 : 20,
           textAlign: 'center'
         }}>
-          {collapsed ? 'LIMS' : 'LIMS System'}
+          {collapsed ? 'LIMS' : 'NYU LIMS'}
         </div>
         <Menu
           theme="dark"
@@ -181,15 +146,24 @@ const MainLayout = () => {
           selectedKeys={[location.pathname]}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
+          style={{
+            background: '#57068c' // NYU Abu Dhabi purple
+          }}
         />
       </Sider>
-      <Layout>
+      <Layout style={{ 
+        marginLeft: collapsed ? 80 : 200,
+        transition: 'margin-left 0.2s'
+      }}>
         <Header style={{ 
           padding: '0 24px', 
           background: '#fff',
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center'
+          alignItems: 'center',
+          position: 'sticky',
+          top: 0,
+          zIndex: 999
         }}>
           <div style={{ display: 'flex', alignItems: 'center' }}>
             <Button
@@ -203,7 +177,7 @@ const MainLayout = () => {
                 marginRight: 16,
               }}
             />
-            <h2 style={{ margin: 0 }}>Laboratory Information Management System</h2>
+            <h2 style={{ margin: 0 }}>NYU Laboratory Information Management System</h2>
           </div>
           <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
             <Space style={{ cursor: 'pointer' }}>
@@ -212,7 +186,13 @@ const MainLayout = () => {
             </Space>
           </Dropdown>
         </Header>
-        <Content style={{ margin: '24px 16px', padding: 24, background: '#fff' }}>
+        <Content style={{ 
+          margin: '24px 16px', 
+          padding: 24, 
+          background: '#fff',
+          overflowY: 'auto',
+          height: 'calc(100vh - 64px)' // Subtract header height
+        }}>
           <Outlet />
         </Content>
       </Layout>

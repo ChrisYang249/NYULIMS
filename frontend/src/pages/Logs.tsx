@@ -6,9 +6,9 @@ import dayjs from 'dayjs';
 
 interface Log {
   id: number;
-  project_id: number;
-  project?: {
-    project_id: string;
+  product_id: number;
+  product?: {
+    id: number;
     name: string;
   };
   comment: string;
@@ -17,42 +17,67 @@ interface Log {
   created_by?: {
     full_name: string;
   };
+  entity_type?: string;
 }
 
-const Logs = () => {
+const CreationLogs = () => {
   const [logs, setLogs] = useState<Log[]>([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState<{
-    project_id?: number;
+    product_id?: number;
     log_type?: string;
     date_from?: string;
     date_to?: string;
   }>({
-    project_id: undefined,
+    product_id: undefined,
     log_type: undefined,
     date_from: undefined,
     date_to: undefined,
   });
 
   useEffect(() => {
-    fetchAllProjectLogs();
+    fetchAllProductLogs();
   }, [filters]);
 
-  const fetchAllProjectLogs = async () => {
+  const fetchAllProductLogs = async () => {
     setLoading(true);
     try {
-      // Fetch all projects first
-      const projectsResponse = await api.get('/projects', { params: { include_deleted: true } });
-      const projects = projectsResponse.data;
-      // Fetch logs for each project
-      const logPromises = projects.map((project: any) =>
-        api.get(`/projects/${project.id}/logs`).then(res =>
-          res.data.map((log: any) => ({ ...log, project: { project_id: project.project_id, name: project.name } }))
-        )
+      // Fetch all products first
+      const productsResponse = await api.get('/products');
+      const products = productsResponse.data;
+      
+      // Fetch logs for each product
+      const productLogPromises = products.map((product: any) =>
+        api.get(`/products/${product.id}/logs`).then(res =>
+          res.data.map((log: any) => ({ 
+            ...log, 
+            product: { id: product.id, name: product.name },
+            entity_type: 'product'
+          }))
+        ).catch(() => []) // If no logs endpoint exists, return empty array
       );
-      const logsArrays = await Promise.all(logPromises);
-      // Flatten the array of arrays
-      let allLogs = logsArrays.flat();
+      
+      // Fetch all blockers
+      const blockersResponse = await api.get('/blockers');
+      const blockers = blockersResponse.data;
+      
+      // Fetch logs for each blocker
+      const blockerLogPromises = blockers.map((blocker: any) =>
+        api.get(`/blockers/${blocker.id}/logs`).then(res =>
+          res.data.map((log: any) => ({ 
+            ...log, 
+            product: { id: blocker.id, name: blocker.name },
+            entity_type: 'blocker'
+          }))
+        ).catch(() => []) // If no logs endpoint exists, return empty array
+      );
+      
+      const productLogsArrays = await Promise.all(productLogPromises);
+      const blockerLogsArrays = await Promise.all(blockerLogPromises);
+      
+      // Flatten and combine the arrays
+      let allLogs = [...productLogsArrays.flat(), ...blockerLogsArrays.flat()];
+      
       // Apply filters if any
       if (filters.log_type) {
         allLogs = allLogs.filter(log => log.log_type.toLowerCase() === String(filters.log_type).toLowerCase());
@@ -81,13 +106,17 @@ const Logs = () => {
       sorter: true,
     },
     {
-      title: 'Project',
-      key: 'project',
-      render: (_: any, record: Log) => (
-        <Link to={`/projects/${record.project_id}`}>
-          {record.project?.project_id || `Project ${record.project_id}`}
-        </Link>
-      ),
+      title: 'Name',
+      key: 'product',
+      render: (_: any, record: Log) => {
+        const entityType = record.entity_type || 'product';
+        const route = entityType === 'blocker' ? `/blockers/${record.product_id}` : `/products/${record.product_id}`;
+        return (
+          <Link to={route}>
+            {record.product?.name || `${entityType.charAt(0).toUpperCase() + entityType.slice(1)} ${record.product_id}`}
+          </Link>
+        );
+      },
     },
     {
       title: 'Type',
@@ -114,7 +143,7 @@ const Logs = () => {
 
   return (
     <div>
-      <h1>Project Logs</h1>
+      <h1>Creation Logs</h1>
       
       <Card style={{ marginBottom: 16 }}>
         <Space size="middle">
@@ -156,4 +185,4 @@ const Logs = () => {
   );
 };
 
-export default Logs;
+export default CreationLogs;

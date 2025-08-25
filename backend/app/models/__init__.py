@@ -11,6 +11,8 @@ from app.models.attachment import ProjectAttachment
 from app.models.extraction_plate import ExtractionPlate, PlateStatus, PlateWellAssignment
 from app.models.control_sample import ControlSample, ControlType, ControlCategory
 from app.models.client_project_config import ClientProjectConfig
+from app.models.product import Product, QuotationStatus, ProductStatus, Requestor, Storage, ProductLog
+from app.models.blocker import Blocker, BlockerLog
 
 __all__ = [
     "AuditLog", "TimestampMixin",
@@ -25,5 +27,7 @@ __all__ = [
     "ProjectAttachment",
     "ExtractionPlate", "PlateStatus", "PlateWellAssignment",
     "ControlSample", "ControlType", "ControlCategory",
-    "ClientProjectConfig"
+    "ClientProjectConfig",
+    "Product", "QuotationStatus", "ProductStatus", "Requestor", "Storage", "ProductLog",
+    "Blocker", "BlockerLog"
 ]

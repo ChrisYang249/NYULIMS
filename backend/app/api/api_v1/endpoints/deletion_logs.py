@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_
 
 from app.api import deps
-from app.models import User, Sample, Project, SampleLog, ProjectLog
+from app.models import User, Sample, Project, SampleLog, ProjectLog, Product, ProductLog, Blocker, BlockerLog
 from app.models.sample import SampleStatus
 from app.models.project import ProjectStatus
 from app.schemas.deletion_log import DeletionLog
@@ -86,6 +86,76 @@ def get_deletion_logs(
                         "deleted_at": deletion_log.created_at,
                         "previous_status": "unknown"  # ProjectLog doesn't track old_value
                     })
+    
+    # Get product deletions
+    if not entity_type or entity_type == "product":
+        product_logs = db.query(ProductLog).filter(
+            ProductLog.log_type == "deletion"
+        ).order_by(ProductLog.created_at.desc()).all()
+        
+        for log in product_logs:
+            # Get the product name from the old_value JSON
+            product_name = "Unknown Product"
+            try:
+                if log.old_value:
+                    import json
+                    old_data = json.loads(log.old_value)
+                    product_name = old_data.get('name', 'Unknown Product')
+            except:
+                pass
+            
+            user = db.query(User).filter(User.id == log.created_by_id).first()
+            
+            if user:
+                # Extract deletion reason from comment
+                reason = log.comment.replace("Product deleted: ", "") if log.comment else "No reason provided"
+                
+                deletion_logs.append({
+                    "id": log.id + 20000,  # Offset to avoid ID conflicts with samples/projects
+                    "entity_type": "product",
+                    "entity_id": log.product_id or 0,  # Use 0 if product_id is null
+                    "entity_identifier": product_name,
+                    "deletion_reason": reason,
+                    "deleted_by": user.full_name,
+                    "deleted_by_id": user.id,
+                    "deleted_at": log.created_at,
+                    "previous_status": "active"  # Products are active before deletion
+                })
+    
+    # Get blocker deletions
+    if not entity_type or entity_type == "blocker":
+        blocker_logs = db.query(BlockerLog).filter(
+            BlockerLog.log_type == "deletion"
+        ).order_by(BlockerLog.created_at.desc()).all()
+        
+        for log in blocker_logs:
+            # Get the blocker name from the old_value JSON
+            blocker_name = "Unknown Blocker"
+            try:
+                if log.old_value:
+                    import json
+                    old_data = json.loads(log.old_value)
+                    blocker_name = old_data.get('name', 'Unknown Blocker')
+            except:
+                pass
+            
+            user = db.query(User).filter(User.id == log.created_by_id).first()
+            
+            if user:
+                # Extract deletion reason from comment
+                reason = log.comment.replace("Blocker deleted: ", "") if log.comment else "No reason provided"
+                
+                deletion_logs.append({
+                    "id": log.id + 30000,  # Offset to avoid ID conflicts with samples/projects/products
+                    "entity_type": "blocker",
+                    "entity_id": log.blocker_id or 0,  # Use 0 if blocker_id is null
+                    "entity_identifier": blocker_name,
+                    "deletion_reason": reason,
+                    "deleted_by": user.full_name,
+                    "deleted_by_id": user.id,
+                    "deleted_at": log.created_at,
+                    "previous_status": "active"  # Blockers are active before deletion
+                })
     
     # Sort by deletion date
     deletion_logs.sort(key=lambda x: x["deleted_at"], reverse=True)

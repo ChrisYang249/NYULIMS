@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.api import deps
-from app.models import User, Client, ClientProjectConfig
+from app.models import User, Client, ClientProjectConfig, Project
 from app.schemas.client import Client as ClientSchema, ClientCreate, ClientUpdate
 
 router = APIRouter()
@@ -147,3 +147,38 @@ def update_client(
             db.commit()
     
     return client
+
+
+@router.delete("/{client_id}")
+def delete_client(
+    *,
+    db: Session = Depends(deps.get_db),
+    client_id: int,
+    current_user: User = Depends(deps.get_current_user),
+) -> Any:
+    """
+    Delete a client.
+    """
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(
+            status_code=404,
+            detail="Client not found",
+        )
+    
+    # Check if client has any projects
+    project_count = db.query(func.count(Project.id)).filter(Project.client_id == client_id).scalar()
+    if project_count > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete client. Client has {project_count} associated project(s). Please delete the projects first.",
+        )
+    
+    # Delete client project config if it exists
+    db.query(ClientProjectConfig).filter(ClientProjectConfig.client_id == client_id).delete()
+    
+    # Delete the client
+    db.delete(client)
+    db.commit()
+    
+    return {"message": "Client deleted successfully"}

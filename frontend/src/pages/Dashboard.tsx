@@ -1,21 +1,33 @@
 import { useState, useEffect } from 'react';
 import { Card, Row, Col, Statistic, Spin } from 'antd';
-import { ProjectOutlined, ExperimentOutlined, CheckCircleOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { 
+  ProjectOutlined, 
+  ExperimentOutlined, 
+  CheckCircleOutlined, 
+  ClockCircleOutlined,
+  ReloadOutlined,
+  FileTextOutlined,
+  SendOutlined
+} from '@ant-design/icons';
 import { api } from '../config/api';
 
 interface DashboardStats {
-  active_projects: number;
-  total_samples: number;
-  completed_this_month: number;
-  pending_analysis: number;
+  total_products: number;
+  completed_orders: number;
+  renewed_orders: number;
+  requested_orders: number;
+  pending_orders: number;
+  issued_orders: number;
 }
 
 const Dashboard = () => {
   const [stats, setStats] = useState<DashboardStats>({
-    active_projects: 0,
-    total_samples: 0,
-    completed_this_month: 0,
-    pending_analysis: 0,
+    total_products: 0,
+    completed_orders: 0,
+    renewed_orders: 0,
+    requested_orders: 0,
+    pending_orders: 0,
+    issued_orders: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -45,44 +57,64 @@ const Dashboard = () => {
   return (
     <div>
       <h1>Dashboard</h1>
-      <Row gutter={16}>
-        <Col span={6}>
-          <Card>
+      <Row gutter={[16, 16]} justify="space-between" style={{ marginTop: '24px' }}>
+        <Col span={4}>
+          <Card style={{ height: '100%', textAlign: 'center' }}>
             <Statistic
-              title="Active Projects"
-              value={stats.active_projects}
-              prefix={<ProjectOutlined />}
-              valueStyle={{ color: '#3f8600' }}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="Total Samples"
-              value={stats.total_samples}
+              title="Total Products"
+              value={stats.total_products}
               prefix={<ExperimentOutlined />}
               valueStyle={{ color: '#1890ff' }}
             />
           </Card>
         </Col>
-        <Col span={6}>
-          <Card>
+        <Col span={4}>
+          <Card style={{ height: '100%', textAlign: 'center' }}>
             <Statistic
-              title="Completed This Month"
-              value={stats.completed_this_month}
+              title="Completed Orders"
+              value={stats.completed_orders}
               prefix={<CheckCircleOutlined />}
               valueStyle={{ color: '#52c41a' }}
             />
           </Card>
         </Col>
-        <Col span={6}>
-          <Card>
+        <Col span={4}>
+          <Card style={{ height: '100%', textAlign: 'center' }}>
             <Statistic
-              title="Pending Analysis"
-              value={stats.pending_analysis}
+              title="Renewed Orders"
+              value={stats.renewed_orders}
+              prefix={<ReloadOutlined />}
+              valueStyle={{ color: '#722ed1' }}
+            />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card style={{ height: '100%', textAlign: 'center' }}>
+            <Statistic
+              title="Requested Orders"
+              value={stats.requested_orders}
+              prefix={<FileTextOutlined />}
+              valueStyle={{ color: '#fa8c16' }}
+            />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card style={{ height: '100%', textAlign: 'center' }}>
+            <Statistic
+              title="Pending Orders"
+              value={stats.pending_orders}
               prefix={<ClockCircleOutlined />}
               valueStyle={{ color: '#faad14' }}
+            />
+          </Card>
+        </Col>
+        <Col span={4}>
+          <Card style={{ height: '100%', textAlign: 'center' }}>
+            <Statistic
+              title="Issued Orders"
+              value={stats.issued_orders}
+              prefix={<SendOutlined />}
+              valueStyle={{ color: '#1890ff' }}
             />
           </Card>
         </Col>

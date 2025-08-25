@@ -26,7 +26,7 @@ const Login = () => {
       alignItems: 'center',
       background: '#f0f2f5'
     }}>
-      <Card title="LIMS System Login" style={{ width: 400 }}>
+      <Card title="NYU LIMS Login" style={{ width: 400 }}>
         <Form
           form={form}
           name="login"

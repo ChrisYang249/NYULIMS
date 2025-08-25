@@ -20,3 +20,141 @@ code {
 .row-with-discrepancy:hover td {
   background-color: #fff1d9 !important;
 }
+
+/* NYU Abu Dhabi Purple Theme */
+.ant-menu-dark {
+  background: #57068c !important;
+}
+
+.ant-menu-dark .ant-menu-item:hover {
+  background-color: #6a0dad !important;
+}
+
+.ant-menu-dark .ant-menu-item-selected {
+  background-color: #6a0dad !important;
+}
+
+.ant-menu-dark .ant-menu-submenu-title:hover {
+  background-color: #6a0dad !important;
+}
+
+.ant-layout-sider {
+  background: #57068c !important;
+  height: 100vh !important;
+  position: fixed !important;
+  left: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  z-index: 1000 !important;
+  overflow-y: auto !important;
+}
+
+.ant-layout-sider-children {
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.ant-layout-sider .ant-menu {
+  flex: 1 !important;
+  overflow-y: auto !important;
+}
+
+/* Responsive sidebar behavior */
+@media (max-width: 992px) {
+  .ant-layout-sider {
+    position: fixed !important;
+    transform: translateX(-100%) !important;
+    transition: transform 0.2s !important;
+  }
+  
+  .ant-layout-sider.ant-layout-sider-collapsed {
+    transform: translateX(0) !important;
+  }
+}
+
+/* Dashboard Card Alignment */
+.ant-card {
+  display: flex;
+  flex-direction: column;
+  height: 140px !important;
+}
+
+.ant-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 20px !important;
+}
+
+.ant-statistic {
+  text-align: center;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.ant-statistic-title {
+  margin-bottom: 8px !important;
+  font-size: 14px !important;
+  line-height: 1.2 !important;
+}
+
+.ant-statistic-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Products Page NYU Purple Theme */
+.ant-table-pagination .ant-pagination-item-active {
+  border-color: #57068c !important;
+}
+
+.ant-table-pagination .ant-pagination-item-active a {
+  color: #57068c !important;
+}
+
+.ant-table-pagination .ant-pagination-item:hover {
+  border-color: #6a0dad !important;
+}
+
+.ant-table-pagination .ant-pagination-item:hover a {
+  color: #6a0dad !important;
+}
+
+.ant-table-pagination .ant-pagination-prev:hover .ant-pagination-item-link,
+.ant-table-pagination .ant-pagination-next:hover .ant-pagination-item-link {
+  border-color: #6a0dad !important;
+  color: #6a0dad !important;
+}
+
+.ant-table-pagination .ant-select-focused .ant-select-selector {
+  border-color: #57068c !important;
+}
+
+.ant-table-pagination .ant-select:hover .ant-select-selector {
+  border-color: #6a0dad !important;
+}
+
+/* Product name links */
+.ant-table-tbody a {
+  color: #57068c !important;
+}
+
+.ant-table-tbody a:hover {
+  color: #6a0dad !important;
+}
+
+/* Requestor tags */
+.ant-tag {
+  border-color: #57068c !important;
+}
+
+.ant-tag[style*="color: #57068c"] {
+  background-color: #f0e6f7 !important;
+  color: #57068c !important;
+}
