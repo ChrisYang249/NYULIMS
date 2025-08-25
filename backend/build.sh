@@ -4,7 +4,7 @@
 echo "Upgrading pip..."
 pip install --upgrade pip
 
-echo "Installing Python dependencies..."
-pip install --no-cache-dir -r requirements.txt
+echo "Installing Python dependencies with pre-compiled wheels..."
+pip install --no-cache-dir --only-binary=all -r requirements.txt
 
 echo "Build completed successfully!"
