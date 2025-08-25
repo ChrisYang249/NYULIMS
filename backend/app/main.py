@@ -7,8 +7,9 @@ from sqlalchemy import text
 
 from app.core.config import settings
 from app.api.api_v1.api import api_router
-from app.db.base import engine, Base
+from app.db.base import engine, Base, SessionLocal
 from app.models import *  # Import all models
+from app.crud.user import create_user, get_user_by_username
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -21,6 +22,30 @@ async def lifespan(app: FastAPI):
         # Try to create tables, but don't fail if they already exist
         Base.metadata.create_all(bind=engine, checkfirst=True)
         logger.info("Database tables initialized successfully")
+        
+        # Create admin user if it doesn't exist
+        db = SessionLocal()
+        try:
+            existing_admin = get_user_by_username(db, "admin")
+            if not existing_admin:
+                logger.info("Creating admin user...")
+                user_data = {
+                    "email": "admin@lims.com",
+                    "username": "admin",
+                    "full_name": "Admin User",
+                    "role": "super_admin",
+                    "password": "Admin123!"
+                }
+                create_user(db, user_data)
+                logger.info("Admin user created successfully!")
+                logger.info("Username: admin, Password: Admin123!")
+            else:
+                logger.info("Admin user already exists")
+        except Exception as e:
+            logger.warning(f"Error creating admin user: {e}")
+        finally:
+            db.close()
+            
     except Exception as e:
         logger.warning(f"Database initialization warning: {e}")
         logger.info("Continuing with existing database schema...")
