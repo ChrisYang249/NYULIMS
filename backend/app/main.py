@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import time
 import logging
+from sqlalchemy import text
 
 from app.core.config import settings
 from app.api.api_v1.api import api_router
@@ -15,8 +16,14 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    logger.info("Creating database tables...")
-    Base.metadata.create_all(bind=engine)
+    logger.info("Initializing database...")
+    try:
+        # Try to create tables, but don't fail if they already exist
+        Base.metadata.create_all(bind=engine, checkfirst=True)
+        logger.info("Database tables initialized successfully")
+    except Exception as e:
+        logger.warning(f"Database initialization warning: {e}")
+        logger.info("Continuing with existing database schema...")
     yield
     # Shutdown
     logger.info("Shutting down...")
