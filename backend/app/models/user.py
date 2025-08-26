@@ -24,10 +24,6 @@ class User(Base, TimestampMixin):
     signature_pin = Column(String)  # Hashed PIN for e-signatures
     signature_meaning = Column(String)  # Full name as it appears in signatures
     
-    # Audit fields (moved from mixin for SQLAlchemy 1.4 compatibility)
-    created_by_id = Column(Integer, ForeignKey("users.id"))
-    updated_by_id = Column(Integer, ForeignKey("users.id"))
-    
     # Relationships
     audit_logs = relationship("AuditLog", back_populates="user")
     electronic_signatures = relationship("ElectronicSignature", back_populates="signer")
