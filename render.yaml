@@ -18,4 +18,4 @@ services:
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: 720
       - key: PYTHON_VERSION
-        value: "3.10"
+        value: "3.10.12"
