@@ -49,3 +49,31 @@ def authenticate_user(db: Session, username: str, password: str):
     db.commit()
     
     return user
+
+def update_user_password(db: Session, user: User, new_password: str):
+    """Update user's password and maintain password history"""
+    from app.core.security import get_password_hash
+    
+    # Hash the new password
+    new_hashed_password = get_password_hash(new_password)
+    
+    # Get current password history
+    try:
+        password_history = json.loads(user.password_history) if user.password_history else []
+    except json.JSONDecodeError:
+        password_history = []
+    
+    # Add current password to history (keep last 5 passwords)
+    if user.hashed_password:
+        password_history.append(user.hashed_password)
+        if len(password_history) > 5:
+            password_history = password_history[-5:]
+    
+    # Update user's password and history
+    user.hashed_password = new_hashed_password
+    user.password_history = json.dumps(password_history)
+    user.last_password_change = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(user)
+    return user
