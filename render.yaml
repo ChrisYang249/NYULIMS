@@ -1,10 +1,11 @@
 services:
-  # Backend API
+  # Backend API (Free tier only)
   - type: web
     name: nyu-lims-backend
     env: python
+    plan: free
     buildCommand: cd backend && pip install -r requirements.txt
-    startCommand: cd backend && gunicorn app.main:app --bind 0.0.0.0:$PORT
+    startCommand: cd backend && gunicorn app.main:app --bind 0.0.0.0:$PORT --workers 1
     envVars:
       - key: DATABASE_URL
         value: "sqlite:///./nyu_lims.db"
@@ -16,13 +17,3 @@ services:
         value: HS256
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: 720
-
-  # Frontend
-  - type: web
-    name: nyu-lims-frontend
-    env: static
-    buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: frontend/dist
-    envVars:
-      - key: VITE_API_URL
-        value: https://nyu-lims-backend.onrender.com/api/v1
