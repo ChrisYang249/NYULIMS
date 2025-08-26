@@ -13,8 +13,6 @@ import {
   ShoppingOutlined,
   ExperimentOutlined,
 } from '@ant-design/icons';
-import { useAuthStore } from '../../store/authStore';
-import { canAccessRoute } from '../../config/rolePermissions';
 import { useMemo, useState } from 'react';
 
 const { Header, Sider, Content } = Layout;
@@ -22,7 +20,6 @@ const { Header, Sider, Content } = Layout;
 const MainLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuthStore();
   const [collapsed, setCollapsed] = useState(false);
 
   // Define all menu items with their paths
@@ -69,46 +66,18 @@ const MainLayout = () => {
     },
   ];
 
-  // Filter menu items based on user role
+  // Use all menu items without filtering
   const menuItems = useMemo(() => {
-    const userRole = user?.role;
-    
-    const filterMenuItems = (items: any[]): any[] => {
-      return items
-        .map(item => {
-          // Check if user can access this route
-          const canAccess = item.key.startsWith('/') 
-            ? canAccessRoute(userRole, item.key)
-            : true; // Parent items without direct routes are always shown if they have accessible children
-          
-          if (!canAccess) return null;
-          
-          // If item has children, filter them recursively
-          if (item.children) {
-            const filteredChildren = filterMenuItems(item.children);
-            
-            // Only include parent if it has accessible children
-            if (filteredChildren.length === 0) return null;
-            
-            return { ...item, children: filteredChildren };
-          }
-          
-          return item;
-        })
-        .filter(Boolean);
-    };
-    
-    return filterMenuItems(allMenuItems);
-  }, [user?.role]);
+    return allMenuItems;
+  }, []);
 
   const userMenuItems = [
     {
-      key: 'logout',
-      icon: <LogoutOutlined />,
-      label: 'Logout',
+      key: 'profile',
+      icon: <UserOutlined />,
+      label: 'Profile',
       onClick: () => {
-        logout();
-        navigate('/login');
+        // No action needed for now
       },
     },
   ];
@@ -182,7 +151,7 @@ const MainLayout = () => {
           <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
             <Space style={{ cursor: 'pointer' }}>
               <Avatar icon={<UserOutlined />} />
-              <span>{user?.full_name}</span>
+              <span>Admin User</span>
             </Space>
           </Dropdown>
         </Header>
