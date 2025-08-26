@@ -5,16 +5,16 @@ import os
 
 from app.core.config import settings
 
-# Use SQLite for Render deployment, PostgreSQL for local development
+# Use SQLite for free deployment, PostgreSQL for paid
 if os.getenv("USE_SQLITE", "false").lower() == "true":
-    # SQLite database (for Render free tier)
+    # SQLite database (free forever)
     DATABASE_URL = "sqlite:///./nyu_lims.db"
     engine = create_engine(
         DATABASE_URL, 
         connect_args={"check_same_thread": False}
     )
 else:
-    # PostgreSQL database (for local development)
+    # PostgreSQL database (paid after 90 days)
     engine = create_engine(settings.DATABASE_URL)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=True, bind=engine)

@@ -13,6 +13,8 @@ import {
   ShoppingOutlined,
   ExperimentOutlined,
 } from '@ant-design/icons';
+import { useAuthStore } from '../../store/authStore';
+import { canAccessRoute } from '../../config/rolePermissions';
 import { useMemo, useState } from 'react';
 
 const { Header, Sider, Content } = Layout;
@@ -20,10 +22,21 @@ const { Header, Sider, Content } = Layout;
 const MainLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, logout } = useAuthStore();
   const [collapsed, setCollapsed] = useState(false);
 
   // Define all menu items with their paths
   const allMenuItems = [
+    {
+      key: '/dashboard',
+      icon: <DashboardOutlined />,
+      label: 'Dashboard',
+    },
+    {
+      key: '/clients',
+      icon: <TeamOutlined />,
+      label: 'Clients',
+    },
     {
       key: '/products',
       icon: <ShoppingOutlined />,
@@ -34,20 +47,68 @@ const MainLayout = () => {
       icon: <ExperimentOutlined />,
       label: 'EP Blockers',
     },
+    {
+      key: '/storage',
+      icon: <InboxOutlined />,
+      label: 'Storage',
+    },
+    {
+      key: '/employees',
+      icon: <UserOutlined />,
+      label: 'Users',
+    },
+    {
+      key: '/logs',
+      icon: <FileTextOutlined />,
+      label: 'Creation Logs',
+    },
+    {
+      key: '/deletion-logs',
+      icon: <DeleteOutlined />,
+      label: 'Deletion Logs',
+    },
   ];
 
-  // Use all menu items without filtering
+  // Filter menu items based on user role
   const menuItems = useMemo(() => {
-    return allMenuItems;
-  }, []);
+    const userRole = user?.role;
+    
+    const filterMenuItems = (items: any[]): any[] => {
+      return items
+        .map(item => {
+          // Check if user can access this route
+          const canAccess = item.key.startsWith('/') 
+            ? canAccessRoute(userRole, item.key)
+            : true; // Parent items without direct routes are always shown if they have accessible children
+          
+          if (!canAccess) return null;
+          
+          // If item has children, filter them recursively
+          if (item.children) {
+            const filteredChildren = filterMenuItems(item.children);
+            
+            // Only include parent if it has accessible children
+            if (filteredChildren.length === 0) return null;
+            
+            return { ...item, children: filteredChildren };
+          }
+          
+          return item;
+        })
+        .filter(Boolean);
+    };
+    
+    return filterMenuItems(allMenuItems);
+  }, [user?.role]);
 
   const userMenuItems = [
     {
-      key: 'profile',
-      icon: <UserOutlined />,
-      label: 'Profile',
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: 'Logout',
       onClick: () => {
-        // No action needed for now
+        logout();
+        navigate('/login');
       },
     },
   ];
@@ -121,7 +182,7 @@ const MainLayout = () => {
           <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
             <Space style={{ cursor: 'pointer' }}>
               <Avatar icon={<UserOutlined />} />
-              <span>Admin User</span>
+              <span>{user?.full_name}</span>
             </Space>
           </Dropdown>
         </Header>

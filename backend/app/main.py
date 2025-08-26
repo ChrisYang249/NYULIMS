@@ -3,10 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import time
 import logging
+from sqlalchemy import text
 
 from app.core.config import settings
 from app.api.api_v1.api import api_router
 from app.db.base import engine, Base
+from app.models import *  # Import all models
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -16,7 +18,8 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Initializing database...")
     try:
-        Base.metadata.create_all(bind=engine)
+        # Try to create tables, but don't fail if they already exist
+        Base.metadata.create_all(bind=engine, checkfirst=True)
         logger.info("Database tables initialized successfully")
     except Exception as e:
         logger.warning(f"Database initialization warning: {e}")
@@ -34,7 +37,7 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173", "https://nyulims.vercel.app"],  # React dev servers + Vercel
+    allow_origins=["http://localhost:3000", "http://localhost:5173"],  # React dev servers
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
