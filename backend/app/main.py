@@ -70,3 +70,43 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 @app.get("/")
 async def root():
     return {"message": "LIMS System API", "version": settings.VERSION}
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint that ensures admin user exists"""
+    from app.db.base import SessionLocal
+    from app.crud import user as crud_user
+    
+    try:
+        db = SessionLocal()
+        # Check if admin user exists, create if not
+        admin_user = crud_user.get_user_by_username(db, "admin")
+        if not admin_user:
+            # Create admin user
+            user_data = {
+                "email": "admin@lims.com",
+                "username": "admin",
+                "full_name": "Admin User",
+                "role": "super_admin",
+                "password": "Admin123!"
+            }
+            crud_user.create_user(db, user_data)
+            admin_created = True
+        else:
+            admin_created = False
+        
+        db.close()
+        
+        return {
+            "status": "healthy",
+            "admin_user_exists": True,
+            "admin_created": admin_created,
+            "admin_username": "admin",
+            "message": "LIMS system is running and admin access is guaranteed"
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "error": str(e),
+            "admin_user_exists": False
+        }
