@@ -26,8 +26,11 @@ async def lifespan(app: FastAPI):
         # Create admin user if it doesn't exist
         db = SessionLocal()
         try:
-            existing_admin = get_user_by_username(db, "admin")
-            if not existing_admin:
+            # Check for existing admin by both username and email
+            existing_admin_by_username = get_user_by_username(db, "admin")
+            existing_admin_by_email = db.query(User).filter(User.email == "admin@lims.com").first()
+            
+            if not existing_admin_by_username and not existing_admin_by_email:
                 logger.info("Creating admin user...")
                 user_data = {
                     "email": "admin@lims.com",
@@ -49,7 +52,11 @@ async def lifespan(app: FastAPI):
                     else:
                         logger.error("Failed to create admin user")
             else:
-                logger.info("Admin user already exists")
+                logger.info("Admin user already exists (username or email)")
+                if existing_admin_by_username:
+                    logger.info(f"Found admin by username: {existing_admin_by_username.username}")
+                if existing_admin_by_email:
+                    logger.info(f"Found admin by email: {existing_admin_by_email.email}")
             
 
                 
