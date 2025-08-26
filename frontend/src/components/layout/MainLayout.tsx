@@ -25,16 +25,6 @@ const MainLayout = () => {
   // Define all menu items with their paths
   const allMenuItems = [
     {
-      key: '/dashboard',
-      icon: <DashboardOutlined />,
-      label: 'Dashboard',
-    },
-    {
-      key: '/clients',
-      icon: <TeamOutlined />,
-      label: 'Clients',
-    },
-    {
       key: '/products',
       icon: <ShoppingOutlined />,
       label: 'Products',
@@ -43,26 +33,6 @@ const MainLayout = () => {
       key: '/blockers',
       icon: <ExperimentOutlined />,
       label: 'EP Blockers',
-    },
-    {
-      key: '/storage',
-      icon: <InboxOutlined />,
-      label: 'Storage',
-    },
-    {
-      key: '/employees',
-      icon: <UserOutlined />,
-      label: 'Users',
-    },
-    {
-      key: '/logs',
-      icon: <FileTextOutlined />,
-      label: 'Creation Logs',
-    },
-    {
-      key: '/deletion-logs',
-      icon: <DeleteOutlined />,
-      label: 'Deletion Logs',
     },
   ];
 
