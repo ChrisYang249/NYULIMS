@@ -69,3 +69,36 @@ async def validate_password(
             detail="Invalid password",
         )
     return {"valid": True}
+
+@router.post("/create-admin")
+async def create_admin_user(
+    db: Session = Depends(deps.get_db),
+) -> Any:
+    """Create admin user if it doesn't exist (temporary endpoint for setup)"""
+    try:
+        # Check if admin already exists
+        existing = crud_user.get_user_by_username(db, "admin")
+        if existing:
+            return {"message": "Admin user already exists", "username": existing.username}
+        
+        # Create admin user
+        user_data = {
+            "email": "admin@lims.com",
+            "username": "admin",
+            "full_name": "Admin User",
+            "role": "super_admin",
+            "password": "Admin123!"
+        }
+        
+        user = crud_user.create_user(db, user_data)
+        return {
+            "message": "Admin user created successfully",
+            "username": user.username,
+            "email": user.email,
+            "role": user.role
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating admin user: {str(e)}",
+        )
