@@ -36,9 +36,18 @@ async def lifespan(app: FastAPI):
                     "role": "super_admin",
                     "password": "Admin123!"
                 }
-                create_user(db, user_data)
-                logger.info("Admin user created successfully!")
-                logger.info("Username: admin, Password: Admin123!")
+                try:
+                    create_user(db, user_data)
+                    logger.info("Admin user created successfully!")
+                    logger.info("Username: admin, Password: Admin123!")
+                except Exception as create_error:
+                    logger.warning(f"Error creating admin user: {create_error}")
+                    # Check if user was actually created despite the error
+                    existing_admin = get_user_by_username(db, "admin")
+                    if existing_admin:
+                        logger.info("Admin user exists despite error - continuing...")
+                    else:
+                        logger.error("Failed to create admin user")
             else:
                 logger.info("Admin user already exists")
             
