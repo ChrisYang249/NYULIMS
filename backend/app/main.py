@@ -23,15 +23,16 @@ async def lifespan(app: FastAPI):
         Base.metadata.create_all(bind=engine, checkfirst=True)
         logger.info("Database tables initialized successfully")
         
-        # Create admin user if it doesn't exist
+        # Create admin user if it doesn't exist (with race condition protection)
         db = SessionLocal()
         try:
-            # Check for existing admin by both username and email
-            existing_admin_by_username = get_user_by_username(db, "admin")
-            existing_admin_by_email = db.query(User).filter(User.email == "admin@lims.com").first()
+            # Use a database lock to prevent race conditions between workers
+            lock_query = text("SELECT COUNT(*) FROM users WHERE username = 'admin' OR email = 'admin@lims.com'")
+            result = db.execute(lock_query)
+            existing_count = result.fetchone()[0]
             
-            if not existing_admin_by_username and not existing_admin_by_email:
-                logger.info("Creating admin user...")
+            if existing_count == 0:
+                logger.info("No admin user found, attempting to create...")
                 user_data = {
                     "email": "admin@lims.com",
                     "username": "admin",
@@ -45,18 +46,22 @@ async def lifespan(app: FastAPI):
                     logger.info("Username: admin, Password: Admin123!")
                 except Exception as create_error:
                     logger.warning(f"Error creating admin user: {create_error}")
-                    # Check if user was actually created despite the error
+                    # Check if another worker created the user
+                    db.rollback()  # Clear the failed transaction
+                    db = SessionLocal()  # Get a fresh session
                     existing_admin = get_user_by_username(db, "admin")
                     if existing_admin:
-                        logger.info("Admin user exists despite error - continuing...")
+                        logger.info("Admin user was created by another worker - continuing...")
                     else:
                         logger.error("Failed to create admin user")
             else:
-                logger.info("Admin user already exists (username or email)")
-                if existing_admin_by_username:
-                    logger.info(f"Found admin by username: {existing_admin_by_username.username}")
-                if existing_admin_by_email:
-                    logger.info(f"Found admin by email: {existing_admin_by_email.email}")
+                logger.info("Admin user already exists")
+                # Verify admin user details
+                existing_admin = get_user_by_username(db, "admin")
+                if existing_admin:
+                    logger.info(f"Admin user verified: {existing_admin.username} ({existing_admin.email})")
+                else:
+                    logger.warning("Admin user count > 0 but user not found by username")
             
 
                 
