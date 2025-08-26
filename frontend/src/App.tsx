@@ -1,8 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ConfigProvider, App as AntdApp } from 'antd';
-import { useEffect } from 'react';
-import { useAuthStore } from './store/authStore';
-import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
 import ProductDetails from './pages/ProductDetails';
@@ -14,14 +11,8 @@ import Employees from './pages/Employees';
 import Logs from './pages/Logs';
 import DeletionLogs from './pages/DeletionLogs';
 import MainLayout from './components/layout/MainLayout';
-import ProtectedRoute from './components/auth/ProtectedRoute';
 
 function App() {
-  const { checkAuth } = useAuthStore();
-
-  useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
 
   return (
     <ConfigProvider
@@ -34,14 +25,9 @@ function App() {
       <AntdApp>
         <Router>
           <Routes>
-            <Route path="/login" element={<Login />} />
             <Route
               path="/"
-              element={
-                <ProtectedRoute>
-                  <MainLayout />
-                </ProtectedRoute>
-              }
+              element={<MainLayout />}
             >
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />

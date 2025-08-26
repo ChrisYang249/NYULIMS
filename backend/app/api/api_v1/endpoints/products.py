@@ -7,7 +7,7 @@ import logging
 from app.api import deps
 from app.models.product import Product, QuotationStatus, ProductStatus, Requestor, Storage, ProductLog
 from app.schemas.product import ProductCreate, ProductUpdate, Product as ProductSchema, ProductList, ProductLog as ProductLogSchema
-from app.models.user import User
+
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -23,7 +23,6 @@ def get_products(
     requestor: Optional[str] = Query(None),  # Changed from Requestor enum to str
     status: Optional[str] = Query(None),  # Changed from ProductStatus enum to str
     vendor: Optional[str] = Query(None),
-    current_user: User = Depends(deps.get_current_user),
 ):
     """
     Retrieve products with optional filtering.
