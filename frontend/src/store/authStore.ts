@@ -13,7 +13,7 @@ interface AuthState {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (password: string) => Promise<void>;
   logout: () => void;
   checkAuth: () => Promise<void>;
 }
@@ -23,14 +23,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   token: localStorage.getItem('access_token'),
   isAuthenticated: !!localStorage.getItem('access_token'),
 
-  login: async (username: string, password: string) => {
-    const formData = new FormData();
-    formData.append('username', username);
-    formData.append('password', password);
-    
-    const response = await api.post('/auth/login', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+  login: async (password: string) => {
+    const response = await api.post('/auth/simple-login', { password });
     
     const { access_token, user } = response.data;
     localStorage.setItem('access_token', access_token);

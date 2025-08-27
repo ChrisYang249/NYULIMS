@@ -13,6 +13,7 @@ from app.models.control_sample import ControlSample, ControlType, ControlCategor
 from app.models.client_project_config import ClientProjectConfig
 from app.models.product import Product, QuotationStatus, ProductStatus, Requestor, Storage, ProductLog
 from app.models.blocker import Blocker, BlockerLog
+from app.models.system_password import SystemPassword
 
 __all__ = [
     "AuditLog", "TimestampMixin",
@@ -29,5 +30,6 @@ __all__ = [
     "ControlSample", "ControlType", "ControlCategory",
     "ClientProjectConfig",
     "Product", "QuotationStatus", "ProductStatus", "Requestor", "Storage", "ProductLog",
-    "Blocker", "BlockerLog"
+    "Blocker", "BlockerLog",
+    "SystemPassword"
 ]

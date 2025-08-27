@@ -21,6 +21,9 @@ class PasswordChange(BaseModel):
     current_password: str
     new_password: str
 
+class SimpleLogin(BaseModel):
+    password: str
+
 @router.post("/login", response_model=Token)
 async def login(
     db: Session = Depends(deps.get_db),
@@ -200,4 +203,67 @@ async def health_check(
             "error": str(e),
             "admin_user_exists": False
         }
+
+@router.post("/simple-login")
+async def simple_login(
+    login_data: SimpleLogin,
+    db: Session = Depends(deps.get_db),
+) -> Any:
+    """Simple password-only authentication"""
+    try:
+        # Get the system password from database
+        system_password = db.query(SystemPassword).first()
+        
+        if not system_password:
+            # Create system password if it doesn't exist
+            from app.core.security import get_password_hash
+            hashed_password = get_password_hash("Admin123!")
+            system_password = SystemPassword(password_hash=hashed_password)
+            db.add(system_password)
+            db.commit()
+            db.refresh(system_password)
+        
+        # Verify password
+        from app.core.security import verify_password
+        if not verify_password(login_data.password, system_password.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect password",
+            )
+        
+        # Create a simple admin user for the session
+        admin_user = crud_user.get_user_by_username(db, "admin")
+        if not admin_user:
+            # Create admin user if it doesn't exist
+            user_data = {
+                "email": "admin@lims.com",
+                "username": "admin",
+                "full_name": "Admin User",
+                "role": "super_admin",
+                "password": "Admin123!"
+            }
+            admin_user = crud_user.create_user(db, user_data)
+        
+        # Generate JWT token
+        access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = security.create_access_token(
+            data={"sub": admin_user.username}, expires_delta=access_token_expires
+        )
+        
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": {
+                "id": admin_user.id,
+                "email": admin_user.email,
+                "username": admin_user.username,
+                "full_name": admin_user.full_name,
+                "role": admin_user.role
+            }
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Login error: {str(e)}",
+        )
 

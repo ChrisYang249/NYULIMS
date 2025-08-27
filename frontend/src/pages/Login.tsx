@@ -1,5 +1,5 @@
 import { Form, Input, Button, Card, message } from 'antd';
-import { UserOutlined, LockOutlined } from '@ant-design/icons';
+import { LockOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 
@@ -8,9 +8,9 @@ const Login = () => {
   const { login } = useAuthStore();
   const [form] = Form.useForm();
 
-  const onFinish = async (values: { username: string; password: string }) => {
+  const onFinish = async (values: { password: string }) => {
     try {
-      await login(values.username, values.password);
+      await login(values.password);
       message.success('Login successful');
       navigate('/dashboard');
     } catch (error: any) {
@@ -26,7 +26,7 @@ const Login = () => {
       alignItems: 'center',
       background: '#f0f2f5'
     }}>
-      <Card title="NYU LIMS Login" style={{ width: 400 }}>
+      <Card title="NYU LIMS System Access" style={{ width: 400 }}>
         <Form
           form={form}
           name="login"
@@ -35,23 +35,12 @@ const Login = () => {
           layout="vertical"
         >
           <Form.Item
-            name="username"
-            rules={[{ required: true, message: 'Please input your username!' }]}
-          >
-            <Input 
-              prefix={<UserOutlined />} 
-              placeholder="Username" 
-              size="large"
-            />
-          </Form.Item>
-
-          <Form.Item
             name="password"
-            rules={[{ required: true, message: 'Please input your password!' }]}
+            rules={[{ required: true, message: 'Please input the system password!' }]}
           >
             <Input.Password
               prefix={<LockOutlined />}
-              placeholder="Password"
+              placeholder="Enter system password"
               size="large"
             />
           </Form.Item>
