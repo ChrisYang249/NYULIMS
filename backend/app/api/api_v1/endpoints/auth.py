@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.crud import user as crud_user
 from app.schemas.token import Token
 from app.schemas.user import User
+from app.models.system_password import SystemPassword
 from pydantic import BaseModel
 
 router = APIRouter()
