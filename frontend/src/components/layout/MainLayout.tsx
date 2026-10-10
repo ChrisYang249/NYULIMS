@@ -48,11 +48,6 @@ const MainLayout = () => {
       label: 'EP Blockers',
     },
     {
-      key: '/storage',
-      icon: <InboxOutlined />,
-      label: 'Storage',
-    },
-    {
       key: '/employees',
       icon: <UserOutlined />,
       label: 'Users',

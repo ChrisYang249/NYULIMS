@@ -88,3 +88,8 @@ venv.bak/# Claude-specific files
 CLAUDE.md
 CHAT_HISTORY*.md
 docs/CHAT_HISTORY*.md
+
+# Not needed by the Python backend
+backend/node_modules/
+*.db
+frontend/dist/

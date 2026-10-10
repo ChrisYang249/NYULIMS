@@ -2,9 +2,11 @@
 """Create initial admin user for LIMS system"""
 
 import sys
+
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+from app.core.config import settings
 from app.db.base import SessionLocal
 from app.crud.user import create_user
 
@@ -26,13 +28,13 @@ def main():
             "username": "admin",
             "full_name": "Admin User",
             "role": "super_admin",
-            "password": "Admin123!"
+            "password": settings.ADMIN_PASSWORD
         }
         
         user = create_user(db, user_data)
         print(f"Admin user created successfully!")
         print(f"Username: admin")
-        print(f"Password: Admin123!")
+        print("Password: (value of ADMIN_PASSWORD env var)")
         print(f"Email: admin@lims.com")
         print("\nPlease change the password after first login!")
         

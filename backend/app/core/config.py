@@ -6,7 +6,17 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
     
-    DATABASE_URL: str
+    DATABASE_URL: str = "sqlite:///./nyu_lims.db"
+
+    # Comma-separated list of allowed frontend origins
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
+
+    # Credentials come from environment variables (set them in the Render dashboard)
+    ADMIN_PASSWORD: str = "change-me-locally"
+    SYSTEM_PASSWORD: str = "change-me-locally"
+
+    # When true, an empty database is filled with demo data on startup
+    DEMO_SEED: bool = False
     
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
@@ -26,5 +36,9 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         extra = "ignore"  # This will ignore any extra fields in the environment
+
+    @property
+    def cors_origins_list(self) -> list:
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
 settings = Settings()

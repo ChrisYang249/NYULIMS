@@ -78,59 +78,6 @@ async def validate_password(
         )
     return {"valid": True}
 
-@router.post("/create-admin")
-async def create_admin_user(
-    db: Session = Depends(deps.get_db),
-) -> Any:
-    """Ensure admin user exists with permanent credentials (safe to call anytime)"""
-    try:
-        # Check if admin already exists
-        existing = crud_user.get_user_by_username(db, "admin")
-        
-        if existing:
-            # Update existing admin user to ensure correct credentials
-            existing.email = "admin@lims.com"
-            existing.full_name = "Admin User"
-            existing.role = "super_admin"
-            existing.is_active = True
-            existing.is_locked = False
-            existing.failed_login_attempts = 0
-            
-            # Update password to ensure it's correct
-            crud_user.update_user_password(db, existing, "Admin123!")
-            
-            db.commit()
-            db.refresh(existing)
-            
-            return {
-                "message": "Admin user updated successfully",
-                "username": existing.username,
-                "email": existing.email,
-                "role": existing.role
-            }
-        else:
-            # Create new admin user
-            user_data = {
-                "email": "admin@lims.com",
-                "username": "admin",
-                "full_name": "Admin User",
-                "role": "super_admin",
-                "password": "Admin123!"
-            }
-            
-            user = crud_user.create_user(db, user_data)
-            return {
-                "message": "Admin user created successfully",
-                "username": user.username,
-                "email": user.email,
-                "role": user.role
-            }
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error ensuring admin user: {str(e)}",
-        )
-
 @router.post("/change-password")
 async def change_password(
     password_data: PasswordChange,
@@ -170,40 +117,9 @@ async def change_password(
         )
 
 @router.get("/health")
-async def health_check(
-    db: Session = Depends(deps.get_db),
-) -> Any:
-    """Health check endpoint that also ensures admin user exists"""
-    try:
-        # Check if admin user exists, create if not
-        admin_user = crud_user.get_user_by_username(db, "admin")
-        if not admin_user:
-            # Create admin user
-            user_data = {
-                "email": "admin@lims.com",
-                "username": "admin",
-                "full_name": "Admin User",
-                "role": "super_admin",
-                "password": "Admin123!"
-            }
-            crud_user.create_user(db, user_data)
-            admin_created = True
-        else:
-            admin_created = False
-        
-        return {
-            "status": "healthy",
-            "admin_user_exists": True,
-            "admin_created": admin_created,
-            "admin_username": "admin",
-            "message": "LIMS system is running and admin access is guaranteed"
-        }
-    except Exception as e:
-        return {
-            "status": "unhealthy",
-            "error": str(e),
-            "admin_user_exists": False
-        }
+async def health_check() -> Any:
+    """Health check (no side effects)"""
+    return {"status": "healthy"}
 
 @router.post("/simple-login")
 async def simple_login(
@@ -218,7 +134,7 @@ async def simple_login(
         if not system_password:
             # Create system password if it doesn't exist
             from app.core.security import get_password_hash
-            hashed_password = get_password_hash("Admin123!")
+            hashed_password = get_password_hash(settings.SYSTEM_PASSWORD)
             system_password = SystemPassword(password_hash=hashed_password)
             db.add(system_password)
             db.commit()
@@ -241,7 +157,7 @@ async def simple_login(
                 "username": "admin",
                 "full_name": "Admin User",
                 "role": "super_admin",
-                "password": "Admin123!"
+                "password": settings.ADMIN_PASSWORD
             }
             admin_user = crud_user.create_user(db, user_data)
         
@@ -262,6 +178,8 @@ async def simple_login(
                 "role": admin_user.role
             }
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -24,6 +24,9 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Database initialization warning: {e}")
         logger.info("Continuing with existing database schema...")
+    from app.startup import ensure_admin_and_system_password, seed_demo_data
+    ensure_admin_and_system_password()
+    seed_demo_data()
     yield
     # Shutdown
     logger.info("Shutting down...")
@@ -37,12 +40,7 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000", 
-        "http://localhost:5173",  # React dev servers
-        "https://nyulims.vercel.app",  # Vercel frontend
-        "https://*.vercel.app"  # Any Vercel subdomain
-    ],
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -73,40 +71,5 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint that ensures admin user exists"""
-    from app.db.base import SessionLocal
-    from app.crud import user as crud_user
-    
-    try:
-        db = SessionLocal()
-        # Check if admin user exists, create if not
-        admin_user = crud_user.get_user_by_username(db, "admin")
-        if not admin_user:
-            # Create admin user
-            user_data = {
-                "email": "admin@lims.com",
-                "username": "admin",
-                "full_name": "Admin User",
-                "role": "super_admin",
-                "password": "Admin123!"
-            }
-            crud_user.create_user(db, user_data)
-            admin_created = True
-        else:
-            admin_created = False
-        
-        db.close()
-        
-        return {
-            "status": "healthy",
-            "admin_user_exists": True,
-            "admin_created": admin_created,
-            "admin_username": "admin",
-            "message": "LIMS system is running and admin access is guaranteed"
-        }
-    except Exception as e:
-        return {
-            "status": "unhealthy",
-            "error": str(e),
-            "admin_user_exists": False
-        }
+    """Lightweight health check used by Render"""
+    return {"status": "healthy"}

@@ -24,15 +24,16 @@ const DeletionLogs = () => {
   const [logs, setLogs] = useState<DeletionLog[]>([]);
   const [loading, setLoading] = useState(false);
   const [entityTypeFilter, setEntityTypeFilter] = useState<string | undefined>(undefined);
-  const { canPerform } = usePermissions();
+  const { canPerform, userRole } = usePermissions();
   const navigate = useNavigate();
 
   // Check permissions
   useEffect(() => {
-    if (!canPerform('viewDeletionLogs')) {
+    // Wait until the user profile has loaded before checking permissions
+    if (userRole && !canPerform('viewDeletionLogs')) {
       navigate('/');
     }
-  }, [canPerform, navigate]);
+  }, [canPerform, navigate, userRole]);
 
   const fetchLogs = async (entityType?: string) => {
     setLoading(true);

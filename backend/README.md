@@ -44,7 +44,7 @@ user_data = {
     "username": "admin",
     "full_name": "Admin User",
     "role": "super_admin",
-    "password": "Admin123!"
+    "password": "<ADMIN_PASSWORD from your environment>"
 }
 create_user(db, user_data)
 ```

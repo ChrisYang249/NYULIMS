@@ -7,6 +7,7 @@ const Login = () => {
   const navigate = useNavigate();
   const { login } = useAuthStore();
   const [form] = Form.useForm();
+  const demoPassword = import.meta.env.VITE_DEMO_PASSWORD as string | undefined;
 
   const onFinish = async (values: { password: string }) => {
     try {
@@ -51,6 +52,12 @@ const Login = () => {
             </Button>
           </Form.Item>
         </Form>
+        {demoPassword && (
+          <div style={{ marginTop: 8, padding: 12, background: '#f6f0ff', borderRadius: 6, fontSize: 13 }}>
+            <strong>Demo access:</strong> this is a portfolio demo with sample data.
+            Use password <code>{demoPassword}</code>. Data resets on each deploy.
+          </div>
+        )}
       </Card>
     </div>
   );
